@@ -3,11 +3,11 @@ import helmet from '@fastify/helmet';
 import { config } from 'dotenv';
 import fastify from 'fastify';
 
+import { startCronJobs } from './lib/cron.js';
 import { checkDatabaseHealth, disconnectDatabase } from './lib/db.js';
 import { logger } from './lib/logger.js';
 import { checkRedisHealth, disconnectRedis } from './lib/redis.js';
 import { initTracing, shutdownTracing } from './lib/tracing.js';
-import { startCronJobs } from './lib/cron.js';
 import { registerRateLimiting } from './middleware/rate-limit.middleware.js';
 import { adminRoutes } from './routes/admin.routes.js';
 import { endpointsRoutes } from './routes/endpoints.routes.js';
@@ -18,7 +18,49 @@ import { userRoutes } from './routes/user.routes.js';
 
 config();
 
-const PORT = Number(process.env.PORT) || 3000;
+/**
+ * Validate environment variables at startup (fail fast).
+ * This prevents insecure defaults in production.
+ */
+function validateEnvironment() {
+  const required = [
+    'JWT_SECRET',
+    'JWT_EXPIRES_IN',
+    'DATABASE_URL',
+    'DIRECT_DATABASE_URL',
+    'REDIS_HOST',
+    'REDIS_PORT',
+    'PORT',
+    'HOST',
+  ];
+
+  const missing = required.filter((key) => !process.env[key]);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(', ')}\n` +
+        'Please check your .env file',
+    );
+  }
+
+  // Validate JWT secret strength
+  if ((process.env.JWT_SECRET || '').length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters for security');
+  }
+
+  // Validate numeric env vars
+  if (isNaN(Number(process.env.PORT))) {
+    throw new Error('PORT must be a valid number');
+  }
+
+  if (isNaN(Number(process.env.REDIS_PORT))) {
+    throw new Error('REDIS_PORT must be a valid number');
+  }
+
+  logger.info('✅ Environment validation passed');
+}
+
+const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 
 async function buildApp() {
@@ -29,22 +71,21 @@ async function buildApp() {
     disableRequestLogging: true,
   });
 
-  // ✅ FIXED: All plugins with proper {} opts
+  // Security + CORS
   await app.register(helmet, {});
-  await app.register(cors, { 
+  await app.register(cors, {
     origin: process.env.CORS_ORIGIN?.split(',') || '*',
-    credentials: true 
+    credentials: true,
   });
+
   await registerRateLimiting(app);
 
-  // Health checks - all using request for no warnings
-  app.get('/healthz', async function(request, reply) {
-    _ = request;
+  // Health checks
+  app.get('/healthz', async function (_request, reply) {
     return reply.send({ status: 'ok', uptime: process.uptime() });
   });
 
-  app.get('/health', async function(request, reply) {
-    _ = request;
+  app.get('/health', async function (_request, reply) {
     try {
       await checkDatabaseHealth();
       await checkRedisHealth();
@@ -63,30 +104,37 @@ async function buildApp() {
     }
   });
 
-  app.get('/healthz/live', async function(request, reply) {
-    _ = request;
+  app.get('/healthz/live', async function (_request, reply) {
     return reply.send({ status: 'ok', uptime: process.uptime() });
   });
 
-  app.get('/healthz/ready', async function(request, reply) {
-    _ = request;
+  app.get('/healthz/ready', async function (_request, reply) {
     try {
       const dbHealthy = await checkDatabaseHealth();
       const redisHealthy = await checkRedisHealth();
+
       if (dbHealthy && redisHealthy) {
         return reply.send({ status: 'ready' });
       }
+
       return reply.status(503).send({
         status: 'not ready',
         checks: { database: dbHealthy, redis: redisHealthy },
       });
-    } catch (err: unknown) {
-      return reply.status(503).send({ status: 'not ready', error: 'Health check failed' });
+    } catch (_err: unknown) {
+      return reply.status(503).send({
+        status: 'not ready',
+        error: 'Health check failed',
+      });
     }
   });
 
-  app.get('/metrics', async function(request, reply) {
-    _ = request;
+  /**
+   * NOTE:
+   * This /metrics endpoint currently returns basic runtime stats.
+   * (Prometheus format can be added later using prom-client)
+   */
+  app.get('/metrics', async function (_request, reply) {
     return reply.status(200).send({
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
@@ -95,7 +143,7 @@ async function buildApp() {
   });
 
   // Logging hooks
-  app.addHook('onRequest', async function(request) {
+  app.addHook('onRequest', async function (request) {
     logger.info('Incoming request', {
       method: request.method,
       url: request.url,
@@ -104,7 +152,7 @@ async function buildApp() {
     });
   });
 
-  app.addHook('onResponse', async function(request, reply) {
+  app.addHook('onResponse', async function (request, reply) {
     logger.info('Request completed', {
       method: request.method,
       url: request.url,
@@ -125,6 +173,7 @@ async function buildApp() {
   // Error handler
   app.setErrorHandler((error: unknown, request, reply) => {
     const err = error as Error;
+
     logger.error('Unhandled error', {
       message: err.message,
       stack: err.stack || 'No stack',
@@ -134,6 +183,7 @@ async function buildApp() {
     });
 
     const isDev = process.env.NODE_ENV === 'development';
+
     return reply.status(500).send({
       success: false,
       error: {
@@ -161,9 +211,11 @@ async function buildApp() {
 
 async function start() {
   try {
+    validateEnvironment(); // ✅ Critical: validate env before starting anything
+
     await initTracing();
     const app = await buildApp();
-    
+
     await app.listen({ port: PORT, host: HOST });
     logger.info(`Server listening on http://${HOST}:${PORT}`);
 
@@ -181,7 +233,7 @@ async function start() {
 
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
-    
+
     process.on('uncaughtException', (err: unknown) => {
       logger.error('Uncaught Exception', err as Error);
       process.exit(1);
@@ -200,5 +252,3 @@ async function start() {
 start();
 
 export { buildApp, start };
-
-declare const _: any; // Silence unused param warnings
