@@ -1,0 +1,107 @@
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: MockUrl-app
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      LOG_LEVEL: info
+      DATABASE_URL: "postgresql://MockUrl:MockUrl_pass@pgbouncer:5432/MockUrl?schema=public&pgbouncer=true&connection_limit=1"
+      DIRECT_DATABASE_URL: "postgresql://MockUrl:MockUrl_pass@postgres:5432/MockUrl?schema=public"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 7d
+      RATE_LIMIT_MAX: 100
+      RATE_LIMIT_WINDOW: 60000
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      API_VERSION: v1
+      BASE_ENDPOINT_URL: ${BASE_ENDPOINT_URL:-http://localhost:3000/e}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - MockUrl-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:14-alpine
+    container_name: MockUrl-postgres
+    environment:
+      POSTGRES_USER: MockUrl
+      POSTGRES_PASSWORD: MockUrl_pass
+      POSTGRES_DB: MockUrl
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U MockUrl"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - MockUrl-network
+
+  pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    container_name: MockUrl-pgbouncer
+    environment:
+      DATABASE_URL: "postgres://MockUrl:MockUrl_pass@postgres:5432/MockUrl"
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 20
+      MIN_POOL_SIZE: 5
+      RESERVE_POOL_SIZE: 5
+      RESERVE_POOL_TIMEOUT: 5
+      SERVER_LIFETIME: 3600
+      SERVER_IDLE_TIMEOUT: 600
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - MockUrl-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: MockUrl-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - MockUrl-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  MockUrl-network:
+    driver: bridge

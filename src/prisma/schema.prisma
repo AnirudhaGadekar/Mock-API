@@ -1,0 +1,63 @@
+// MockUrl clone - Prisma schema (Piece 1 spec)
+// PgBouncer: use DATABASE_URL with ?pgbouncer=true&connection_limit=1
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(uuid()) @db.Uuid
+  email     String     @unique
+  apiKey    String     @unique @db.VarChar(64)
+  endpoints Endpoint[]
+
+  @@map("users")
+}
+
+model Endpoint {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String       @db.Uuid
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String       @unique
+  rules        Json?        @default("[]")
+  settings     Json?        @default("{}")
+  requestCount Int          @default(0)
+  deletedAt    DateTime?
+  createdAt    DateTime     @default(now())
+  requestLogs  RequestLog[]
+
+  @@index([userId])
+  @@index([name])
+  @@index([deletedAt])
+  @@map("endpoints")
+}
+
+model RequestLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  endpointId      String   @db.Uuid
+  endpoint        Endpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  timestamp       DateTime @default(now())
+  method          String
+  path            String
+  query           Json?
+  headers         Json?
+  body            String?
+  ip              String?
+  userAgent       String?
+  responseStatus  Int?
+  responseHeaders Json?
+  responseBody    String?
+  latencyMs       Int?
+
+  @@index([endpointId, timestamp(sort: Desc)])
+  @@index([endpointId])
+  @@index([path])
+  @@index([timestamp])
+  @@map("request_logs")
+}
