@@ -4,6 +4,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
+import { events } from '../lib/events.js';
+import { recordHttpRequest } from '../lib/metrics.js';
 
 const BODY_TRUNCATE = 1024 * 1024; // 1MB
 const SANITIZE_HEADERS = ['authorization', 'x-api-key', 'cookie'];
@@ -58,12 +60,37 @@ export function captureRequestLog(
         userAgent: request.headers['user-agent'] ?? null,
         responseStatus,
         responseHeaders: responseHeaders as object,
-        responseBody: responseBody.length > BODY_TRUNCATE ? responseBody.slice(0, BODY_TRUNCATE) + '...[truncated]' : responseBody,
+        responseBody:
+          responseBody.length > BODY_TRUNCATE
+            ? responseBody.slice(0, BODY_TRUNCATE) + '...[truncated]'
+            : responseBody,
         latencyMs,
       },
     })
-    .then(() => {
+    .then((log) => {
       logger.debug({ endpointId, latency: Date.now() - start }, 'RequestLog inserted');
+
+      // Emit internal event for analytics / websockets
+      try {
+        events.emit('requestLogged', {
+          id: log.id,
+          endpointId: log.endpointId,
+          method: log.method,
+          path: log.path,
+          status: log.responseStatus ?? responseStatus,
+          timestamp: log.timestamp,
+          latencyMs: log.latencyMs ?? latencyMs,
+        });
+      } catch {
+        // Swallow event errors – never block request path
+      }
+
+      // Update Prometheus metrics (fire-and-forget)
+      void recordHttpRequest({
+        method: request.method,
+        statusCode: responseStatus,
+        endpointId,
+      });
     })
     .catch((err) => {
       logger.error({ err, endpointId }, 'RequestLog insert failed');

@@ -1,25 +1,25 @@
 import { trace } from '@opentelemetry/api';
 import { FastifyPluginAsync } from 'fastify';
-import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
+import { prisma } from '../lib/prisma.js';
 import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.middleware.js';
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
 import {
-  cacheEndpointDetail,
-  cacheEndpointList,
-  getCachedEndpointDetail,
-  getCachedEndpointList,
-  hashQueryParams,
-  invalidateEndpointCache,
-  invalidateUserEndpointCache,
-  publishEndpointEvent,
+    cacheEndpointDetail,
+    cacheEndpointList,
+    getCachedEndpointDetail,
+    getCachedEndpointList,
+    hashQueryParams,
+    invalidateEndpointCache,
+    invalidateUserEndpointCache,
+    publishEndpointEvent,
 } from '../utils/endpoint.cache.js';
 import {
-  createEndpointSchema,
-  DEFAULT_MOCK_RULES,
-  listEndpointsQuerySchema,
-  type CreateEndpointInput,
-  type ListEndpointsQuery,
+    createEndpointSchema,
+    DEFAULT_MOCK_RULES,
+    listEndpointsQuerySchema,
+    type CreateEndpointInput,
+    type ListEndpointsQuery,
 } from '../validators/endpoint.validator.js';
 
 const tracer = trace.getTracer('endpoints-api');
@@ -86,7 +86,7 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, opts) => {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            data: { type: 'object' },
+            endpoint: { type: 'object' },
             timestamp: { type: 'string' },
           },
         },
@@ -135,7 +135,7 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, opts) => {
               });
             }
             const existing = await tx.endpoint.findFirst({
-              where: { name, deletedAt: null },
+              where: { name, userId: user.id, deletedAt: null },
             });
             if (existing) throw new ConflictError(`Endpoint with name "${name}" already exists`);
             return tx.endpoint.create({

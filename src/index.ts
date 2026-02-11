@@ -8,13 +8,15 @@ import { checkDatabaseHealth, disconnectDatabase } from './lib/db.js';
 import { logger } from './lib/logger.js';
 import { checkRedisHealth, disconnectRedis } from './lib/redis.js';
 import { initTracing, shutdownTracing } from './lib/tracing.js';
+import { metricsRegistry } from './lib/metrics.js';
 import { registerRateLimiting } from './middleware/rate-limit.middleware.js';
 import { adminRoutes } from './routes/admin.routes.js';
-import { endpointsRoutes } from './routes/endpoints.routes.js';
+import { endpointsRoutes } from "./routes/endpoints.routes.js";
 import { historyRoutes } from './routes/history.routes.js';
 import { mockRouterPlugin } from './routes/mock.router.js';
 import { stateRoutes } from './routes/state.routes.js';
 import { userRoutes } from './routes/user.routes.js';
+
 
 config();
 
@@ -78,7 +80,7 @@ async function buildApp() {
     credentials: true,
   });
 
-  await registerRateLimiting(app);
+  await registerRateLimiting(app, {});
 
   // Health checks
   app.get('/healthz', async function (_request, reply) {
@@ -129,17 +131,12 @@ async function buildApp() {
     }
   });
 
-  /**
-   * NOTE:
-   * This /metrics endpoint currently returns basic runtime stats.
-   * (Prometheus format can be added later using prom-client)
-   */
   app.get('/metrics', async function (_request, reply) {
-    return reply.status(200).send({
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-    });
+    const metrics = await metricsRegistry.metrics();
+    reply
+      .header('Content-Type', metricsRegistry.contentType)
+      .status(200)
+      .send(metrics);
   });
 
   // Logging hooks

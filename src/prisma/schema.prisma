@@ -24,7 +24,7 @@ model Endpoint {
   id           String       @id @default(uuid()) @db.Uuid
   userId       String       @db.Uuid
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name         String       @unique
+  name         String
   rules        Json?        @default("[]")
   settings     Json?        @default("{}")
   requestCount Int          @default(0)
@@ -35,6 +35,7 @@ model Endpoint {
   @@index([userId])
   @@index([name])
   @@index([deletedAt])
+  @@unique([name, userId])
   @@map("endpoints")
 }
 
