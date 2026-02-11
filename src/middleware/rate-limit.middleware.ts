@@ -9,8 +9,16 @@ import { logger } from '../lib/logger';
 class RedisRateLimitStore {
   private prefix: string;
 
-  constructor(prefix: string = 'ratelimit') {
-    this.prefix = prefix;
+  /**
+   * fastify-rate-limit calls `new Store(opts)`, so we accept the full
+   * options object and derive a prefix from it (falling back to "ratelimit").
+   */
+  constructor(opts?: { nameSpace?: string } | string) {
+    if (typeof opts === 'string') {
+      this.prefix = opts;
+    } else {
+      this.prefix = (opts && opts.nameSpace) || 'ratelimit';
+    }
   }
 
   private getKey(routeKey: string, identifier: string): string {
@@ -160,15 +168,13 @@ export const rateLimitConfig = {
  * Fastify rate limit plugin registration
  */
 export const registerRateLimiting: FastifyPluginAsync = async (fastify, opts) => {
-  const redisStore = new RedisRateLimitStore('ratelimit');
-
   // Register global rate limit (general API protection)
   await fastify.register(rateLimit, {
     global: false, // We'll apply per-route
     redis, // Use our Redis instance
     nameSpace: 'ratelimit:', // Prefix for Redis keys
     ...rateLimitConfig.generalApi,
-    store: redisStore,
+    store: RedisRateLimitStore,
     addHeaders: {
       'x-ratelimit-limit': true,
       'x-ratelimit-remaining': true,
@@ -192,7 +198,8 @@ export async function createEndpointRateLimiter(fastify: any) {
   return fastify.register(rateLimit, {
     ...rateLimitConfig.endpointCreate,
     redis,
-    store: new RedisRateLimitStore('ratelimit'),
+    nameSpace: 'ratelimit:',
+    store: RedisRateLimitStore,
   });
 }
 
@@ -200,7 +207,8 @@ export async function endpointRequestRateLimiter(fastify: any) {
   return fastify.register(rateLimit, {
     ...rateLimitConfig.endpointRequests,
     redis,
-    store: new RedisRateLimitStore('ratelimit'),
+    nameSpace: 'ratelimit:',
+    store: RedisRateLimitStore,
   });
 }
 
