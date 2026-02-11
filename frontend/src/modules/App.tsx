@@ -4,8 +4,6 @@ import { Activity, Network, Server, Trash2, Link2, RefreshCw } from 'lucide-reac
 import axios from 'axios';
 import clsx from 'clsx';
 
-import '../style.css';
-
 type EndpointSummary = {
   id: string;
   name: string;
@@ -72,6 +70,7 @@ export const App: React.FC = () => {
   const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyFilter, setHistoryFilter] = useState('');
   const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null);
   const [loadingAdmin, setLoadingAdmin] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -81,6 +80,17 @@ export const App: React.FC = () => {
     () => endpoints.find((e) => e.id === selectedEndpointId) ?? null,
     [endpoints, selectedEndpointId],
   );
+
+  const filteredHistory = useMemo(() => {
+    if (!historyFilter.trim()) return history;
+    const q = historyFilter.trim().toLowerCase();
+    return history.filter(
+      (h) =>
+        h.path.toLowerCase().includes(q) ||
+        h.method.toLowerCase().includes(q) ||
+        new Date(h.timestamp).toLocaleString().toLowerCase().includes(q),
+    );
+  }, [history, historyFilter]);
 
   async function loadEndpoints() {
     if (!apiKey) return;
@@ -139,6 +149,22 @@ export const App: React.FC = () => {
     void loadEndpoints();
     void loadAdminOverview();
   }, [apiKey]);
+
+  // Lightweight polling for history when an endpoint is selected (dev-friendly live view)
+  useEffect(() => {
+    if (!selectedEndpointId || !apiKey) return;
+    // initial fetch
+    void loadHistory(selectedEndpointId);
+
+    const id = window.setInterval(() => {
+      void loadHistory(selectedEndpointId);
+    }, 5000);
+
+    return () => {
+      window.clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEndpointId, apiKey]);
 
   async function handleCreateEndpoint(e: React.FormEvent) {
     e.preventDefault();
@@ -398,9 +424,17 @@ export const App: React.FC = () => {
                     <Activity className="h-4 w-4 text-emerald-400" />
                     Request history (latest 50)
                   </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="w-40 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100 outline-none ring-emerald-500/30 placeholder:text-slate-500 focus:border-emerald-500 focus:ring-2"
+                    placeholder="Filter by path/method…"
+                    value={historyFilter}
+                    onChange={(e) => setHistoryFilter(e.target.value)}
+                  />
                   {loadingHistory && (
                     <span className="text-[10px] text-slate-500">Loading…</span>
                   )}
+                </div>
                 </div>
                 <div className="h-64 overflow-x-auto">
                   <table className="min-w-full border-separate border-spacing-y-1 text-[11px]">
@@ -415,7 +449,7 @@ export const App: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {history.length === 0 && (
+                      {filteredHistory.length === 0 && !loadingHistory && (
                         <tr>
                           <td
                             colSpan={6}
@@ -425,7 +459,7 @@ export const App: React.FC = () => {
                           </td>
                         </tr>
                       )}
-                      {history.map((h) => (
+                      {filteredHistory.map((h) => (
                         <tr
                           key={h.id}
                           className="rounded-md bg-slate-900/60 text-slate-100 hover:bg-slate-800/80"
