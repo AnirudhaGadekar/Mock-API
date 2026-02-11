@@ -1,4 +1,3 @@
-import cors from '@fastify/cors';
 import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../lib/db.js';
@@ -335,13 +334,6 @@ function generateDefaultResponse(endpoint: { id: string; name: string; rules: un
  * Handles all requests to mock endpoints (subdomain routing)
  */
 export const mockRouterPlugin: FastifyPluginAsync = async (fastify, opts) => {
-  // Register CORS for all mock endpoints
-  await fastify.register(cors, {
-    origin: true, // Allow all origins for mock endpoints
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
-  });
-
   /**
    * PreHandler: Extract subdomain and load endpoint
    */
@@ -368,8 +360,8 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, opts) => {
         // Fetch endpoint (with caching)
         const endpoint = await fetchEndpointBySubdomain(subdomain);
 
-        // Rate limit per endpoint (1000 req/min)
-        const rateLimit = await checkRateLimit(`endpoint:${endpoint.id}`, 1000, 60);
+        // Rate limit per endpoint/IP (100 req/min free tier)
+        const rateLimit = await checkRateLimit(`endpoint:${endpoint.id}:${request.ip}`, 100, 60);
         
         if (!rateLimit.allowed) {
           span.setAttribute('rate_limited', true);
