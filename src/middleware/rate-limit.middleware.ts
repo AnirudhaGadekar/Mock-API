@@ -1,7 +1,7 @@
-import { FastifyPluginAsync } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
-import { redis } from '../lib/redis';
+import { FastifyPluginAsync } from 'fastify';
 import { logger } from '../lib/logger';
+import { redis } from '../lib/redis';
 
 /**
  * Redis-backed rate limit store for distributed systems
@@ -28,14 +28,14 @@ class RedisRateLimitStore {
   async incr(key: string, callback: (err: Error | null, result?: { current: number; ttl: number }) => void): Promise<void> {
     try {
       const redisKey = this.getKey('default', key);
-      
+
       // Use Redis pipeline for atomic operations
       const pipeline = redis.pipeline();
       pipeline.incr(redisKey);
       pipeline.ttl(redisKey);
-      
+
       const results = await pipeline.exec();
-      
+
       if (!results) {
         throw new Error('Redis pipeline returned null');
       }
@@ -53,25 +53,26 @@ class RedisRateLimitStore {
 
       callback(null, { current, ttl: ttl > 0 ? ttl : 60 });
     } catch (error) {
-      logger.error({ error, key }, 'Rate limit store error');
+      logger.error('Rate limit store error', { error, key });
       callback(error as Error);
     }
   }
 
-  async child(routeOptions: { routeInfo: { method: string; url: string } }): Promise<any> {
-    const routeKey = `${routeOptions.routeInfo.method}:${routeOptions.routeInfo.url}`;
-    
+  async child(routeOptions: any): Promise<any> {
+    const routeInfo = routeOptions?.routeInfo || { method: 'unknown', url: 'unknown' };
+    const routeKey = `${routeInfo.method}:${routeInfo.url}`;
+
     return {
       incr: async (key: string, callback: (err: Error | null, result?: { current: number; ttl: number }) => void) => {
         try {
           const redisKey = this.getKey(routeKey, key);
-          
+
           const pipeline = redis.pipeline();
           pipeline.incr(redisKey);
           pipeline.ttl(redisKey);
-          
+
           const results = await pipeline.exec();
-          
+
           if (!results) {
             throw new Error('Redis pipeline returned null');
           }
@@ -88,7 +89,7 @@ class RedisRateLimitStore {
 
           callback(null, { current, ttl: ttl > 0 ? ttl : 60 });
         } catch (error) {
-          logger.error({ error, key, routeKey }, 'Rate limit child store error');
+          logger.error('Rate limit child store error', { error, key, routeKey });
           callback(error as Error);
         }
       },
@@ -108,7 +109,7 @@ export const rateLimitConfig = {
       const user = req.user;
       return user ? `user:${user.id}` : req.ip;
     },
-    errorResponseBuilder: (req: any, context: any) => {
+    errorResponseBuilder: (_req: any, context: any) => {
       return {
         success: false,
         error: {
@@ -127,7 +128,7 @@ export const rateLimitConfig = {
     max: 500,
     timeWindow: '1 hour',
     keyGenerator: (req: any) => req.ip,
-    errorResponseBuilder: (req: any, context: any) => {
+    errorResponseBuilder: (_req: any, context: any) => {
       return {
         success: false,
         error: {
@@ -149,7 +150,7 @@ export const rateLimitConfig = {
       const endpoint = req.endpoint;
       return endpoint ? `endpoint:${endpoint.id}` : req.ip;
     },
-    errorResponseBuilder: (req: any, context: any) => {
+    errorResponseBuilder: (_req: any, context: any) => {
       return {
         success: false,
         error: {
@@ -167,14 +168,14 @@ export const rateLimitConfig = {
 /**
  * Fastify rate limit plugin registration
  */
-export const registerRateLimiting: FastifyPluginAsync = async (fastify, opts) => {
+export const registerRateLimiting: FastifyPluginAsync = async (fastify, _opts) => {
   // Register global rate limit (general API protection)
   await fastify.register(rateLimit, {
     global: false, // We'll apply per-route
     redis, // Use our Redis instance
     nameSpace: 'ratelimit:', // Prefix for Redis keys
     ...rateLimitConfig.generalApi,
-    store: RedisRateLimitStore,
+    store: RedisRateLimitStore as any,
     addHeaders: {
       'x-ratelimit-limit': true,
       'x-ratelimit-remaining': true,
@@ -199,7 +200,7 @@ export async function createEndpointRateLimiter(fastify: any) {
     ...rateLimitConfig.endpointCreate,
     redis,
     nameSpace: 'ratelimit:',
-    store: RedisRateLimitStore,
+    store: RedisRateLimitStore as any,
   });
 }
 
@@ -208,7 +209,7 @@ export async function endpointRequestRateLimiter(fastify: any) {
     ...rateLimitConfig.endpointRequests,
     redis,
     nameSpace: 'ratelimit:',
-    store: RedisRateLimitStore,
+    store: RedisRateLimitStore as any,
   });
 }
 
@@ -222,13 +223,13 @@ export async function checkRateLimit(
 ): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
   try {
     const redisKey = `ratelimit:custom:${key}`;
-    
+
     const pipeline = redis.pipeline();
     pipeline.incr(redisKey);
     pipeline.ttl(redisKey);
-    
+
     const results = await pipeline.exec();
-    
+
     if (!results) {
       throw new Error('Redis pipeline returned null');
     }
@@ -250,7 +251,7 @@ export async function checkRateLimit(
 
     return { allowed, remaining, resetAt };
   } catch (error) {
-    logger.error({ error, key }, 'Rate limit check failed');
+    logger.error('Rate limit check failed', { error, key });
     // Fail open on errors (allow request)
     return { allowed: true, remaining: max, resetAt: new Date(Date.now() + windowSeconds * 1000) };
   }

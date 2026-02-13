@@ -3,18 +3,26 @@ import helmet from '@fastify/helmet';
 import { config } from 'dotenv';
 import fastify from 'fastify';
 
+import { websocketPlugin } from './engine/websocket.js';
 import { startCronJobs } from './lib/cron.js';
 import { checkDatabaseHealth, disconnectDatabase } from './lib/db.js';
 import { logger } from './lib/logger.js';
-import { checkRedisHealth, disconnectRedis } from './lib/redis.js';
-import { initTracing, shutdownTracing } from './lib/tracing.js';
 import { metricsRegistry } from './lib/metrics.js';
+import { checkRedisHealth, disconnectRedis } from './lib/redis.js';
+import { registerSwagger } from './lib/swagger.js';
+import { initTracing, shutdownTracing } from './lib/tracing.js';
 import { registerRateLimiting } from './middleware/rate-limit.middleware.js';
+import { tunnelProxyPlugin } from './middleware/tunnel-proxy.js';
 import { adminRoutes } from './routes/admin.routes.js';
+import { chaosRoutes } from './routes/chaos.routes.js';
 import { endpointsRoutes } from "./routes/endpoints.routes.js";
 import { historyRoutes } from './routes/history.routes.js';
 import { mockRouterPlugin } from './routes/mock.router.js';
+import { oasRoutes } from './routes/oas.routes.js';
+import { sessionRoutes } from './routes/session.routes.js';
 import { stateRoutes } from './routes/state.routes.js';
+import { storeRoutes } from './routes/store.routes.js';
+import { tunnelRoutes } from './routes/tunnel.routes.js';
 import { userRoutes } from './routes/user.routes.js';
 
 
@@ -41,7 +49,7 @@ function validateEnvironment() {
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variables: ${missing.join(', ')}\n` +
-        'Please check your .env file',
+      'Please check your .env file',
     );
   }
 
@@ -73,10 +81,29 @@ async function buildApp() {
     disableRequestLogging: true,
   });
 
+
   // Security + CORS
   await app.register(helmet, {});
   await app.register(cors, {
-    origin: process.env.CORS_ORIGIN?.split(',') || '*',
+    origin: (origin, cb) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return cb(null, true);
+
+      const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [];
+
+      // If CORS_ORIGIN is not set or contains '*', we allow all (Reflect Origin)
+      // This is safe for development/mocks but should be restricted in prod if possible.
+      // However, for a mock tool, we usually want to allow anyone to call it.
+      if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
+        return cb(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return cb(null, true);
+      }
+
+      return cb(new Error('Not allowed by CORS'), false);
+    },
     credentials: true,
   });
 
@@ -159,12 +186,25 @@ async function buildApp() {
     });
   });
 
-  // API routes
+  // WebSocket plugin (must be before routes)
+  await app.register(websocketPlugin);
+
+  // Swagger Documentation
+  await registerSwagger(app);
+
+  // API routes (session is unauthenticated — must be first)
+  await app.register(sessionRoutes, { prefix: '/api/v1/session' });
+
   await app.register(endpointsRoutes, { prefix: '/api/v1/endpoints' });
   await app.register(historyRoutes, { prefix: '/api/v1/history' });
   await app.register(adminRoutes, { prefix: '/api/v1/admin' });
   await app.register(userRoutes, { prefix: '/api/v1/user' });
   await app.register(stateRoutes, { prefix: '/api/v1/state' });
+  await app.register(storeRoutes, { prefix: '/api/v1/store' });
+  await app.register(chaosRoutes, { prefix: '/api/v1/chaos' });
+  await app.register(oasRoutes, { prefix: '/api/v1' });
+  await app.register(tunnelRoutes, { prefix: '/api/v1/tunnel' });
+  await app.register(tunnelProxyPlugin);
   await app.register(mockRouterPlugin);
 
   // Error handler
@@ -249,3 +289,4 @@ async function start() {
 start();
 
 export { buildApp, start };
+

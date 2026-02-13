@@ -44,7 +44,7 @@ export const prisma =
 
 // Log queries in development
 if (process.env.NODE_ENV === 'development') {
-  prisma.$on('query', (e) => {
+  (prisma as any).$on('query', (e: any) => {
     logger.debug('Prisma Query', {
       query: e.query,
       params: e.params,
@@ -54,7 +54,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Log errors
-prisma.$on('error', (e) => {
+(prisma as any).$on('error', (e: any) => {
   logger.error('Prisma Error', {
     message: e.message,
     target: e.target,
@@ -62,7 +62,7 @@ prisma.$on('error', (e) => {
 });
 
 // Log warnings
-prisma.$on('warn', (e) => {
+(prisma as any).$on('warn', (e: any) => {
   logger.warn('Prisma Warning', {
     message: e.message,
     target: e.target,

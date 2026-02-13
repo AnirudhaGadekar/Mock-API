@@ -67,11 +67,11 @@ export async function getState(endpointId: string, key: string): Promise<unknown
     try {
       return JSON.parse(value);
     } catch (parseError) {
-      logger.error({ parseError, endpointId, key }, 'Failed to parse state value — returning null');
+      logger.error('Failed to parse state value — returning null', { parseError, endpointId, key });
       return null;
     }
   } catch (error) {
-    logger.error({ error, endpointId, key }, 'Failed to get state');
+    logger.error('Failed to get state', { error, endpointId, key });
     throw error;
   }
 }
@@ -89,7 +89,7 @@ export async function setState(endpointId: string, key: string, value: unknown):
     const stateKey = `state:${endpointId}:${key}`;
     await redis.setex(stateKey, STATE_TTL, JSON.stringify(value));
   } catch (error) {
-    logger.error({ error, endpointId, key }, 'Failed to set state');
+    logger.error('Failed to set state', { error, endpointId, key });
     throw error;
   }
 }
@@ -106,7 +106,7 @@ export async function deleteState(endpointId: string, key: string): Promise<void
     const stateKey = `state:${endpointId}:${key}`;
     await redis.del(stateKey);
   } catch (error) {
-    logger.error({ error, endpointId, key }, 'Failed to delete state');
+    logger.error('Failed to delete state', { error, endpointId, key });
     throw error;
   }
 }
@@ -124,7 +124,7 @@ export async function listStateKeys(endpointId: string): Promise<string[]> {
     const keys = await redis.keys(pattern);
     return keys.map((k) => k.replace(`state:${endpointId}:`, ''));
   } catch (error) {
-    logger.error({ error, endpointId }, 'Failed to list state keys');
+    logger.error('Failed to list state keys', { error, endpointId });
     throw error;
   }
 }

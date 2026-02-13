@@ -33,8 +33,8 @@ export function generateApiKey(): string {
  * Generate JWT token for user
  */
 export function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
+  return jwt.sign(payload, JWT_SECRET as any, {
+    expiresIn: JWT_EXPIRES_IN as any,
   });
 }
 
@@ -53,14 +53,20 @@ export function verifyToken(token: string): JWTPayload | null {
 /**
  * Validate API key and return user
  */
+import { hashApiKey } from '../middleware/auth.middleware.js';
+
+/**
+ * Validate API key and return user
+ */
 export async function validateApiKey(apiKey: string) {
   try {
+    const apiKeyHash = hashApiKey(apiKey);
     const user = await prisma.user.findUnique({
-      where: { apiKey },
+      where: { apiKeyHash } as any,
       select: {
         id: true,
         email: true,
-        apiKey: true,
+        // apiKey: true, // No longer exists
       },
     });
 

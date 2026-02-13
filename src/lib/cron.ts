@@ -1,10 +1,12 @@
 /**
  * Cron jobs for maintenance tasks
  */
+import { flushRequestCounts } from '../utils/endpoint.cache.js';
 import { prisma } from './db.js';
 import { logger } from './logger.js';
 
 const RETENTION_DAYS = 10;
+const FLUSH_INTERVAL_MS = 10000; // 10 seconds
 
 /**
  * Delete request logs older than retention period (10 days)
@@ -22,16 +24,17 @@ export async function cleanupOldLogs(): Promise<void> {
       },
     });
 
-    logger.info({ deletedCount: result.count, cutoffDate }, 'Cleaned up old request logs');
+    logger.info('Cleaned up old request logs', { deletedCount: result.count, cutoffDate });
   } catch (error) {
-    logger.error({ error }, 'Failed to cleanup old logs');
+    logger.error('Failed to cleanup old logs', { error });
   }
 }
 
 /**
- * Start cron jobs (runs cleanup daily at 2 AM)
+ * Start cron jobs
  */
 export function startCronJobs(): void {
+  // 1. Log Cleanup (Daily at 2 AM)
   const cleanupInterval = 24 * 60 * 60 * 1000; // 24 hours
   const initialDelay = getMillisecondsUntilNextRun(2, 0); // 2 AM
 
@@ -40,7 +43,18 @@ export function startCronJobs(): void {
     setInterval(cleanupOldLogs, cleanupInterval);
   }, initialDelay);
 
-  logger.info({ nextCleanup: new Date(Date.now() + initialDelay) }, 'Cron jobs started');
+  // 2. Request Count Flusher (Every 10 seconds)
+  // This is critical for preventing DB write locking
+  setInterval(() => {
+    flushRequestCounts(prisma).catch((err) => {
+      logger.error('Failed to run flushRequestCounts job', { err });
+    });
+  }, FLUSH_INTERVAL_MS);
+
+  logger.info('Cron jobs started', {
+    nextCleanup: new Date(Date.now() + initialDelay),
+    flushIntervalMs: FLUSH_INTERVAL_MS
+  });
 }
 
 /**

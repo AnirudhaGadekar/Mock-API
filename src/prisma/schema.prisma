@@ -12,11 +12,12 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(uuid()) @db.Uuid
-  email     String     @unique
-  apiKey    String     @unique @db.VarChar(64)
-  endpoints Endpoint[]
+  id         String     @id @default(uuid()) @db.Uuid
+  email      String     @unique
+  apiKeyHash String     @unique @map("api_key") @db.VarChar(64) // SHA-256 hash
+  endpoints  Endpoint[]
 
+  @@index([apiKeyHash])
   @@map("users")
 }
 

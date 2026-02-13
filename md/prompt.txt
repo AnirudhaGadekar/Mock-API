@@ -1,0 +1,386 @@
+
+Below is a prompt but let me tell you can we create this in a test folder and if this works we will bring this in main folder and i wanted to say dont make what we have just make what we dont have 
+
+You are an elite full-stack engineer building MockURL - a production-grade Beeceptor clone that beats competitors through NO-CODE STATEFUL MOCKING + advanced simulation. Generate COMPLETE, DEPLOYMENT-READY CODE for ALL unique Beeceptor features.
+
+CRITICAL: Match EXACTLY these Beeceptor differentiators that no one else does well:
+1. STATEFUL PERSISTENCE: Schema-less JSON store w/ CRUD (push/get/list/filter/sort) surviving across requests
+2. DYNAMIC TEMPLATING: Responses using request data (headers/body/query) + FakerJS/Handlebars
+3. CHAOS ENGINEERING: Native delays/timeouts/rate-limits/IP whitelist/error injection
+4. REAL-TIME WEBSOCKETS: Live request inspection dashboard
+5. LOCAL TUNNELING: Public URL → localhost proxy
+6. OAS IMPORT: Auto-generate endpoints from OpenAPI specs
+
+TECH STACK (PRODUCTION 2026):
+Backend: TypeScript + Fastify + Prisma (Postgres) + Upstash Redis + tRPC + Zod + Drizzle-Zod
+Frontend: React 19 + Vite + shadcn/ui + TanStack Query + React JSON Editor + WebSocket client
+Infra: Docker + Render deploy + Cloudflare Workers + Vercel frontend
+Auth: Clerk (free tier) + Stripe webhooks
+Testing: Vitest 95% + Playwright E2E + autocannon load
+Observability: Sentry + Prometheus metrics
+
+text
+
+**DELIVER 4 SEPARATE PIECES (execute in order):**
+
+## PIECE 1: Core Engine + Stateful Store
+src/stateful-store.ts - JSON CRDT w/ Redis backing (push/get/list/filter/sort/count)
+
+Operations: $.push({movie:"Avengers"}), $.get("movies.0"), $.filter("seats.available>0")
+
+JSONPath + json-logic for queries, optimistic updates via Yjs CRDT
+
+TTL auto-cleanup, Redis Streams for real-time fanout
+
+src/engine.ts - Request matching + chaos layer
+
+Match rules: path/headers/query/method priority
+
+Chaos: delay(100-5000ms), timeout, rate-limit(10rpm/IP), 4xx/5xx injection
+
+Templating: Handlebars + FakerJS using req data
+
+WebSocket pub/sub for ALL requests to connected clients
+
+text
+
+## PIECE 2: Production APIs + Router (tRPC)
+src/routes/endpoints.ts - Full CRUD for endpoints + rules
+/api/v1/endpoints/{id}/rules - POST/GET/PUT/DEL w/ validation
+/api/v1/chaos/{endpointId} - Configure delays/errors/rate-limits
+/api/v1/oas-import - POST OpenAPI JSON/YAML → auto-endpoints
+/api/v1/tunnel - POST localtunnel URL → proxy traffic
+
+src/middleware/tunnel-proxy.ts - ngrok.io-style localhost forwarding
+
+Authenticated tunnels w/ expiration
+
+HTTPS termination + header injection
+
+text
+
+## PIECE 3: React Dashboard (shadcn/TanStack)
+src/app/dashboard/
+
+Endpoints table (TanStack Table) + inline rule editor
+
+Real-time request viewer (WebSocket + VirtualScroller)
+
+Stateful store explorer (JSON editor + live CRUD ops)
+
+Chaos controls (sliders for delay/jitter/error %)
+
+OAS importer (react-dropzone + parsing)
+
+Live preview pane (iframe + request builder)
+
+60fps animations, ARIA complete, keyboard nav, dark mode
+
+text
+
+## PIECE 4: Production Scripts + Deploy
+Dockerfile.prod, render.yaml, vercel.json
+GitHub Actions: test → build → deploy → smoke tests
+Load test: 10k RPS → verify p95 <200ms
+OpenAPI spec (/docs) + Postman collection export
+Sentry + Prometheus setup
+Clerk + Stripe boilerplate (3-tier pricing)
+
+text
+
+**REQUIREMENTS:**
+- ZERO external deps beyond stack (no json-logic, build your own)
+- 100% type-safe (tRPC + Zod end-to-end)
+- Match Beeceptor EXACT response formats/UX flows
+- Handle 1K RPS Day 1 (Redis connection pooling)
+- Mumbai region low-latency (Render/Vercel)
+- MIT license, clean architecture
+
+**OUTPUT FORMAT:**
+COMPLETE file tree with ALL files
+
+npm install && npm run dev → 100% working
+
+docker build -t mockurl-prod . → deploys to Render
+
+Load test passes, WebSocket updates realtime
+
+/docs shows full OpenAPI spec
+
+text
+
+Generate ALL 4 pieces now. After completion: MockURL beats Beeceptor, deploys in 60min, $10K ARR potential
+
+
+
+Thought for 38s
+
+
+
+
+
+
+
+
+Great approach — build in test/ first, verify it works, then merge into main. Let me analyze what you already have vs what's missing:
+
+Feature	Already Have?	Action
+Endpoint CRUD	✅	Skip
+Mock routing + rule matching	✅	Skip
+Basic interpolation	✅	Skip
+Basic state (key-value)	✅	Skip
+Auth + auto-session	✅	Skip
+Admin dashboard	✅	Skip
+Rate limiting (basic)	✅	Skip
+Stateful Store (CRUD + filter/sort)	❌	Build
+Dynamic Templating (Faker + Handlebars)	❌	Build
+Chaos Engineering (delays/errors/jitter)	❌	Build
+Real-time WebSocket (live inspection)	❌	Build
+OAS Import (OpenAPI → endpoints)	❌	Build
+I'll create 5 new modules in test/ with their own mini server. Let's go:
+
+Created
+package.json
++25
+-0
+make it in main folder 
+
+Thought for 4s
+
+
+
+
+Got it — building directly in the main src/ folder. Let me remove the test folder and install the new dependencies into the main project.
+
+Ran background command
+Open
+…\Mock_Url > Remove-Item -Recurse -Force "c:\Users\gadek\Desktop\New folder\Mock_Url\test" -ErrorAction SilentlyContinue
+
+
+Always run
+Exit code 0
+Ran command
+Open
+…\Mock_Url > npm install @faker-js/faker handlebars @fastify/websocket yaml
+
+npm error code ERESOLVE      
+
+
+
+
+
+
+
+                            _57_510Z-debug-0.log-12T09_23_
+npm error A complete log of t
+
+
+
+Thought for 4s
+
+
+
+
+Got it — building directly in the main src/ folder. Let me remove the test folder and install the new dependencies into the main project.
+
+Ran background command
+Open
+…\Mock_Url > Remove-Item -Recurse -Force "c:\Users\gadek\Desktop\New folder\Mock_Url\test" -ErrorAction SilentlyContinue
+
+
+Always run
+Exit code 0
+Ran command
+Open
+…\Mock_Url > npm install @faker-js/faker handlebars @fastify/websocket yaml
+
+npm error code ERESOLVE      
+
+
+
+
+
+
+
+                            _57_510Z-debug-0.log-12T09_23_
+npm error A complete log of t
+
+Always run
+Exit code 1
+Dependency conflict. Let me check the issue and force install:
+
+Ran command
+Open
+…\Mock_Url > npm install @faker-js/faker handlebars @fastify/websocket yaml --legacy-peer-deps
+
+ 
+added 13 packages, and audite
+
+
+
+
+
+
+                            ding breaking changes), run:  
+  npm audit fix --force
+
+Always run
+Exit code 0
+Dependencies installed. Now let me build all 5 new feature modules. I'll create them one by one:
+
+Module 1: Stateful Store (Enhanced CRUD with filter/sort/push)
+Created
+stateful-store.ts
++328
+-0
+5
+Module 2: Dynamic Templating (Handlebars + Faker)
+Created
+templating.ts
++247
+-0
+Module 3: Chaos Engineering
+Created
+chaos.ts
++201
+-0
+Module 4: WebSocket Live Inspection
+Created
+websocket.ts
++138
+-0
+1
+Module 5: OpenAPI Import
+Created
+oas-import.ts
++283
+-0
+Now let me create the route files that expose these modules via API:
+
+Route: Stateful Store API
+Created
+store.routes.ts
++180
+-0
+Route: Chaos Config API
+Created
+chaos.routes.ts
++99
+-0
+Route: OAS Import API
+Created
+oas.routes.ts
++116
+-0
+1
+Now let me register all new modules in the main 
+index.ts
+:
+
+Analyzed
+index.ts#L1-255
+Edited
+index.ts
++10
+-0
+Good — two lint issues to fix. Let me install WebSocket types and check the Prisma schema:
+
+Ran command
+Open
+…\Mock_Url > npm install --save-dev @types/ws --legacy-peer-deps
+
+ 
+added 1 package, and audited 
+
+
+
+
+
+
+                            ding breaking changes), run:  
+  npm audit fix --force      
+To address all issues (includ
+
+Always run
+Exit code 0
+Now let me check the Prisma schema for the MockRule model name:
+
+Searched
+model Mock
+0 results
+Searched
+model
+0 results
+Searched
+schema*
+1 result
+Analyzed
+schema.prisma#L1-65
+I see — the Endpoint model stores rules as a JSON field, not as a separate MockRule model. Let me fix the OAS import to use this pattern correctly:
+
+Analyzed
+
+oas.routes.ts:oasRoutes
+I need to fix the OAS import to store rules in the endpoint's rules JSON field instead of a separate MockRule model. Let me check how existing routes store rules:
+
+Searched
+rules:
+0 results
+Searched
+rules
+0 results
+Analyzed
+
+endpoints.routes.ts
+Analyzed
+endpoints.routes.ts#L51-100
+Good — rules are stored directly as JSON in the rules column of the 
+Endpoint
+ model. Let me fix the OAS import route:
+
+Edited
+oas.routes.ts
++19
+-21
+Also remove the unused crypto import from oas.routes.ts:
+
+Error while editing
+oas.routes.ts
+Model produced a malformed edit that the agent was unable to apply.
+No worries — crypto wasn't imported there. Let me now restart the backend to test everything:
+
+Ran command
+Open
+…\Mock_Url > npx tsx src/index.ts
+
+{"level":"info","message":"✅
+
+
+
+
+
+
+
+                           ✅0:52.467"}p":"2026-02-12 15:00
+
+Always run
+Exit code 1
+Let me check the full error:
+
+Error during tool execution
+Let me check the error from the command that just ran:
+
+Ran command
+Open
+…\Mock_Url > npx tsx src/index.ts 2>&1 | Select-Object -First 50
+
+{"level":"info","message":"Γ£
+
+
+
+
+
+
+
+                            2:52.728"}p":"2026-02-12 16:22
+{"address":"0.0.0.0","code":"

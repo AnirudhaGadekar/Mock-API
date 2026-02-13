@@ -1,6 +1,6 @@
-import { redis } from '../lib/redis';
-import { logger } from '../lib/logger';
 import { trace } from '@opentelemetry/api';
+import { logger } from '../lib/logger';
+import { redis } from '../lib/redis';
 
 const tracer = trace.getTracer('endpoint-cache');
 
@@ -18,8 +18,13 @@ export function getEndpointDetailCacheKey(endpointId: string): string {
   return `endpoint:detail:${endpointId}`;
 }
 
-export function getEndpointSubdomainCacheKey(subdomain: string, userId: string): string {
-  return `endpoint:subdomain:${subdomain}:${userId}`;
+// FIXED: Remove userId from cache key for routing
+export function getEndpointSubdomainCacheKey(subdomain: string): string {
+  return `endpoint:subdomain:${subdomain}`;
+}
+
+export function getEndpointRequestCountKey(endpointId: string): string {
+  return `endpoint:req_count:${endpointId}`;
 }
 
 /**
@@ -30,13 +35,12 @@ export function hashQueryParams(params: Record<string, any>): string {
     .sort()
     .map((key) => `${key}=${params[key]}`)
     .join('&');
-  
-  // Simple hash for cache key (not cryptographic)
+
   let hash = 0;
   for (let i = 0; i < sorted.length; i++) {
     const char = sorted.charCodeAt(i);
     hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32bit integer
+    hash = hash & hash;
   }
   return Math.abs(hash).toString(36);
 }
@@ -53,15 +57,10 @@ export async function cacheEndpointList(
     try {
       const key = getEndpointListCacheKey(userId, queryHash);
       await redis.setex(key, ENDPOINT_LIST_TTL, JSON.stringify(data));
-      
       span.setAttribute('cache.key', key);
-      span.setAttribute('cache.ttl', ENDPOINT_LIST_TTL);
-      
-      logger.debug({ userId, queryHash }, 'Cached endpoint list');
     } catch (error) {
       span.recordException(error as Error);
-      logger.error({ error, userId }, 'Failed to cache endpoint list');
-      // Don't throw - caching is not critical
+      logger.error('Failed to cache endpoint list', { error, userId });
     } finally {
       span.end();
     }
@@ -79,20 +78,13 @@ export async function getCachedEndpointList(
     try {
       const key = getEndpointListCacheKey(userId, queryHash);
       const cached = await redis.get(key);
-      
-      if (!cached) {
-        span.setAttribute('cache.hit', false);
-        return null;
-      }
+      if (!cached) return null;
 
       span.setAttribute('cache.hit', true);
-      logger.debug({ userId, queryHash }, 'Endpoint list cache hit');
-      
       return JSON.parse(cached);
     } catch (error) {
       span.recordException(error as Error);
-      logger.error({ error, userId }, 'Failed to get cached endpoint list');
-      return null; // Fail gracefully
+      return null;
     } finally {
       span.end();
     }
@@ -107,12 +99,8 @@ export async function cacheEndpointDetail(endpointId: string, data: any): Promis
     try {
       const key = getEndpointDetailCacheKey(endpointId);
       await redis.setex(key, ENDPOINT_DETAIL_TTL, JSON.stringify(data));
-      
-      span.setAttribute('cache.key', key);
-      logger.debug({ endpointId }, 'Cached endpoint detail');
     } catch (error) {
       span.recordException(error as Error);
-      logger.error({ error, endpointId }, 'Failed to cache endpoint detail');
     } finally {
       span.end();
     }
@@ -127,19 +115,10 @@ export async function getCachedEndpointDetail(endpointId: string): Promise<any |
     try {
       const key = getEndpointDetailCacheKey(endpointId);
       const cached = await redis.get(key);
-      
-      if (!cached) {
-        span.setAttribute('cache.hit', false);
-        return null;
-      }
-
-      span.setAttribute('cache.hit', true);
-      logger.debug({ endpointId }, 'Endpoint detail cache hit');
-      
+      if (!cached) return null;
       return JSON.parse(cached);
     } catch (error) {
       span.recordException(error as Error);
-      logger.error({ error, endpointId }, 'Failed to get cached endpoint detail');
       return null;
     } finally {
       span.end();
@@ -149,22 +128,21 @@ export async function getCachedEndpointDetail(endpointId: string): Promise<any |
 
 /**
  * Cache subdomain-to-endpoint mapping (hot path for router)
+ * FIXED: Removed userId from arguments as it is redundant for the key
  */
 export async function cacheSubdomainMapping(
   subdomain: string,
-  userId: string,
   endpointData: any
 ): Promise<void> {
   return tracer.startActiveSpan('cache-subdomain-mapping', async (span) => {
     try {
-      const key = getEndpointSubdomainCacheKey(subdomain, userId);
+      // Logic fix: Ensure we don't cache deeply nested rule objects if not needed, 
+      // but here we likely need the full object for the router.
+      const key = getEndpointSubdomainCacheKey(subdomain);
       await redis.setex(key, ENDPOINT_DETAIL_TTL, JSON.stringify(endpointData));
-      
-      span.setAttribute('cache.key', key);
-      logger.debug({ subdomain, userId }, 'Cached subdomain mapping');
     } catch (error) {
       span.recordException(error as Error);
-      logger.error({ error, subdomain }, 'Failed to cache subdomain mapping');
+      logger.error('Failed to cache subdomain mapping', { error, subdomain });
     } finally {
       span.end();
     }
@@ -174,27 +152,15 @@ export async function cacheSubdomainMapping(
 /**
  * Get cached subdomain mapping
  */
-export async function getCachedSubdomainMapping(
-  subdomain: string,
-  userId: string
-): Promise<any | null> {
+export async function getCachedSubdomainMapping(subdomain: string): Promise<any | null> {
   return tracer.startActiveSpan('get-cached-subdomain-mapping', async (span) => {
     try {
-      const key = getEndpointSubdomainCacheKey(subdomain, userId);
+      const key = getEndpointSubdomainCacheKey(subdomain);
       const cached = await redis.get(key);
-      
-      if (!cached) {
-        span.setAttribute('cache.hit', false);
-        return null;
-      }
-
-      span.setAttribute('cache.hit', true);
-      logger.debug({ subdomain, userId }, 'Subdomain mapping cache hit');
-      
+      if (!cached) return null;
       return JSON.parse(cached);
     } catch (error) {
       span.recordException(error as Error);
-      logger.error({ error, subdomain }, 'Failed to get cached subdomain mapping');
       return null;
     } finally {
       span.end();
@@ -204,24 +170,37 @@ export async function getCachedSubdomainMapping(
 
 /**
  * Invalidate ALL endpoint caches for a user
- * Call after: create, delete, update operations
+ * FIXED: Uses SCAN instead of KEYS to avoid blocking Redis
  */
 export async function invalidateUserEndpointCache(userId: string): Promise<void> {
   return tracer.startActiveSpan('invalidate-user-endpoint-cache', async (span) => {
     try {
-      // Delete all list caches for this user (pattern match)
       const pattern = `user:endpoints:${userId}:*`;
-      const keys = await redis.keys(pattern);
-      
+      const keys: string[] = [];
+      let cursor = '0';
+
+      // Safe SCAN iteration
+      do {
+        const [nextCursor, matchedKeys] = await redis.scan(
+          cursor,
+          'MATCH',
+          pattern,
+          'COUNT',
+          100
+        );
+        cursor = nextCursor;
+        if (matchedKeys.length > 0) {
+          keys.push(...matchedKeys);
+        }
+      } while (cursor !== '0');
+
       if (keys.length > 0) {
         await redis.del(...keys);
         span.setAttribute('cache.keys_deleted', keys.length);
-        logger.info({ userId, keysDeleted: keys.length }, 'Invalidated user endpoint cache');
       }
     } catch (error) {
       span.recordException(error as Error);
-      logger.error({ error, userId }, 'Failed to invalidate user endpoint cache');
-      // Don't throw - invalidation failure shouldn't break the operation
+      logger.error('Failed to invalidate user endpoint cache', { error, userId });
     } finally {
       span.end();
     }
@@ -230,63 +209,100 @@ export async function invalidateUserEndpointCache(userId: string): Promise<void>
 
 /**
  * Invalidate specific endpoint cache
- * Call after: update, delete operations
  */
 export async function invalidateEndpointCache(
   endpointId: string,
-  subdomain?: string,
-  userId?: string
+  subdomain?: string
 ): Promise<void> {
-  return tracer.startActiveSpan('invalidate-endpoint-cache', async (span) => {
-    try {
-      const keysToDelete: string[] = [getEndpointDetailCacheKey(endpointId)];
-      
-      if (subdomain && userId) {
-        keysToDelete.push(getEndpointSubdomainCacheKey(subdomain, userId));
-      }
-
-      await redis.del(...keysToDelete);
-      span.setAttribute('cache.keys_deleted', keysToDelete.length);
-      
-      logger.info({ endpointId, subdomain }, 'Invalidated endpoint cache');
-    } catch (error) {
-      span.recordException(error as Error);
-      logger.error({ error, endpointId }, 'Failed to invalidate endpoint cache');
-    } finally {
-      span.end();
-    }
-  });
+  const keysToDelete = [getEndpointDetailCacheKey(endpointId)];
+  if (subdomain) {
+    keysToDelete.push(getEndpointSubdomainCacheKey(subdomain));
+  }
+  await redis.del(...keysToDelete);
 }
 
 /**
- * Publish event to Redis pub/sub (for real-time updates)
+ * Buffered Request Counter
+ * Instead of hitting DB every time, we increment in Redis and let a CRON job flush it.
  */
+export async function bufferRequestCount(endpointId: string): Promise<void> {
+  try {
+    // Increment atomic counter in Redis
+    await redis.incr(getEndpointRequestCountKey(endpointId));
+
+    // Add to a "dirty set" so the flusher knows which endpoints to update
+    await redis.sadd('dirty_endpoints_counts', endpointId);
+  } catch (error) {
+    // If Redis fails, we log but don't crash request. 
+    // We lose 1 count, better than losing the request.
+    logger.error('Failed to buffer request count', { error, endpointId });
+  }
+}
+
+/**
+ * Flush counts to DB (Call this from a cron/interval)
+ */
+export async function flushRequestCounts(prisma: any): Promise<void> {
+  try {
+    const dirtyEndpoints = await redis.smembers('dirty_endpoints_counts');
+    if (dirtyEndpoints.length === 0) return;
+
+    logger.debug('Flushing request counts to DB', { count: dirtyEndpoints.length });
+
+    for (const id of dirtyEndpoints) {
+      const key = getEndpointRequestCountKey(id);
+      // Get and reset counter atomically
+      const countStr = await redis.getset(key, '0');
+      const count = parseInt(countStr || '0', 10);
+
+      if (count > 0) {
+        await prisma.endpoint.update({
+          where: { id },
+          data: { requestCount: { increment: count } },
+        }).catch((err: Error) => {
+          logger.error('Failed to flush count to DB', { err, id });
+        });
+      }
+    }
+
+    // Cleanup processed IDs (safe-ish, better to use Lua for perfect atomicity but this is fine for now)
+    await redis.srem('dirty_endpoints_counts', ...dirtyEndpoints);
+  } catch (error) {
+    logger.error('Failed to flush request counts', error);
+  }
+}
+
 export async function publishEndpointEvent(
   eventType: 'created' | 'updated' | 'deleted',
   userId: string,
   endpointData: any
 ): Promise<void> {
-  return tracer.startActiveSpan('publish-endpoint-event', async (span) => {
-    try {
-      const channel = `endpoint:${eventType}:${userId}`;
-      const message = JSON.stringify({
-        event: eventType,
-        userId,
-        endpoint: endpointData,
-        timestamp: new Date().toISOString(),
-      });
-
-      await redis.publish(channel, message);
-      
-      span.setAttribute('pubsub.channel', channel);
-      span.setAttribute('pubsub.event', eventType);
-      
-      logger.debug({ userId, eventType, endpointId: endpointData.id }, 'Published endpoint event');
-    } catch (error) {
-      span.recordException(error as Error);
-      logger.error({ error, userId, eventType }, 'Failed to publish endpoint event');
-    } finally {
-      span.end();
-    }
+  const channel = `endpoint:${eventType}:${userId}`;
+  const message = JSON.stringify({
+    event: eventType,
+    userId,
+    endpoint: endpointData,
+    timestamp: new Date().toISOString(),
   });
+  await redis.publish(channel, message).catch(console.error);
+}
+
+/**
+ * Get next sequence index using atomic Redis increment
+ */
+export async function getNextSequenceIndex(endpointId: string, rulePath: string, method: string, modulo: number): Promise<number> {
+  const key = `sequence:${endpointId}:${rulePath}:${method}`;
+  try {
+    const next = await redis.incr(key);
+    // Redis INCR starts at 1, we want 0-based.
+    // If modulo is 3:
+    // next=1 -> (0) % 3 = 0
+    // next=2 -> (1) % 3 = 1
+    // next=3 -> (2) % 3 = 2
+    // next=4 -> (3) % 3 = 0
+    return (next - 1) % modulo;
+  } catch (error) {
+    logger.error('Failed to get next sequence index', { error });
+    return 0; // Fallback to first item on error
+  }
 }

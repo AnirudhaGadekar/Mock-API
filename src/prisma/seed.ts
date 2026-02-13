@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
+import { hashApiKey } from '../middleware/auth.middleware';
 
 const prisma = new PrismaClient();
 
@@ -19,23 +20,25 @@ async function main() {
   }
 
   // Create test users
+  const rawKey1 = generateApiKey();
   const user1 = await prisma.user.create({
     data: {
       email: 'alice@example.com',
-      apiKey: generateApiKey(),
+      apiKeyHash: hashApiKey(rawKey1),
     },
   });
 
+  const rawKey2 = generateApiKey();
   const user2 = await prisma.user.create({
     data: {
       email: 'bob@example.com',
-      apiKey: generateApiKey(),
+      apiKeyHash: hashApiKey(rawKey2),
     },
   });
 
   console.log('✅ Created test users:');
-  console.log(`   User 1: ${user1.email} (API Key: ${user1.apiKey})`);
-  console.log(`   User 2: ${user2.email} (API Key: ${user2.apiKey})`);
+  console.log(`   User 1: ${user1.email} (API Key: ${rawKey1})`);
+  console.log(`   User 2: ${user2.email} (API Key: ${rawKey2})`);
 
   // Optional: Create sample endpoints for testing
   const endpoint1 = await prisma.endpoint.create({
