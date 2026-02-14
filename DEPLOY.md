@@ -61,10 +61,11 @@ Before we start, you must create accounts on these 4 services. You can usually j
     *   `DATABASE_URL`: *Paste your Supabase connection string from Step 1.*
     *   `DIRECT_DATABASE_URL`: *Paste the SAME string, but change port `6543` to `5432` (Session mode) if utilizing migrations, OR just use the same one for now.*
         *   *Correction*: For `prisma migrate` (which runs in `npm run prisma:deploy`), you usually need the Session mode (port 5432). Use the **Session** connection string here.
-    *   `REDIS_HOST`: The host part of your Upstash URL (e.g., `fly-region.upstash.io`).
-    *   `REDIS_PORT`: `6379`
-    *   `REDIS_PASSWORD`: The password part from your Upstash URL (the long string after `default:` and before `@`).
-        *   *Alternative*: If your app uses a `REDIS_URL` single variable, just paste the whole `rediss://...` string. (Based on your code, check `.env.example`).
+    *   `REDIS_URL`: The full connection string from Upstash (starts with `rediss://`). This is the recommended way.
+    *   *Alternative (Individual Variables)*:
+        *   `REDIS_HOST`: The host part of your Upstash URL.
+        *   `REDIS_PORT`: `6379`
+        *   `REDIS_PASSWORD`: The password part.
     *   `JWT_SECRET`: Generate a random long string.
     *   `ADMIN_SECRET`: Generate a random password for the admin dashboard.
     *   `CORS_ORIGIN`: `*` (Allow all for now to avoid issues, or wait until Step 4 to get your Vercel URL).

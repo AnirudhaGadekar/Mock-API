@@ -18,13 +18,8 @@ declare global {
  * - Health monitoring
  * - Graceful shutdown
  */
-export const redis =
-  global.redis ||
-  new Redis({
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    password: process.env.REDIS_PASSWORD || undefined,
-    db: parseInt(process.env.REDIS_DB || '0', 10),
+const getRedisClient = () => {
+  const options = {
     retryStrategy(times: number) {
       const delay = Math.min(times * 50, 2000);
       logger.warn(`Redis reconnecting attempt ${times}, delay: ${delay}ms`);
@@ -34,7 +29,25 @@ export const redis =
     enableReadyCheck: true,
     enableOfflineQueue: true,
     lazyConnect: false,
+  };
+
+  if (process.env.REDIS_URL) {
+    logger.info('Redis: Using REDIS_URL for connection');
+    return new Redis(process.env.REDIS_URL, options);
+  }
+
+  return new Redis({
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    password: process.env.REDIS_PASSWORD || undefined,
+    db: parseInt(process.env.REDIS_DB || '0', 10),
+    // Enable TLS for non-localhost connections (Upstash requires this)
+    tls: process.env.REDIS_HOST && process.env.REDIS_HOST !== 'localhost' ? {} : undefined,
+    ...options,
   });
+};
+
+export const redis = global.redis || getRedisClient();
 
 // Connection event handlers
 redis.on('connect', () => {
