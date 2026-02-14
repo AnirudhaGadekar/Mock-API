@@ -274,8 +274,8 @@ export default function Dashboard() {
                                                 {ep.reqCount}
                                             </span>
                                         </div>
-                                        <div className="text-[11px] font-mono opacity-50 truncate mt-0.5">
-                                            {ep.subdomain}.mockurl.com
+                                        <div className="text-[11px] font-mono opacity-50 truncate mt-0.5" title={ep.url}>
+                                            {ep.url.replace(/^https?:\/\//, '')}
                                         </div>
                                     </button>
                                 ))
@@ -296,8 +296,8 @@ export default function Dashboard() {
                                     <div>
                                         <h2 className="text-lg font-bold flex items-center gap-2">
                                             {selectedEndpoint.name}
-                                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-mono font-normal">
-                                                {selectedEndpoint.subdomain}
+                                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-mono font-normal truncate max-w-[200px]" title={selectedEndpoint.url}>
+                                                {selectedEndpoint.url.replace(/^https?:\/\//, '')}
                                             </span>
                                         </h2>
                                         <p className="text-xs text-muted-foreground mt-1">

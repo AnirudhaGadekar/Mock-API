@@ -54,11 +54,24 @@ const BASE_MOCK_DOMAIN = process.env.BASE_MOCK_DOMAIN || 'mockurl.com';
  */
 function formatEndpointResponse(endpoint: { id: string; name: string; rules: unknown; requestCount?: number; createdAt: Date }) {
   const subdomain = endpoint.name;
+
+  // Smart URL Generation:
+  // 1. If RENDER_EXTERNAL_URL is set (and we are using default domain), use path-based URL:
+  //    https://mock-url-xyz.onrender.com/endpoint-name
+  // 2. Otherwise (local or custom domain), use subdomain:
+  //    https://endpoint-name.mockurl.com
+
+  let url = `https://${subdomain}.${BASE_MOCK_DOMAIN}`;
+
+  if (process.env.RENDER_EXTERNAL_URL && BASE_MOCK_DOMAIN === 'mockurl.com') {
+    url = `${process.env.RENDER_EXTERNAL_URL}/${subdomain}`;
+  }
+
   return {
     id: endpoint.id,
     name: endpoint.name,
     subdomain,
-    url: `https://${subdomain}.${BASE_MOCK_DOMAIN}`,
+    url,
     dashboardUrl: `/console/${subdomain}`,
     rules: Array.isArray(endpoint.rules) ? endpoint.rules : [],
     reqCount: endpoint.requestCount ?? 0,

@@ -176,8 +176,8 @@ export default function EndpointsPage() {
                                         <CardTitle className="text-base font-semibold flex items-center gap-2">
                                             <span className="truncate max-w-[200px]" title={ep.name}>{ep.name}</span>
                                         </CardTitle>
-                                        <CardDescription className="font-mono text-xs truncate">
-                                            {ep.subdomain}.mockurl.com
+                                        <CardDescription className="font-mono text-xs truncate" title={ep.url}>
+                                            {ep.url.replace(/^https?:\/\//, '')}
                                         </CardDescription>
                                     </div>
                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
