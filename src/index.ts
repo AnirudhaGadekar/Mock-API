@@ -41,7 +41,6 @@ function validateEnvironment() {
     'REDIS_HOST',
     'REDIS_PORT',
     'PORT',
-    'HOST',
   ];
 
   const missing = required.filter((key) => !process.env[key]);
@@ -70,8 +69,10 @@ function validateEnvironment() {
   logger.info('✅ Environment validation passed');
 }
 
-const PORT = Number(process.env.PORT || 3000);
-const HOST = process.env.HOST || '0.0.0.0';
+const PORT = Number(process.env.PORT || 10000);
+// Render requires binding to 0.0.0.0. We force this to avoid EADDRNOTAVAIL errors
+// if HOST is set to an external IP address.
+const HOST = '0.0.0.0';
 
 async function buildApp() {
   const app = fastify({
