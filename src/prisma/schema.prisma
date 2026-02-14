@@ -29,6 +29,7 @@ model Endpoint {
   rules        Json?        @default("[]")
   settings     Json?        @default("{}")
   requestCount Int          @default(0)
+  lastActiveAt DateTime     @default(now())
   deletedAt    DateTime?
   createdAt    DateTime     @default(now())
   requestLogs  RequestLog[]
@@ -36,7 +37,7 @@ model Endpoint {
   @@index([userId])
   @@index([name])
   @@index([deletedAt])
-  @@unique([name, userId])
+  @@unique([name])
   @@map("endpoints")
 }
 

@@ -258,7 +258,10 @@ export async function flushRequestCounts(prisma: any): Promise<void> {
       if (count > 0) {
         await prisma.endpoint.update({
           where: { id },
-          data: { requestCount: { increment: count } },
+          data: {
+            requestCount: { increment: count },
+            lastActiveAt: new Date(),
+          },
         }).catch((err: Error) => {
           logger.error('Failed to flush count to DB', { err, id });
         });

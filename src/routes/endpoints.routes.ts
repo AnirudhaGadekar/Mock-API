@@ -140,8 +140,8 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
               current: userRecord._count.endpoints,
             });
           }
-          const existing = await tx.endpoint.findFirst({
-            where: { name, userId: user.id, deletedAt: null },
+          const existing = await tx.endpoint.findUnique({
+            where: { name },
           });
           if (existing) throw new ConflictError(`Endpoint with name "${name}" already exists`);
           return tx.endpoint.create({
@@ -150,6 +150,7 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
               userId: user.id,
               rules: rules && rules.length > 0 ? (rules as object[]) : DEFAULT_MOCK_RULES,
               requestCount: 0,
+              lastActiveAt: new Date(),
             },
           });
         });
