@@ -1,9 +1,9 @@
 import { trace } from '@opentelemetry/api';
 import * as crypto from 'crypto';
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { logger } from '../lib/logger';
-import { prisma } from '../lib/prisma';
-import { redis } from '../lib/redis';
+import { logger } from '../lib/logger.js';
+import { prisma } from '../lib/prisma.js';
+import { redis } from '../lib/redis.js';
 
 const tracer = trace.getTracer('auth-middleware');
 

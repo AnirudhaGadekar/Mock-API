@@ -122,7 +122,7 @@ export async function listStateKeys(endpointId: string): Promise<string[]> {
   try {
     const pattern = `state:${endpointId}:*`;
     const keys = await redis.keys(pattern);
-    return keys.map((k) => k.replace(`state:${endpointId}:`, ''));
+    return keys.map((k: string) => k.replace(`state:${endpointId}:`, ''));
   } catch (error) {
     logger.error('Failed to list state keys', { error, endpointId });
     throw error;

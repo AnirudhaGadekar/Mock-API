@@ -1,7 +1,7 @@
 import rateLimit from '@fastify/rate-limit';
 import { FastifyPluginAsync } from 'fastify';
-import { logger } from '../lib/logger';
-import { redis } from '../lib/redis';
+import { logger } from '../lib/logger.js';
+import { redis } from '../lib/redis.js';
 
 /**
  * Redis-backed rate limit store for distributed systems

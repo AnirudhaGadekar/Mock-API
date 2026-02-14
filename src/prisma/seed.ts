@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
-import { hashApiKey } from '../middleware/auth.middleware';
+import { hashApiKey } from '../middleware/auth.middleware.js';
 
 const prisma = new PrismaClient();
 

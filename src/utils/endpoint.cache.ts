@@ -1,6 +1,6 @@
 import { trace } from '@opentelemetry/api';
-import { logger } from '../lib/logger';
-import { redis } from '../lib/redis';
+import { logger } from '../lib/logger.js';
+import { redis } from '../lib/redis.js';
 
 const tracer = trace.getTracer('endpoint-cache');
 

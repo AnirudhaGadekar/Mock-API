@@ -1,9 +1,12 @@
-import Redis from 'ioredis';
+import { createRequire } from 'module';
 import { logger } from './logger.js';
+
+const require = createRequire(import.meta.url);
+const Redis = require('ioredis') as any;
 
 declare global {
   // eslint-disable-next-line no-var
-  var redis: Redis | undefined;
+  var redis: any | undefined;
 }
 
 /**
@@ -22,7 +25,7 @@ export const redis =
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
     password: process.env.REDIS_PASSWORD || undefined,
     db: parseInt(process.env.REDIS_DB || '0', 10),
-    retryStrategy(times) {
+    retryStrategy(times: number) {
       const delay = Math.min(times * 50, 2000);
       logger.warn(`Redis reconnecting attempt ${times}, delay: ${delay}ms`);
       return delay;
@@ -42,7 +45,7 @@ redis.on('ready', () => {
   logger.info('Redis client ready');
 });
 
-redis.on('error', (error) => {
+redis.on('error', (error: any) => {
   logger.error('Redis connection error', { error: error.message });
 });
 
