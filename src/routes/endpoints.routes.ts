@@ -6,19 +6,19 @@ import { prisma } from '../lib/prisma.js';
 import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.middleware.js';
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
 import {
-    cacheEndpointDetail,
-    cacheEndpointList,
-    getCachedEndpointDetail,
-    getCachedEndpointList,
-    hashQueryParams,
-    invalidateEndpointCache,
-    invalidateUserEndpointCache,
-    publishEndpointEvent,
+  cacheEndpointDetail,
+  cacheEndpointList,
+  getCachedEndpointDetail,
+  getCachedEndpointList,
+  hashQueryParams,
+  invalidateEndpointCache,
+  invalidateUserEndpointCache,
+  publishEndpointEvent,
 } from '../utils/endpoint.cache.js';
 import {
-    createEndpointSchema,
-    DEFAULT_MOCK_RULES,
-    listEndpointsQuerySchema
+  createEndpointSchema,
+  DEFAULT_MOCK_RULES,
+  listEndpointsQuerySchema
 } from '../validators/endpoint.validator.js';
 
 const tracer = trace.getTracer('endpoints-api');
@@ -375,14 +375,14 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
         const bodySchema = z.object({
           name: z.string().min(5).max(40).regex(/^[a-z0-9-]+$/).optional(),
           rules: z.array(z.any()).optional(),
-          settings: z.record(z.any()).optional(),
+          settings: z.record(z.string(), z.any()).optional(),
         });
 
         const bodyParsed = bodySchema.safeParse(request.body);
         if (!bodyParsed.success) {
           return reply.status(400).send({
             success: false,
-            error: { code: 'VALIDATION_ERROR', message: bodyParsed.error.errors[0].message },
+            error: { code: 'VALIDATION_ERROR', message: bodyParsed.error.issues[0].message },
             timestamp: new Date().toISOString(),
           });
         }

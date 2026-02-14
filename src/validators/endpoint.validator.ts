@@ -17,7 +17,7 @@ export const endpointNameSchema = z
 export const mockRuleResponseSchema = z.object({
   status: z.number().int().min(100).max(599),
   body: z.unknown().optional(),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
   delay: z.number().int().min(0).max(30000).optional(), // max 30s delay
 });
 
@@ -30,8 +30,8 @@ export const mockRuleSchema = z.object({
   response: mockRuleResponseSchema,
   condition: z
     .object({
-      queryParams: z.record(z.string()).optional(),
-      headers: z.record(z.string()).optional(),
+      queryParams: z.record(z.string(), z.string()).optional(),
+      headers: z.record(z.string(), z.string()).optional(),
       bodyContains: z.string().optional(),
     })
     .optional(),
@@ -116,7 +116,7 @@ export const apiErrorSchema = z.object({
   error: z.object({
     code: z.string(),
     message: z.string(),
-    details: z.record(z.unknown()).optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
   }),
   timestamp: z.string().datetime(),
 });

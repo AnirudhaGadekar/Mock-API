@@ -266,7 +266,7 @@ export default function Chaos() {
             <div className="bg-card border border-border rounded-xl p-6 overflow-hidden">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <RefreshCw className={`w-4 h-4 ${saving ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`w-4 h-4 ${(saving || loading) ? 'animate-spin' : ''}`} />
                         Active Configuration JSON
                     </h3>
                 </div>

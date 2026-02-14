@@ -5,7 +5,7 @@ export const createEndpointSchema = z.object({
     .min(1, 'Name is required')
     .max(100, 'Name too long')
     .regex(/^[a-zA-Z0-9-_]+$/, 'Name can only contain alphanumeric, dash, underscore'),
-  
+
   rules: z.array(z.object({
     method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']),
     path: z.string()
@@ -19,11 +19,11 @@ export const createEndpointSchema = z.object({
     response: z.object({
       status: z.number().min(100).max(599),
       body: z.any(),
-      headers: z.record(z.string()).optional(),
+      headers: z.record(z.string(), z.string()).optional(),
       delay: z.number().min(0).max(30000).optional(),
     }),
   })).max(100, 'Too many rules (max 100)'),
-  
+
   settings: z.object({
     webhookUrl: z.string().url().optional(),
     logRequests: z.boolean().optional(),

@@ -85,12 +85,12 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
       // Validate params
       const endpointIdResult = endpointIdSchema.safeParse(request.params.endpointId);
       if (!endpointIdResult.success) {
-        return validationError(reply, endpointIdResult.error.errors[0].message);
+        return validationError(reply, endpointIdResult.error.issues[0].message);
       }
 
       const keyResult = stateKeySchema.safeParse(request.params.key);
       if (!keyResult.success) {
-        return validationError(reply, keyResult.error.errors[0].message);
+        return validationError(reply, keyResult.error.issues[0].message);
       }
 
       const user = getAuthenticatedUser(request);
@@ -137,18 +137,18 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
       // Validate params
       const endpointIdResult = endpointIdSchema.safeParse(request.params.endpointId);
       if (!endpointIdResult.success) {
-        return validationError(reply, endpointIdResult.error.errors[0].message);
+        return validationError(reply, endpointIdResult.error.issues[0].message);
       }
 
       const keyResult = stateKeySchema.safeParse(request.params.key);
       if (!keyResult.success) {
-        return validationError(reply, keyResult.error.errors[0].message);
+        return validationError(reply, keyResult.error.issues[0].message);
       }
 
       // Validate value
       const valueResult = stateValueSchema.safeParse(request.body.value);
       if (!valueResult.success) {
-        return validationError(reply, valueResult.error.errors[0].message);
+        return validationError(reply, valueResult.error.issues[0].message);
       }
 
       const user = getAuthenticatedUser(request);
@@ -189,12 +189,12 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
       // Validate params
       const endpointIdResult = endpointIdSchema.safeParse(request.params.endpointId);
       if (!endpointIdResult.success) {
-        return validationError(reply, endpointIdResult.error.errors[0].message);
+        return validationError(reply, endpointIdResult.error.issues[0].message);
       }
 
       const keyResult = stateKeySchema.safeParse(request.params.key);
       if (!keyResult.success) {
-        return validationError(reply, keyResult.error.errors[0].message);
+        return validationError(reply, keyResult.error.issues[0].message);
       }
 
       const user = getAuthenticatedUser(request);
@@ -230,7 +230,7 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
       // Validate params
       const endpointIdResult = endpointIdSchema.safeParse(request.params.endpointId);
       if (!endpointIdResult.success) {
-        return validationError(reply, endpointIdResult.error.errors[0].message);
+        return validationError(reply, endpointIdResult.error.issues[0].message);
       }
 
       const user = getAuthenticatedUser(request);
