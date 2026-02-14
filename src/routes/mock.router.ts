@@ -10,10 +10,10 @@ import { setState } from '../lib/state.js';
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
 import { requestLoggerPostHook } from '../middleware/request-logger.middleware.js';
 import {
-    bufferRequestCount,
-    cacheSubdomainMapping,
-    getEndpointSubdomainCacheKey,
-    getNextSequenceIndex
+  bufferRequestCount,
+  cacheSubdomainMapping,
+  getEndpointSubdomainCacheKey,
+  getNextSequenceIndex
 } from '../utils/endpoint.cache.js';
 import { assertSafeWebhookUrl } from '../utils/ssrf.js';
 
@@ -629,6 +629,88 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
           const chaos = await applyChaos(endpoint.id, request.ip, reply);
           if (chaos.rateLimited || chaos.timedOut || chaos.errorInjected) {
             return;
+          }
+
+          // Proxy / Fallback Logic
+          const settings = (endpoint as any).settings as { targetUrl?: string } | undefined;
+          if (settings?.targetUrl) {
+            try {
+              let path = request.url;
+              // Use normalized path (stripping subdomain prefix if using path-based routing)
+              if ((request as any)._pathForRules) {
+                path = (request as any)._pathForRules;
+                const query = request.url.split('?')[1];
+                if (query) path += '?' + query;
+              }
+
+              const targetUrl = settings.targetUrl.replace(/\/$/, '') + path;
+
+              // Filter headers
+              const forwardHeaders = new Headers();
+              for (const [k, v] of Object.entries(request.headers)) {
+                if (!['host', 'connection', 'content-length'].includes(k.toLowerCase())) {
+                  forwardHeaders.set(k, Array.isArray(v) ? v.join(',') : String(v));
+                }
+              }
+
+              const proxyRes = await fetch(targetUrl, {
+                method: request.method,
+                headers: forwardHeaders,
+                body: ['GET', 'HEAD'].includes(request.method) ? undefined : JSON.stringify(request.body),
+                redirect: 'follow',
+              });
+
+              // Read response body
+              const proxyBodyText = await proxyRes.text();
+              let proxyBody: any = proxyBodyText;
+              try { proxyBody = JSON.parse(proxyBodyText); } catch { }
+
+              const latency = Date.now() - startTime;
+              span.setAttribute('proxy.target', targetUrl);
+              span.setAttribute('proxy.status', proxyRes.status);
+
+              // Broadcast proxy response
+              try {
+                broadcastRequest({
+                  type: 'request',
+                  id: request.id,
+                  endpointId: endpoint.id,
+                  endpointName: endpoint.name,
+                  timestamp: new Date().toISOString(),
+                  method: request.method,
+                  path: path, // Use normalized path
+                  query: request.query as Record<string, unknown>,
+                  headers: request.headers as Record<string, string>,
+                  body: request.body,
+                  ip: request.ip,
+                  userAgent: (request.headers['user-agent'] as string) ?? undefined,
+                  responseStatus: proxyRes.status,
+                  responseBody: proxyBody,
+                  latencyMs: latency,
+                  chaosApplied: ['proxy'],
+                });
+              } catch { }
+
+              // Forward response headers
+              proxyRes.headers.forEach((v, k) => {
+                if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(k.toLowerCase())) {
+                  reply.header(k, v);
+                }
+              });
+
+              return reply.status(proxyRes.status).send(proxyBody);
+
+            } catch (err) {
+              logger.error('Proxy request failed', { err, target: settings.targetUrl });
+              // Fallthrough to default response on proxy error? 
+              // Or return 502? 
+              // Let's return 502 to alert user proxy failed.
+              return reply.status(502).send({
+                error: 'Bad Gateway',
+                message: 'Failed to proxy request to target URL',
+                details: (err as Error).message
+              });
+            }
           }
 
           const defaultResponse = generateDefaultResponse(endpoint, request);

@@ -85,6 +85,7 @@ export interface Endpoint {
   rules: unknown[];
   reqCount: number;
   createdAt: string;
+  settings?: Record<string, any>;
 }
 
 export interface EndpointDetail extends Endpoint {

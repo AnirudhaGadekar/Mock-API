@@ -1,4 +1,6 @@
+```
 import { ChaosPanel } from "@/components/ChaosPanel";
+import { InspectorPanel } from "@/components/InspectorPanel";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -79,7 +81,10 @@ export default function EndpointConfigPage() {
     const handleSave = async () => {
         try {
             setSaving(true);
-            await updateEndpoint(id!, { rules });
+            await updateEndpoint(id!, { 
+                rules, 
+                settings: endpoint?.settings 
+            });
             toast.success("Configuration saved!");
         } catch (err: any) {
             toast.error(err.response?.data?.error?.message || "Failed to save configuration");
@@ -155,7 +160,7 @@ export default function EndpointConfigPage() {
                 </div>
                 <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={loadEndpoint} disabled={saving}>
-                        <RefreshCw className={`mr-2 h-4 w-4 ${saving ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`mr - 2 h - 4 w - 4 ${ saving ? 'animate-spin' : '' } `} />
                         Refresh
                     </Button>
                     <Button onClick={handleSave} disabled={saving}>
@@ -166,7 +171,7 @@ export default function EndpointConfigPage() {
             </div>
 
             <Tabs defaultValue="rules" className="w-full">
-                <TabsList className="grid w-full max-w-[600px] grid-cols-3">
+                <TabsList className="grid w-full max-w-[600px] grid-cols-4">
                     <TabsTrigger value="rules" className="flex items-center gap-2">
                         <Code className="h-4 w-4" /> Mock Rules
                     </TabsTrigger>
@@ -175,6 +180,9 @@ export default function EndpointConfigPage() {
                     </TabsTrigger>
                     <TabsTrigger value="chaos" className="flex items-center gap-2">
                         <Zap className="h-4 w-4 text-orange-500" /> Chaos
+                    </TabsTrigger>
+                    <TabsTrigger value="inspector" className="flex items-center gap-2">
+                        <Search className="h-4 w-4 text-blue-500" /> Inspector
                     </TabsTrigger>
                 </TabsList>
 
@@ -321,6 +329,23 @@ export default function EndpointConfigPage() {
                                 <p className="text-xs text-muted-foreground">Endpoint name cannot be changed once created.</p>
                             </div>
 
+                            <div className="space-y-2 pt-4 border-t">
+                                <Label>Fallback / Proxy URL</Label>
+                                <div className="flex gap-2">
+                                    <Input 
+                                        placeholder="https://api.example.com" 
+                                        value={endpoint.settings?.targetUrl || ''}
+                                        onChange={(e) => setEndpoint({
+                                            ...endpoint,
+                                            settings: { ...endpoint.settings, targetUrl: e.target.value }
+                                        })}
+                                    />
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Requests that don't match any mock rule will be forwarded to this URL.
+                                </p>
+                            </div>
+
                             <div className="pt-4 border-t">
                                 <h4 className="text-sm font-medium mb-2 text-destructive">Danger Zone</h4>
                                 <p className="text-sm text-muted-foreground mb-4">Deleting this endpoint will remove all rules and history. This cannot be undone.</p>
@@ -328,7 +353,7 @@ export default function EndpointConfigPage() {
                                     variant="destructive"
                                     size="sm"
                                     onClick={async () => {
-                                        if (confirm(`Are you sure you want to delete ${endpoint.name}?`)) {
+                                        if (confirm(`Are you sure you want to delete ${ endpoint.name }?`)) {
                                             try {
                                                 await deleteEndpoint(id!);
                                                 toast.success("Endpoint deleted");
@@ -348,6 +373,10 @@ export default function EndpointConfigPage() {
 
                 <TabsContent value="chaos" className="pt-4">
                     <ChaosPanel endpointId={id!} />
+                </TabsContent>
+
+                <TabsContent value="inspector" className="pt-4">
+                    <InspectorPanel endpointId={id!} />
                 </TabsContent>
             </Tabs>
         </div>
