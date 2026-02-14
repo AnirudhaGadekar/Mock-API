@@ -11,17 +11,17 @@ services:
       PORT: 3000
       HOST: 0.0.0.0
       LOG_LEVEL: info
-      DATABASE_URL: "postgresql://MockUrl:MockUrl_pass@pgbouncer:5432/MockUrl?schema=public&pgbouncer=true&connection_limit=1"
-      DIRECT_DATABASE_URL: "postgresql://MockUrl:MockUrl_pass@postgres:5432/MockUrl?schema=public"
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_DB: 0
+      DATABASE_URL: "${DATABASE_URL:-postgresql://${POSTGRES_USER:-MockUrl}:${POSTGRES_PASSWORD:-MockUrl_pass}@pgbouncer:5432/${POSTGRES_DB:-MockUrl}?schema=public&pgbouncer=true&connection_limit=1}"
+      DIRECT_DATABASE_URL: "${DIRECT_DATABASE_URL:-postgresql://${POSTGRES_USER:-MockUrl}:${POSTGRES_PASSWORD:-MockUrl_pass}@postgres:5432/${POSTGRES_DB:-MockUrl}?schema=public}"
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
       JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRES_IN: 7d
-      RATE_LIMIT_MAX: 100
-      RATE_LIMIT_WINDOW: 60000
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-60000}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
-      API_VERSION: v1
+      API_VERSION: ${API_VERSION:-v1}
       BASE_ENDPOINT_URL: ${BASE_ENDPOINT_URL:-http://localhost:3000/e}
     ports:
       - "3000:3000"
@@ -46,9 +46,9 @@ services:
     image: postgres:14-alpine
     container_name: MockUrl-postgres
     environment:
-      POSTGRES_USER: MockUrl
-      POSTGRES_PASSWORD: MockUrl_pass
-      POSTGRES_DB: MockUrl
+      POSTGRES_USER: ${POSTGRES_USER:-MockUrl}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-MockUrl_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-MockUrl}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -65,7 +65,7 @@ services:
     image: pgbouncer/pgbouncer:latest
     container_name: MockUrl-pgbouncer
     environment:
-      DATABASE_URL: "postgres://MockUrl:MockUrl_pass@postgres:5432/MockUrl"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://${POSTGRES_USER:-MockUrl}:${POSTGRES_PASSWORD:-MockUrl_pass}@postgres:5432/${POSTGRES_DB:-MockUrl}}"
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 1000
       DEFAULT_POOL_SIZE: 20
