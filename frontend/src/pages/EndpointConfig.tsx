@@ -1,3 +1,4 @@
+import { ChaosPanel } from "@/components/ChaosPanel";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -32,7 +33,8 @@ import {
     RefreshCw,
     Save,
     Settings,
-    Trash2
+    Trash2,
+    Zap
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
@@ -164,12 +166,15 @@ export default function EndpointConfigPage() {
             </div>
 
             <Tabs defaultValue="rules" className="w-full">
-                <TabsList className="grid w-full max-w-[400px] grid-cols-2">
+                <TabsList className="grid w-full max-w-[600px] grid-cols-3">
                     <TabsTrigger value="rules" className="flex items-center gap-2">
                         <Code className="h-4 w-4" /> Mock Rules
                     </TabsTrigger>
                     <TabsTrigger value="settings" className="flex items-center gap-2">
                         <Settings className="h-4 w-4" /> Settings
+                    </TabsTrigger>
+                    <TabsTrigger value="chaos" className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-orange-500" /> Chaos
                     </TabsTrigger>
                 </TabsList>
 
@@ -339,6 +344,10 @@ export default function EndpointConfigPage() {
                             </div>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                <TabsContent value="chaos" className="pt-4">
+                    <ChaosPanel endpointId={id!} />
                 </TabsContent>
             </Tabs>
         </div>

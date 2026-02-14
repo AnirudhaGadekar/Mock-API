@@ -215,3 +215,11 @@ export async function setStateValue(endpointId: string, key: string, value: any)
 export async function deleteStateValue(endpointId: string, key: string): Promise<void> {
   await api.delete(`/api/v1/state/${endpointId}/${key}`);
 }
+
+export async function importOpenApi(spec: string): Promise<{ success: boolean; message: string; endpoints: any[] }> {
+  const res = await api.post<{ success: boolean; message: string; endpoints: any[] }>(
+    '/api/v1/oas-import',
+    { spec }
+  );
+  return res.data;
+}
