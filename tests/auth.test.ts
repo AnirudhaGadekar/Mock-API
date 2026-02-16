@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
+  extractToken,
   generateApiKey,
   generateToken,
   verifyToken,
-  extractToken,
-} from '../lib/auth.js';
+} from '../src/lib/auth.js';
 
 describe('Authentication Utilities', () => {
   describe('generateApiKey', () => {

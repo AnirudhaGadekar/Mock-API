@@ -1,6 +1,8 @@
-```
+import { AIRuleGenerator } from "@/components/AIRuleGenerator";
 import { ChaosPanel } from "@/components/ChaosPanel";
 import { InspectorPanel } from "@/components/InspectorPanel";
+import { KeyValueList } from "@/components/KeyValueList";
+import { TemplateHelper } from "@/components/TemplateHelper";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -31,10 +33,13 @@ import {
     ChevronRight,
     Clock,
     Code,
+    Filter,
     Plus,
     RefreshCw,
     Save,
+    Search,
     Settings,
+    Sparkles,
     Trash2,
     Zap
 } from "lucide-react";
@@ -51,6 +56,11 @@ interface Rule {
         headers?: Record<string, string>;
         delay?: number;
     };
+    condition?: {
+        queryParams?: Record<string, string>;
+        headers?: Record<string, string>;
+        bodyContains?: string;
+    };
 }
 
 export default function EndpointConfigPage() {
@@ -60,6 +70,7 @@ export default function EndpointConfigPage() {
     const [rules, setRules] = useState<Rule[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [showAI, setShowAI] = useState(false);
 
     useEffect(() => {
         if (id) loadEndpoint();
@@ -81,9 +92,9 @@ export default function EndpointConfigPage() {
     const handleSave = async () => {
         try {
             setSaving(true);
-            await updateEndpoint(id!, { 
-                rules, 
-                settings: endpoint?.settings 
+            await updateEndpoint(id!, {
+                rules,
+                settings: endpoint?.settings
             });
             toast.success("Configuration saved!");
         } catch (err: any) {
@@ -101,6 +112,10 @@ export default function EndpointConfigPage() {
                 status: 200,
                 body: { message: "Success" },
                 headers: { "Content-Type": "application/json" }
+            },
+            condition: {
+                queryParams: {},
+                headers: {}
             }
         };
         setRules([...rules, newRule]);
@@ -111,6 +126,15 @@ export default function EndpointConfigPage() {
         updated[index] = { ...updated[index], ...patch };
         setRules(updated);
     };
+
+    const updateCondition = (index: number, patch: Partial<Rule['condition']>) => {
+        const updated = [...rules];
+        updated[index] = {
+            ...updated[index],
+            condition: { ...(updated[index].condition || {}), ...patch }
+        };
+        setRules(updated);
+    }
 
     const updateResponse = (index: number, patch: Partial<Rule['response']>) => {
         const updated = [...rules];
@@ -123,6 +147,16 @@ export default function EndpointConfigPage() {
 
     const deleteRule = (index: number) => {
         setRules(rules.filter((_, i) => i !== index));
+    };
+
+    const insertTemplateVar = (index: number, text: string) => {
+        const rule = rules[index];
+        const currentBody = typeof rule.response.body === 'string'
+            ? rule.response.body
+            : JSON.stringify(rule.response.body, null, 2);
+
+        // Simple append for now
+        updateResponse(index, { body: currentBody + text });
     };
 
     if (loading) {
@@ -160,7 +194,7 @@ export default function EndpointConfigPage() {
                 </div>
                 <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={loadEndpoint} disabled={saving}>
-                        <RefreshCw className={`mr - 2 h - 4 w - 4 ${ saving ? 'animate-spin' : '' } `} />
+                        <RefreshCw className={`mr - 2 h - 4 w - 4 ${saving ? 'animate-spin' : ''} `} />
                         Refresh
                     </Button>
                     <Button onClick={handleSave} disabled={saving}>
@@ -189,10 +223,27 @@ export default function EndpointConfigPage() {
                 <TabsContent value="rules" className="space-y-4 pt-4">
                     <div className="flex items-center justify-between">
                         <h3 className="text-lg font-medium">Matching Rules</h3>
-                        <Button size="sm" onClick={addRule}>
-                            <Plus className="mr-2 h-4 w-4" /> Add Rule
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button variant="outline" onClick={() => setShowAI(!showAI)}>
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                {showAI ? 'Hide AI' : 'Generate with AI'}
+                            </Button>
+                            <Button size="sm" onClick={addRule}>
+                                <Plus className="mr-2 h-4 w-4" /> Add Rule
+                            </Button>
+                        </div>
                     </div>
+
+                    {showAI && (
+                        <AIRuleGenerator
+                            endpointId={id!}
+                            onRuleGenerated={(rule) => {
+                                setRules([...rules, rule]);
+                                setShowAI(false);
+                                toast.success("Rule added via AI!");
+                            }}
+                        />
+                    )}
 
                     {rules.length === 0 ? (
                         <Card className="border-dashed">
@@ -244,7 +295,48 @@ export default function EndpointConfigPage() {
                                         </Button>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="pt-6 space-y-4">
+                                <CardContent className="pt-6 space-y-6">
+                                    {/* Advanced Matching */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <Filter className="h-4 w-4 text-muted-foreground" />
+                                            <Label className="text-sm font-semibold">Match Conditions (Optional)</Label>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-md">
+                                            <div>
+                                                <Label className="text-xs mb-2 block text-muted-foreground">Required Headers</Label>
+                                                <KeyValueList
+                                                    items={rule.condition?.headers || {}}
+                                                    onChange={(headers) => updateCondition(idx, { headers })}
+                                                    keyPlaceholder="X-Api-Key"
+                                                    valuePlaceholder="secret-123"
+                                                    addButtonText="Add Header Match"
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label className="text-xs mb-2 block text-muted-foreground">Required Query Params</Label>
+                                                <KeyValueList
+                                                    items={rule.condition?.queryParams || {}}
+                                                    onChange={(queryParams) => updateCondition(idx, { queryParams })}
+                                                    keyPlaceholder="type"
+                                                    valuePlaceholder="admin"
+                                                    addButtonText="Add Query Match"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs mb-1 block text-muted-foreground">Body Contains (Substring Match)</Label>
+                                            <Input
+                                                className="font-mono text-xs"
+                                                placeholder="substring to match in body..."
+                                                value={rule.condition?.bodyContains || ''}
+                                                onChange={(e) => updateCondition(idx, { bodyContains: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="h-px bg-border" />
+
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="space-y-4">
                                             <div className="space-y-2">
@@ -257,7 +349,7 @@ export default function EndpointConfigPage() {
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {[200, 201, 204, 400, 401, 403, 404, 429, 500, 502, 503].map(s => (
+                                                        {[200, 201, 204, 400, 401, 403, 404, 422, 429, 500, 502, 503].map(s => (
                                                             <SelectItem key={s} value={String(s)}>{s}</SelectItem>
                                                         ))}
                                                     </SelectContent>
@@ -274,12 +366,25 @@ export default function EndpointConfigPage() {
                                                     onChange={(e) => updateResponse(idx, { delay: parseInt(e.target.value) || 0 })}
                                                 />
                                             </div>
+                                            <div className="space-y-2">
+                                                <Label>Custom Response Headers</Label>
+                                                <KeyValueList
+                                                    items={rule.response.headers || {}}
+                                                    onChange={(headers) => updateResponse(idx, { headers })}
+                                                    keyPlaceholder="Content-Type"
+                                                    valuePlaceholder="application/json"
+                                                    addButtonText="Add Response Header"
+                                                />
+                                            </div>
                                         </div>
                                         <div className="space-y-4">
                                             <div className="space-y-2">
-                                                <Label>Response Body (JSON)</Label>
+                                                <div className="flex items-center justify-between">
+                                                    <Label>Response Body (JSON)</Label>
+                                                    <TemplateHelper onInsert={(text) => insertTemplateVar(idx, text)} />
+                                                </div>
                                                 <Textarea
-                                                    className="font-mono text-xs min-h-[120px]"
+                                                    className="font-mono text-xs min-h-[250px]"
                                                     value={typeof rule.response.body === 'string' ? rule.response.body : JSON.stringify(rule.response.body, null, 2)}
                                                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                                                         try {
@@ -290,25 +395,13 @@ export default function EndpointConfigPage() {
                                                         }
                                                     }}
                                                 />
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Supports standard Handlebars logic ({"{{#if}}"}, {"{{#each}}"}),
+                                                    Faker.js ({"{{faker.name.firstName}}"}),
+                                                    and Request Reflection ({"{{req.query.id}}"}).
+                                                </p>
                                             </div>
                                         </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label>Custom Response Headers (JSON)</Label>
-                                        <Textarea
-                                            className="font-mono text-xs min-h-[80px]"
-                                            placeholder='{ "X-Custom": "Value" }'
-                                            value={JSON.stringify(rule.response.headers || {}, null, 2)}
-                                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                                                try {
-                                                    const obj = JSON.parse(e.target.value);
-                                                    updateResponse(idx, { headers: obj });
-                                                } catch {
-                                                    // ignore invalid json during typing
-                                                }
-                                            }}
-                                        />
                                     </div>
                                 </CardContent>
                             </Card>
@@ -332,8 +425,8 @@ export default function EndpointConfigPage() {
                             <div className="space-y-2 pt-4 border-t">
                                 <Label>Fallback / Proxy URL</Label>
                                 <div className="flex gap-2">
-                                    <Input 
-                                        placeholder="https://api.example.com" 
+                                    <Input
+                                        placeholder="https://api.example.com"
                                         value={endpoint.settings?.targetUrl || ''}
                                         onChange={(e) => setEndpoint({
                                             ...endpoint,
@@ -353,7 +446,7 @@ export default function EndpointConfigPage() {
                                     variant="destructive"
                                     size="sm"
                                     onClick={async () => {
-                                        if (confirm(`Are you sure you want to delete ${ endpoint.name }?`)) {
+                                        if (confirm(`Are you sure you want to delete ${endpoint.name}?`)) {
                                             try {
                                                 await deleteEndpoint(id!);
                                                 toast.success("Endpoint deleted");

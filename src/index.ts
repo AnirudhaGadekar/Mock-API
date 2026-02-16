@@ -14,6 +14,7 @@ import { initTracing, shutdownTracing } from './lib/tracing.js';
 import { registerRateLimiting } from './middleware/rate-limit.middleware.js';
 import { tunnelProxyPlugin } from './middleware/tunnel-proxy.js';
 import { adminRoutes } from './routes/admin.routes.js';
+import { aiRulesRoutes } from './routes/ai-rules.routes.js';
 import { chaosRoutes } from './routes/chaos.routes.js';
 import { endpointsRoutes } from "./routes/endpoints.routes.js";
 import { historyRoutes } from './routes/history.routes.js';
@@ -22,6 +23,8 @@ import { oasRoutes } from './routes/oas.routes.js';
 import { sessionRoutes } from './routes/session.routes.js';
 import { stateRoutes } from './routes/state.routes.js';
 import { storeRoutes } from './routes/store.routes.js';
+import { teamRoutes } from './routes/teams.js';
+import tunnelWsRoute from './routes/tunnel-ws.js';
 import { tunnelRoutes } from './routes/tunnel.routes.js';
 import { userRoutes } from './routes/user.routes.js';
 
@@ -187,8 +190,12 @@ async function buildApp() {
     });
   });
 
+  // WebSocket support (must be registered before routes using it)
+  await app.register(import('@fastify/websocket'));
+
   // WebSocket plugin (must be before routes)
   await app.register(websocketPlugin);
+  await app.register(tunnelWsRoute);
 
   // Swagger Documentation
   await registerSwagger(app);
@@ -205,8 +212,12 @@ async function buildApp() {
   await app.register(chaosRoutes, { prefix: '/api/v1/chaos' });
   await app.register(oasRoutes, { prefix: '/api/v1' });
   await app.register(tunnelRoutes, { prefix: '/api/v1/tunnel' });
+  await app.register(teamRoutes, { prefix: '/api/v1/teams' });
   await app.register(tunnelProxyPlugin);
   await app.register(mockRouterPlugin);
+
+  // AI Routes
+  await app.register(aiRulesRoutes, { prefix: '/api/v1/ai' });
 
   // Error handler
   app.setErrorHandler((error: unknown, request, reply) => {

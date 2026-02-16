@@ -1,9 +1,9 @@
 import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
-import { buildApp } from '../index.js';
-import { prisma } from '../lib/db.js';
-import { redis } from '../lib/redis.js';
+import { buildApp } from '../src/index.js';
+import { prisma } from '../src/lib/db.js';
+import { redis } from '../src/lib/redis.js';
 
 let app: FastifyInstance;
 let testApiKey: string;
@@ -38,7 +38,7 @@ afterAll(async () => {
 beforeEach(async () => {
   // Clear Redis cache before each test
   await redis.flushdb();
-  
+
   // Delete all test endpoints
   await prisma.endpoint.deleteMany({ where: { userId: testUserId } });
 });

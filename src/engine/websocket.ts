@@ -107,8 +107,8 @@ export function broadcastEvent(event: Record<string, unknown>): void {
 // ─── Fastify plugin ─────────────────────────────────────────────────────────
 
 export const websocketPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
-    // Register @fastify/websocket
-    await fastify.register(import('@fastify/websocket'));
+    // Register @fastify/websocket - Moved to app.ts/index.ts
+    // await fastify.register(import('@fastify/websocket'));
 
     // WebSocket endpoint for live request stream
     fastify.get('/api/ws', { websocket: true }, (socket, req) => {

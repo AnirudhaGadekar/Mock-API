@@ -1,3 +1,4 @@
+
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { initSession } from "@/lib/api";
 import Chaos from "@/pages/Chaos";
@@ -7,6 +8,8 @@ import Endpoints from "@/pages/Endpoints";
 import Requests from "@/pages/Requests";
 import Settings from "@/pages/Settings";
 import StateStore from "@/pages/StateStore";
+import TeamSettings from "@/pages/TeamSettings";
+import TunnelDashboard from "@/pages/TunnelDashboard";
 import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -36,6 +39,8 @@ export default function App() {
                     <Route path="requests" element={<Requests />} />
                     <Route path="chaos" element={<Chaos />} />
                     <Route path="state" element={<StateStore />} />
+                    <Route path="tunnels" element={<TunnelDashboard />} />
+                    <Route path="team/settings" element={<TeamSettings />} />
                     <Route path="endpoints/:id" element={<EndpointConfig />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="*" element={<Navigate to="/" replace />} />

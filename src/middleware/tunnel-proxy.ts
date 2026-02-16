@@ -1,3 +1,4 @@
+
 /**
  * tunnel-proxy.ts — Simple "local tunneling" style proxy.
  *
@@ -11,7 +12,9 @@
  * 3. Clients hit https://api.mockurl.com/tunnel/<id>/... and traffic is forwarded
  *    to targetUrl + path suffix with optional header injection.
  */
+import { randomUUID } from 'crypto';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { getTunnel } from '../lib/active-tunnels.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 
@@ -51,6 +54,76 @@ export const tunnelProxyPlugin: FastifyPluginAsync = async (fastify) => {
     const { tunnelId } = request.params as { tunnelId: string; '*': string };
     const suffix = (request.params as any)['*'] as string | undefined;
 
+    // 1. Check for Active WebSocket Tunnel (Priority 1)
+    const wsTunnel = getTunnel(tunnelId);
+    if (wsTunnel) {
+      if (wsTunnel.socket.readyState !== wsTunnel.socket.OPEN) {
+        return reply.status(502).send({
+          success: false,
+          error: { code: 'TUNNEL_DISCONNECTED', message: 'Tunnel client disconnected' }
+        });
+      }
+
+      const requestId = randomUUID();
+      const pathSuffix = suffix ? `/${suffix}` : '';
+      const originalUrl = new URL(request.url, 'http://placeholder');
+
+      const payload = {
+        type: 'REQUEST',
+        requestId,
+        method: request.method,
+        path: pathSuffix + (originalUrl.search || ''),
+        headers: request.headers,
+        body: typeof request.body === 'string' ? request.body : JSON.stringify(request.body)
+      };
+
+      // Create Promise to wait for response
+      const responsePromise = new Promise<any>((resolve, reject) => {
+        // Timeout after 30s
+        const timeout = setTimeout(() => {
+          wsTunnel.pendingRequests.delete(requestId);
+          reject(new Error('Tunnel request timed out'));
+        }, 30000);
+
+        wsTunnel.pendingRequests.set(requestId, {
+          resolve: (data) => {
+            clearTimeout(timeout);
+            resolve(data);
+          },
+          reject: (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          }
+        });
+      });
+
+      try {
+        wsTunnel.socket.send(JSON.stringify(payload));
+        const tunnelRes = await responsePromise;
+
+        reply.status(tunnelRes.status);
+        if (tunnelRes.headers) {
+          Object.entries(tunnelRes.headers).forEach(([k, v]) => {
+            reply.header(k, v);
+          });
+        }
+        // If body is base64
+        if (tunnelRes.body) {
+          reply.send(Buffer.from(tunnelRes.body, 'base64'));
+        } else {
+          reply.send();
+        }
+        return reply;
+      } catch (err: any) {
+        logger.error('Tunnel proxy forwarding failed', { err, tunnelId });
+        return reply.status(504).send({
+          success: false,
+          error: { code: 'TUNNEL_TIMEOUT', message: err.message }
+        });
+      }
+    }
+
+    // 2. Fallback to Persistent/Static Tunnel Logic (Redis)
     const cfg = await loadTunnel(tunnelId);
     if (!cfg) {
       return reply.status(404).send({
@@ -84,10 +157,10 @@ export const tunnelProxyPlugin: FastifyPluginAsync = async (fastify) => {
         request.method === 'GET' || request.method === 'HEAD'
           ? undefined
           : typeof request.body === 'string'
-          ? request.body
-          : request.body
-          ? JSON.stringify(request.body)
-          : undefined;
+            ? request.body
+            : request.body
+              ? JSON.stringify(request.body)
+              : undefined;
 
       const upstreamResponse = await fetch(url.toString(), {
         method: request.method,
@@ -116,4 +189,3 @@ export const tunnelProxyPlugin: FastifyPluginAsync = async (fastify) => {
 };
 
 export default tunnelProxyPlugin;
-

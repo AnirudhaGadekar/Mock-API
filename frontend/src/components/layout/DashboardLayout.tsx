@@ -1,3 +1,5 @@
+
+import { TeamSwitcher } from "@/components/TeamSwitcher";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -6,6 +8,7 @@ import {
     Globe,
     LayoutDashboard,
     Menu,
+    Network,
     Settings,
     X,
     Zap
@@ -24,7 +27,9 @@ export function DashboardLayout() {
         if (pathname.startsWith("/endpoints")) return "Endpoints";
         if (pathname.startsWith("/chaos")) return "Chaos Engineering";
         if (pathname.startsWith("/state")) return "State Store";
+        if (pathname.startsWith("/tunnels")) return "Local Tunnels";
         if (pathname.startsWith("/settings")) return "Settings";
+        if (pathname.startsWith("/team/settings")) return "Team Settings";
         return "Console";
     };
 
@@ -61,6 +66,10 @@ export function DashboardLayout() {
                     </Button>
                 </div>
 
+                <div className="px-4 pt-4">
+                    <TeamSwitcher />
+                </div>
+
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                     <NavItem to="/" icon={LayoutDashboard} onClick={() => setMobileMenuOpen(false)}>
@@ -71,6 +80,9 @@ export function DashboardLayout() {
                     </NavItem>
                     <NavItem to="/endpoints" icon={Globe} onClick={() => setMobileMenuOpen(false)}>
                         Endpoints
+                    </NavItem>
+                    <NavItem to="/tunnels" icon={Network} onClick={() => setMobileMenuOpen(false)}>
+                        Local Tunnels
                     </NavItem>
                     <NavItem to="/chaos" icon={Zap} onClick={() => setMobileMenuOpen(false)}>
                         Chaos Rules

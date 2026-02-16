@@ -55,7 +55,7 @@ function getUserCacheKey(apiKeyHash: string): string {
 /**
  * Fetch user from cache or database with 1h TTL
  */
-async function fetchUserByApiKey(apiKey: string): Promise<{ id: string; email: string } | null> {
+export async function fetchUserByApiKey(apiKey: string): Promise<{ id: string; email: string } | null> {
   return tracer.startActiveSpan('fetch-user-by-api-key', async (span) => {
     try {
       const apiKeyHash = hashApiKey(apiKey);

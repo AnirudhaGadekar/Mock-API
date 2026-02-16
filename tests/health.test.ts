@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
-import { checkDatabaseHealth } from '../lib/db.js';
-import { checkRedisHealth } from '../lib/redis.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { checkDatabaseHealth } from '../src/lib/db.js';
+import { checkRedisHealth } from '../src/lib/redis.js';
 
 describe('Health Check Endpoints', () => {
   let app: FastifyInstance;

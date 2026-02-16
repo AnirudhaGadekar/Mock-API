@@ -16,6 +16,10 @@ model User {
   email      String     @unique
   apiKeyHash String     @unique @map("api_key") @db.VarChar(64) // SHA-256 hash
   endpoints  Endpoint[]
+  
+  ownedTeams      Team[]           @relation("TeamOwner")
+  teamMemberships TeamMember[]
+  invitationsSent TeamInvitation[] @relation("UserInvitationsSent")
 
   @@index([apiKeyHash])
   @@map("users")
@@ -32,9 +36,15 @@ model Endpoint {
   lastActiveAt DateTime     @default(now())
   deletedAt    DateTime?
   createdAt    DateTime     @default(now())
+  
+  teamId       String?      @db.Uuid
+  team         Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  isShared     Boolean      @default(false)
+
   requestLogs  RequestLog[]
 
   @@index([userId])
+  @@index([teamId])
   @@index([name])
   @@index([deletedAt])
   @@unique([name])
@@ -63,4 +73,59 @@ model RequestLog {
   @@index([path])
   @@index([timestamp])
   @@map("request_logs")
+}
+
+model Team {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  ownerId     String   @db.Uuid
+  owner       User     @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     TeamMember[]
+  invitations TeamInvitation[]
+  endpoints   Endpoint[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id       String   @id @default(uuid()) @db.Uuid
+  teamId   String   @db.Uuid
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId   String   @db.Uuid
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     TeamRole
+  joinedAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+model TeamInvitation {
+  id          String    @id @default(uuid()) @db.Uuid
+  teamId      String    @db.Uuid
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  email       String
+  role        TeamRole
+  token       String    @unique
+  invitedById String    @db.Uuid
+  invitedBy   User      @relation("UserInvitationsSent", fields: [invitedById], references: [id])
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("team_invitations")
+}
+
+// Add inverse relations to User model
+// This must be done in the User model definition, which is above.
+// I will use multi_replace to handle both.
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
 }

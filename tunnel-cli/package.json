@@ -1,0 +1,26 @@
+{
+    "name": "@beeceptor/tunnel",
+    "version": "1.0.0",
+    "description": "CLI tool for MockURL local tunneling",
+    "bin": {
+        "beeceptor": "./dist/index.js",
+        "bct": "./dist/index.js"
+    },
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/index.js"
+    },
+    "dependencies": {
+        "axios": "^1.6.0",
+        "boxen": "^7.1.1",
+        "chalk": "^5.3.0",
+        "commander": "^11.0.0",
+        "ora": "^7.0.1",
+        "ws": "^8.16.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.0",
+        "@types/ws": "^8.5.10",
+        "typescript": "^5.3.3"
+    }
+}

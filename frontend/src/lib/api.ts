@@ -6,7 +6,7 @@
  */
 import axios from 'axios';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? `http://${window.location.hostname}:3000`;
 const LS_KEY = 'mockurl_api_key';
 
 export const api = axios.create({ baseURL: API_BASE });
@@ -223,4 +223,60 @@ export async function importOpenApi(spec: string): Promise<{ success: boolean; m
     { spec }
   );
   return res.data;
+}
+
+// ─── Team API ──────────────────────────────────────────────────────────────────
+
+export interface Team {
+  id: string;
+  name: string;
+  slug: string;
+  ownerId: string;
+  role?: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
+  members?: TeamMember[];
+}
+
+export interface TeamMember {
+  id: string;
+  userId: string;
+  role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
+  user: {
+    id: string;
+    email: string;
+  };
+  joinedAt: string;
+}
+
+export async function fetchUserTeams(): Promise<Team[]> {
+  const res = await api.get<Team[]>('/api/v1/teams');
+  return res.data;
+}
+
+export async function createTeam(name: string, slug: string): Promise<Team> {
+  const res = await api.post<Team>('/api/v1/teams', { name, slug });
+  return res.data;
+}
+
+export async function fetchTeam(teamId: string): Promise<Team> {
+  const res = await api.get<Team>(`/api/v1/teams/${teamId}`);
+  return res.data;
+}
+
+export async function inviteMember(teamId: string, email: string, role: string): Promise<any> {
+  const res = await api.post(`/api/v1/teams/${teamId}/invite`, { email, role });
+  return res.data;
+}
+
+export async function updateMemberRole(teamId: string, userId: string, role: string): Promise<void> {
+  await api.patch(`/api/v1/teams/${teamId}/members/${userId}`, { role });
+}
+
+export async function removeMember(teamId: string, userId: string): Promise<void> {
+  await api.delete(`/api/v1/teams/${teamId}/members/${userId}`);
+}
+
+export async function shareEndpoint(endpointId: string, teamId: string): Promise<void> {
+  // We need to update the endpoint with teamId
+  // This might require a new endpoint or updating the existing updateEndpoint to support teamId
+  await api.patch(`/api/v1/endpoints/${endpointId}`, { teamId, isShared: true });
 }

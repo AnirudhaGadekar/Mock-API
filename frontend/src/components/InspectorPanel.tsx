@@ -211,7 +211,7 @@ export function InspectorPanel({ endpointId }: InspectorPanelProps) {
                                                 </div>
                                             </div>
                                         )}
-                                        {activeRequest.body && (
+                                        {activeRequest.body != null && (
                                             <div>
                                                 <span className="text-xs font-medium text-muted-foreground uppercase">Body</span>
                                                 <pre className="mt-1 bg-muted/50 p-2 rounded text-xs font-mono overflow-auto max-h-[200px]">
@@ -230,7 +230,7 @@ export function InspectorPanel({ endpointId }: InspectorPanelProps) {
                                         <ArrowRight className="w-4 h-4 text-green-500 rotate-180" /> Response
                                     </h4>
                                     <div className="grid gap-4 pl-6 border-l-2 border-green-500/20">
-                                        {activeRequest.responseBody && (
+                                        {activeRequest.responseBody != null && (
                                             <div>
                                                 <span className="text-xs font-medium text-muted-foreground uppercase">Body</span>
                                                 <pre className="mt-1 bg-muted/50 p-2 rounded text-xs font-mono overflow-auto max-h-[300px]">

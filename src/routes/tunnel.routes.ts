@@ -1,3 +1,4 @@
+
 /**
  * tunnel.routes.ts — Manage tunneling configs.
  *
@@ -11,6 +12,7 @@
  */
 import crypto from 'crypto';
 import { FastifyPluginAsync } from 'fastify';
+import { activeTunnels } from '../lib/active-tunnels.js'; // Import active tunnels
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.middleware.js';
@@ -24,6 +26,7 @@ interface TunnelConfig {
   headers?: Record<string, string>;
   createdAt: string;
   expiresAt?: string;
+  type?: 'HTTP' | 'WEBSOCKET'; // Add type discriminator
 }
 
 function tunnelKey(id: string): string {
@@ -33,7 +36,7 @@ function tunnelKey(id: string): string {
 export const tunnelRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', authenticateApiKey);
 
-  // Create/update tunnel
+  // Create/update tunnel (HTTP/Redis based)
   fastify.post<{
     Body: { id?: string; targetUrl: string; headers?: Record<string, string>; ttlSeconds?: number };
   }>('/', async (request, reply) => {
@@ -69,6 +72,7 @@ export const tunnelRoutes: FastifyPluginAsync = async (fastify) => {
       headers,
       createdAt: now.toISOString(),
       expiresAt: ttlSeconds ? new Date(now.getTime() + ttlSeconds * 1000).toISOString() : undefined,
+      type: 'HTTP'
     };
 
     await redis.set(tunnelKey(tunnelId), JSON.stringify(cfg));
@@ -82,10 +86,11 @@ export const tunnelRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  // List tunnels for current user
+  // List tunnels for current user (Redis + WebSocket)
   fastify.get('/', async (request, reply) => {
     const user = getAuthenticatedUser(request);
 
+    // 1. Fetch Redis tunnels
     const keys = await redis.keys(TUNNEL_PREFIX + '*');
     const items: TunnelConfig[] = [];
     for (const key of keys) {
@@ -94,10 +99,23 @@ export const tunnelRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const cfg = JSON.parse(raw) as TunnelConfig;
         if (cfg.userId === user.id) {
-          items.push(cfg);
+          items.push({ ...cfg, type: 'HTTP' });
         }
       } catch {
         // ignore malformed entries
+      }
+    }
+
+    // 2. Fetch Active WebSocket Tunnels
+    for (const session of activeTunnels.values()) {
+      if (session.userId === user.id) {
+        items.push({
+          id: session.tunnelId,
+          userId: session.userId,
+          targetUrl: 'Local Client', // Or "CLI"
+          createdAt: session.createdAt.toISOString(),
+          type: 'WEBSOCKET'
+        });
       }
     }
 
@@ -115,29 +133,41 @@ export const tunnelRoutes: FastifyPluginAsync = async (fastify) => {
     const key = tunnelKey(id);
     const raw = await redis.get(key);
 
-    if (!raw) {
-      return reply.status(404).send({
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Tunnel not found' },
-        timestamp: new Date().toISOString(),
-      });
+    // Check Redis tunnels
+    if (raw) {
+      const cfg = JSON.parse(raw) as TunnelConfig;
+      if (cfg.userId !== user.id) {
+        return reply.status(403).send({
+          success: false,
+          error: { code: 'FORBIDDEN', message: 'You do not own this tunnel' },
+          timestamp: new Date().toISOString(),
+        });
+      }
+      await redis.del(key);
+      return reply.send({ success: true, deleted: true, timestamp: new Date().toISOString() });
     }
 
-    const cfg = JSON.parse(raw) as TunnelConfig;
-    if (cfg.userId !== user.id) {
-      return reply.status(403).send({
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'You do not own this tunnel' },
-        timestamp: new Date().toISOString(),
-      });
+    // Check Active WebSocket Tunnels (Though these are usually transient)
+    // We can force disconnect them
+    // Note: iterating map keys is fast enough for now
+    const wsTunnel = activeTunnels.get(id);
+    if (wsTunnel) {
+      if (wsTunnel.userId !== user.id) {
+        return reply.status(403).send({
+          success: false,
+          error: { code: 'FORBIDDEN', message: 'You do not own this tunnel' },
+          timestamp: new Date().toISOString(),
+        });
+      }
+      wsTunnel.socket.close(); // Close connection
+      activeTunnels.delete(id);
+      return reply.send({ success: true, deleted: true, timestamp: new Date().toISOString() });
     }
 
-    await redis.del(key);
-    return reply.send({
-      success: true,
-      deleted: true,
+    return reply.status(404).send({
+      success: false,
+      error: { code: 'NOT_FOUND', message: 'Tunnel not found' },
       timestamp: new Date().toISOString(),
     });
   });
 };
-
