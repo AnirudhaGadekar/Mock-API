@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   extractToken,
-  generateApiKey,
   generateToken,
   verifyToken,
 } from '../src/lib/auth.js';
+import { generateApiKey } from '../src/utils/apiKey.js';
 
 describe('Authentication Utilities', () => {
   describe('generateApiKey', () => {
-    it('should generate a 64-character hex string', () => {
+    it('should generate a valid key with prefix', () => {
       const apiKey = generateApiKey();
-      expect(apiKey).toHaveLength(64);
-      expect(apiKey).toMatch(/^[a-f0-9]{64}$/);
+      expect(apiKey).toHaveLength(73); // "key_live_" (9) + 64 hex
+      expect(apiKey).toMatch(/^key_live_[a-f0-9]{64}$/);
     });
 
     it('should generate unique keys', () => {

@@ -1,131 +1,199 @@
-// MockUrl clone - Prisma schema (Piece 1 spec)
-// PgBouncer: use DATABASE_URL with ?pgbouncer=true&connection_limit=1
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
+// ============================================
+// USER MODEL
+// ============================================
 model User {
-  id         String     @id @default(uuid()) @db.Uuid
-  email      String     @unique
-  apiKeyHash String     @unique @map("api_key") @db.VarChar(64) // SHA-256 hash
-  endpoints  Endpoint[]
+  id                    String         @id @default(uuid())
+  email                 String         @unique
+  password              String?        // NULL for OAuth and anonymous users
+  name                  String?
+  picture               String?        // Profile picture URL
   
-  ownedTeams      Team[]           @relation("TeamOwner")
-  teamMemberships TeamMember[]
-  invitationsSent TeamInvitation[] @relation("UserInvitationsSent")
-
+  // Email verification
+  emailVerified         Boolean        @default(false)
+  verificationToken     String?        @unique
+  
+  // Auth provider tracking
+  authProvider          AuthProvider   @default(ANONYMOUS)
+  googleId              String?        @unique
+  githubId              String?        @unique
+  
+  // API Key for authentication (Stored as SHA-256 hash)
+  apiKeyHash            String         @unique
+  
+  // Current workspace context
+  currentWorkspaceType  WorkspaceType  @default(PERSONAL)
+  currentTeamId         String?
+  
+  // Timestamps
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  
+  // Relations
+  endpoints             Endpoint[]
+  ownedTeams            Team[]         @relation("TeamOwner")
+  teamMemberships       TeamMember[]
+  createdInvites        TeamInvite[]   @relation("InviteCreator")
+  requestLogs           RequestLog[]
+  
+  @@index([email])
   @@index([apiKeyHash])
-  @@map("users")
+  @@index([googleId])
+  @@index([githubId])
 }
 
-model Endpoint {
-  id           String       @id @default(uuid()) @db.Uuid
-  userId       String       @db.Uuid
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name         String
-  rules        Json?        @default("[]")
-  settings     Json?        @default("{}")
-  requestCount Int          @default(0)
-  lastActiveAt DateTime     @default(now())
-  deletedAt    DateTime?
-  createdAt    DateTime     @default(now())
-  
-  teamId       String?      @db.Uuid
-  team         Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  isShared     Boolean      @default(false)
-
-  requestLogs  RequestLog[]
-
-  @@index([userId])
-  @@index([teamId])
-  @@index([name])
-  @@index([deletedAt])
-  @@unique([name])
-  @@map("endpoints")
+enum AuthProvider {
+  ANONYMOUS
+  LOCAL
+  GOOGLE
+  GITHUB
 }
 
-model RequestLog {
-  id              String   @id @default(uuid()) @db.Uuid
-  endpointId      String   @db.Uuid
-  endpoint        Endpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
-  timestamp       DateTime @default(now())
-  method          String
-  path            String
-  query           Json?
-  headers         Json?
-  body            String?
-  ip              String?
-  userAgent       String?
-  responseStatus  Int?
-  responseHeaders Json?
-  responseBody    String?
-  latencyMs       Int?
-
-  @@index([endpointId, timestamp(sort: Desc)])
-  @@index([endpointId])
-  @@index([path])
-  @@index([timestamp])
-  @@map("request_logs")
+enum WorkspaceType {
+  PERSONAL
+  TEAM
 }
 
+// ============================================
+// TEAM MODELS
+// ============================================
 model Team {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String       @id @default(uuid())
   name        String
-  slug        String   @unique
-  ownerId     String   @db.Uuid
-  owner       User     @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  slug        String       @unique
+  
+  // Owner
+  ownerId     String
+  owner       User         @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  // Relations
   members     TeamMember[]
-  invitations TeamInvitation[]
   endpoints   Endpoint[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("teams")
+  invites     TeamInvite[]
+  
+  @@index([slug])
+  @@index([ownerId])
 }
 
 model TeamMember {
-  id       String   @id @default(uuid()) @db.Uuid
-  teamId   String   @db.Uuid
-  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  userId   String   @db.Uuid
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role     TeamRole
-  joinedAt DateTime @default(now())
-
-  @@unique([teamId, userId])
-  @@map("team_members")
+  id        String     @id @default(uuid())
+  role      TeamRole   @default(MEMBER)
+  joinedAt  DateTime   @default(now())
+  
+  // Relations
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  teamId    String
+  team      Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, teamId], name: "userId_teamId")
+  @@index([userId])
+  @@index([teamId])
 }
-
-model TeamInvitation {
-  id          String    @id @default(uuid()) @db.Uuid
-  teamId      String    @db.Uuid
-  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  email       String
-  role        TeamRole
-  token       String    @unique
-  invitedById String    @db.Uuid
-  invitedBy   User      @relation("UserInvitationsSent", fields: [invitedById], references: [id])
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  createdAt   DateTime  @default(now())
-
-  @@map("team_invitations")
-}
-
-// Add inverse relations to User model
-// This must be done in the User model definition, which is above.
-// I will use multi_replace to handle both.
 
 enum TeamRole {
   OWNER
   ADMIN
   MEMBER
   VIEWER
+}
+
+model TeamInvite {
+  id            String    @id @default(uuid())
+  token         String    @unique
+  
+  // Invite settings
+  expiresAt     DateTime
+  maxUses       Int?      // NULL = unlimited
+  usedCount     Int       @default(0)
+  
+  // Relations
+  teamId        String
+  team          Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  createdById   String
+  createdBy     User      @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime  @default(now())
+  
+  @@index([token])
+  @@index([teamId])
+}
+
+// ============================================
+// ENDPOINT MODEL
+// ============================================
+model Endpoint {
+  id           String    @id @default(uuid())
+  name         String
+  slug         String    @unique
+  
+  // Response configuration
+  rules        Json      // Array of rules [{ path, method, response: { status, body, headers, delay }, condition: {...} }]
+  settings     Json?     // Global endpoint settings
+  
+  requestCount Int       @default(0)
+  lastActiveAt DateTime? @default(now())
+  
+  // Ownership - belongs to EITHER user OR team
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  teamId       String?
+  team         Team?     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Logs
+  requestLogs  RequestLog[]
+  
+  @@index([slug])
+  @@index([userId])
+  @@index([teamId])
+}
+
+// ============================================
+// REQUEST LOG MODEL
+// ============================================
+model RequestLog {
+  id          String   @id @default(uuid())
+  endpointId  String
+  endpoint    Endpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  
+  method      String
+  path        String
+  queryParams Json?
+  headers     Json?
+  body        Json?
+  
+  ip          String?
+  userAgent   String?
+  
+  responseStatus Int
+  durationMs     Int
+  
+  createdAt   DateTime @default(now())
+
+  // Optional: Link log to a user if authenticated (e.g. for audits)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([endpointId])
+  @@index([createdAt])
 }

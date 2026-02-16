@@ -49,5 +49,10 @@ docker-compose.override.yml
 temp/
 tmp/
 
+# Documentation and Diagnostics
+md/
+verify-teams.ts
+debug-prisma.ts
+
 # Secrets
 RENDER_SECRETS.md

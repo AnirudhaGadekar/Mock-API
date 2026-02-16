@@ -1,32 +1,19 @@
 /**
  * Session routes — MockUrl-style zero-signup auth.
- *
- * POST /api/v1/session       → auto-create anonymous user, return API key
- * GET  /api/v1/session/me    → validate session and return user info
+ * [UPGRADED] Now uses SHA-256 hashing for API keys.
  */
-import crypto from 'crypto';
 import { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
-import { hashApiKey } from '../middleware/auth.middleware.js';
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
-
-function generateApiKey(): string {
-    return crypto.randomBytes(32).toString('hex');
-}
-
-function generateAnonEmail(): string {
-    const id = crypto.randomBytes(6).toString('hex');
-    return `anon-${id}@mockurl.local`;
-}
+import { generateApiKey, hashApiKey } from '../utils/apiKey.js';
 
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     /**
      * POST /api/v1/session
      * Auto-create an anonymous user and return their API key.
-     * No auth required — this IS the signup.
      */
-    fastify.post('/', async (_request, reply) => {
+    fastify.post('/', async (request, reply) => {
         try {
             const rateLimit = await checkRateLimit(`session:create:${reply.request.ip}`, 20, 60);
             if (!rateLimit.allowed) {
@@ -43,17 +30,17 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
             const apiKey = generateApiKey();
             const apiKeyHash = hashApiKey(apiKey);
-            const email = generateAnonEmail();
+            const email = `anon-${generateShortId()}@mockurl.local`;
 
             const user = await prisma.user.create({
                 data: {
                     email,
                     apiKeyHash,
+                    authProvider: 'ANONYMOUS',
                 },
                 select: {
                     id: true,
                     email: true,
-                    apiKeyHash: true,
                 },
             });
 
@@ -62,7 +49,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             return reply.status(201).send({
                 success: true,
                 session: {
-                    apiKey, // RETURN RAW KEY ONCE
+                    apiKey, // Return plaintext ONCE
                     userId: user.id,
                     email: user.email,
                 },
@@ -84,7 +71,6 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     /**
      * GET /api/v1/session/me
      * Validate an existing API key and return user info.
-     * Requires X-API-Key header.
      */
     fastify.get('/me', async (request, reply) => {
         try {
@@ -102,7 +88,6 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             }
 
             const apiKeyHash = hashApiKey(apiKey);
-
             const user = await prisma.user.findUnique({
                 where: { apiKeyHash },
                 select: {
@@ -145,3 +130,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         }
     });
 };
+
+function generateShortId(): string {
+    return Math.random().toString(36).substring(2, 10);
+}

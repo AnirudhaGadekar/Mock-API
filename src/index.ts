@@ -1,7 +1,9 @@
+import fastifyCookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import { config } from 'dotenv';
 import fastify from 'fastify';
+import fastifyJwt from 'fastify-jwt';
 
 import { websocketPlugin } from './engine/websocket.js';
 import { startCronJobs } from './lib/cron.js';
@@ -15,11 +17,14 @@ import { registerRateLimiting } from './middleware/rate-limit.middleware.js';
 import { tunnelProxyPlugin } from './middleware/tunnel-proxy.js';
 import { adminRoutes } from './routes/admin.routes.js';
 import { aiRulesRoutes } from './routes/ai-rules.routes.js';
+import { authRoutes } from './routes/auth.js';
 import { chaosRoutes } from './routes/chaos.routes.js';
 import { endpointsRoutes } from "./routes/endpoints.routes.js";
 import { historyRoutes } from './routes/history.routes.js';
+import { inviteRoutes } from './routes/invites.js';
 import { mockRouterPlugin } from './routes/mock.router.js';
 import { oasRoutes } from './routes/oas.routes.js';
+import { oauthRoutes } from './routes/oauth.js';
 import { sessionRoutes } from './routes/session.routes.js';
 import { stateRoutes } from './routes/state.routes.js';
 import { storeRoutes } from './routes/store.routes.js';
@@ -27,6 +32,7 @@ import { teamRoutes } from './routes/teams.js';
 import tunnelWsRoute from './routes/tunnel-ws.js';
 import { tunnelRoutes } from './routes/tunnel.routes.js';
 import { userRoutes } from './routes/user.routes.js';
+import { workspaceRoutes } from './routes/workspace.js';
 
 
 config();
@@ -118,6 +124,15 @@ async function buildApp() {
   });
 
   await registerRateLimiting(app, {});
+
+  // Auth Plugins
+  await app.register(fastifyJwt, {
+    secret: process.env.JWT_SECRET || 'super-secret-key-at-least-32-chars-long'
+  });
+  await app.register(fastifyCookie, {
+    secret: process.env.JWT_SECRET, // share secret or use separate
+    hook: 'onRequest'
+  });
 
   // Health checks
   app.get('/healthz', async function (_request, reply) {
@@ -219,6 +234,10 @@ async function buildApp() {
   await app.register(oasRoutes, { prefix: '/api/v1' });
   await app.register(tunnelRoutes, { prefix: '/api/v1/tunnel' });
   await app.register(teamRoutes, { prefix: '/api/v1/teams' });
+  await app.register(authRoutes, { prefix: '/api/v1/auth' });
+  await app.register(oauthRoutes, { prefix: '/api/v1/oauth' });
+  await app.register(inviteRoutes, { prefix: '/api/v1/invites' });
+  await app.register(workspaceRoutes, { prefix: '/api/v1/workspace' });
   await app.register(tunnelProxyPlugin);
   await app.register(mockRouterPlugin);
 

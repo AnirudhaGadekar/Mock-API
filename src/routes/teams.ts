@@ -1,86 +1,197 @@
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import { authenticateApiKey } from '../middleware/auth.middleware.js';
-import { teamService } from '../services/team.service.js';
+import crypto from 'crypto';
+import { FastifyInstance } from 'fastify';
+import { prisma } from '../lib/db.js';
+import { logger } from '../lib/logger.js';
+import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.middleware.js';
 
 export async function teamRoutes(fastify: FastifyInstance) {
-    // Apply authentication to all routes
-    fastify.addHook('preHandler', authenticateApiKey);
 
-    // POST /api/teams - Create Team
+    // ============================================
+    // CREATE TEAM
+    // ============================================
     fastify.post('/', {
-        schema: {
-            body: z.object({
-                name: z.string().min(1),
-                slug: z.string().min(3).regex(/^[a-z0-9-]+$/),
-            }),
-        },
-    }, async (request, reply) => {
-        // @ts-ignore
+        preHandler: [authenticateApiKey]
+    }, async (request: any, reply) => {
         const { name, slug } = request.body;
-        // @ts-ignore
-        const team = await teamService.createTeam(name, slug, request.user.id);
-        return reply.status(201).send(team);
+        const user = getAuthenticatedUser(request);
+
+        if (!name || !slug) {
+            return reply.code(400).send({ error: 'Name and slug are required' });
+        }
+
+        try {
+            const team = await prisma.$transaction(async (tx) => {
+                // Create the team
+                const newTeam = await tx.team.create({
+                    data: {
+                        name,
+                        slug,
+                        ownerId: user.id
+                    }
+                });
+
+                // Add creator as OWNER
+                await tx.teamMember.create({
+                    data: {
+                        teamId: newTeam.id,
+                        userId: user.id,
+                        role: 'OWNER'
+                    }
+                });
+
+                return newTeam;
+            });
+
+            return team;
+        } catch (error: any) {
+            if (error.code === 'P2002') {
+                return reply.code(409).send({ error: 'Team slug already exists' });
+            }
+            logger.error('Failed to create team', { error });
+            return reply.code(500).send({ error: 'Failed to create team' });
+        }
     });
 
-    // GET /api/teams - List User's Teams
-    fastify.get('/', async (request) => {
-        // @ts-ignore
-        return teamService.getUserTeams(request.user.id);
+    // ============================================
+    // LIST MY TEAMS
+    // ============================================
+    fastify.get('/', {
+        preHandler: [authenticateApiKey]
+    }, async (request: any, reply) => {
+        const user = getAuthenticatedUser(request);
+
+        const teams = await prisma.team.findMany({
+            where: {
+                members: {
+                    some: { userId: user.id }
+                }
+            },
+            include: {
+                _count: { select: { members: true, endpoints: true } }
+            }
+        });
+
+        return teams;
     });
 
-    // GET /api/teams/:teamId - Get Team Details
-    fastify.get('/:teamId', async (request) => {
-        // @ts-ignore
-        return teamService.getTeamDetails((request.params as any).teamId, request.user.id);
+    // ============================================
+    // GET TEAM DETAILS
+    // ============================================
+    fastify.get('/:teamId', {
+        preHandler: [authenticateApiKey]
+    }, async (request: any, reply) => {
+        const { teamId } = request.params;
+        const user = getAuthenticatedUser(request);
+
+        const member = await prisma.teamMember.findUnique({
+            where: { userId_teamId: { userId: user.id, teamId } }
+        });
+
+        if (!member) {
+            return reply.code(403).send({ error: 'Forbidden: Not a member of this team' });
+        }
+
+        const team = await prisma.team.findUnique({
+            where: { id: teamId },
+            include: {
+                members: { include: { user: { select: { id: true, email: true, name: true, picture: true } } } },
+                _count: { select: { endpoints: true } }
+            }
+        });
+
+        return team;
     });
 
-    // POST /api/teams/:teamId/invite - Invite Member
-    fastify.post('/:teamId/invite', {
-        schema: {
-            body: z.object({
-                email: z.string().email(),
-                role: z.enum(['ADMIN', 'MEMBER', 'VIEWER']),
-            }),
-        },
-    }, async (request, reply) => {
-        // @ts-ignore
-        const { email, role } = request.body;
-        // @ts-ignore
-        const invitation = await teamService.inviteMember((request.params as any).teamId, email, role, request.user.id);
-        return reply.status(201).send(invitation);
+    // ============================================
+    // GENERATE INVITE
+    // ============================================
+    fastify.post('/:teamId/invites', {
+        preHandler: [authenticateApiKey]
+    }, async (request: any, reply) => {
+        const { teamId } = request.params;
+        const user = getAuthenticatedUser(request);
+
+        // Check if user is OWNER or ADMIN
+        const member = await prisma.teamMember.findUnique({
+            where: { userId_teamId: { userId: user.id, teamId } }
+        });
+
+        if (!member || !['OWNER', 'ADMIN'].includes(member.role)) {
+            return reply.code(403).send({ error: 'Only owners and admins can create invites' });
+        }
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+        const invite = await prisma.teamInvite.create({
+            data: {
+                token,
+                teamId,
+                createdById: user.id,
+                expiresAt
+            }
+        });
+
+        return {
+            token: invite.token,
+            inviteUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join/${invite.token}`
+        };
     });
 
-    // POST /api/teams/invitations/:token/accept - Accept Invite
-    fastify.post('/invitations/:token/accept', async (request) => {
-        // @ts-ignore
-        await teamService.acceptInvitation((request.params as any).token, request.user.id);
-        return { ok: true };
+    // ============================================
+    // REMOVE MEMBER
+    // ============================================
+    fastify.delete('/:teamId/members/:userId', {
+        preHandler: [authenticateApiKey]
+    }, async (request: any, reply) => {
+        const { teamId, userId: targetUserId } = request.params;
+        const user = getAuthenticatedUser(request);
+
+        const actorMember = await prisma.teamMember.findUnique({
+            where: { userId_teamId: { userId: user.id, teamId } }
+        });
+
+        if (!actorMember || !['OWNER', 'ADMIN'].includes(actorMember.role)) {
+            return reply.code(403).send({ error: 'Forbidden' });
+        }
+
+        const targetMember = await prisma.teamMember.findUnique({
+            where: { userId_teamId: { userId: targetUserId, teamId } }
+        });
+
+        if (!targetMember) return reply.code(404).send({ error: 'Member not found' });
+
+        // Cannot remove owner
+        if (targetMember.role === 'OWNER') {
+            return reply.code(400).send({ error: 'Cannot remove the team owner' });
+        }
+
+        await prisma.teamMember.delete({
+            where: { id: targetMember.id }
+        });
+
+        return { success: true };
     });
 
-    // PATCH /api/teams/:teamId/members/:userId - Update Member Role
-    fastify.patch('/:teamId/members/:userId', {
-        schema: {
-            body: z.object({
-                role: z.enum(['ADMIN', 'MEMBER', 'VIEWER']),
-            }),
-        },
-    }, async (request) => {
-        // @ts-ignore
-        const { role } = request.body;
-        // @ts-ignore
-        const { teamId, userId } = request.params as any;
-        // @ts-ignore
-        await teamService.updateMemberRole(teamId, userId, role, request.user.id);
-        return { ok: true };
-    });
+    // ============================================
+    // DELETE TEAM
+    // ============================================
+    fastify.delete('/:teamId', {
+        preHandler: [authenticateApiKey]
+    }, async (request: any, reply) => {
+        const { teamId } = request.params;
+        const user = getAuthenticatedUser(request);
 
-    // DELETE /api/teams/:teamId/members/:userId - Remove Member
-    fastify.delete('/:teamId/members/:userId', async (request, reply) => {
-        // @ts-ignore
-        const { teamId, userId } = request.params as any;
-        // @ts-ignore
-        await teamService.removeMember(teamId, userId, request.user.id);
-        return reply.status(204).send();
+        const team = await prisma.team.findUnique({ where: { id: teamId } });
+        if (!team) return reply.code(404).send({ error: 'Team not found' });
+
+        if (team.ownerId !== user.id) {
+            return reply.code(403).send({ error: 'Only the team owner can delete the team' });
+        }
+
+        await prisma.team.delete({ where: { id: teamId } });
+
+        return { success: true };
     });
 }

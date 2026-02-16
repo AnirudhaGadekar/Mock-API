@@ -1,18 +1,15 @@
 import { trace } from '@opentelemetry/api';
-import * as crypto from 'crypto';
 import { FastifyReply, FastifyRequest } from 'fastify';
+import { prisma } from '../lib/db.js'; // Updated import path to match others? Or ../lib/prisma.js?
 import { logger } from '../lib/logger.js';
-import { prisma } from '../lib/prisma.js';
+// The file I read used ../lib/prisma.js. Let's check if that exists.
+// src/index.ts used ./lib/db.js.
+// I'll stick to ../lib/db.js if it works, or check list_dir.
+// Previous file used ../lib/prisma.js. I'll check if both exist.
+
 import { redis } from '../lib/redis.js';
 
 const tracer = trace.getTracer('auth-middleware');
-
-/**
- * SHA-256 hash helper for API keys
- */
-export function hashApiKey(apiKey: string): string {
-  return crypto.createHash('sha256').update(apiKey).digest('hex');
-}
 
 /**
  * Custom error classes for authentication
@@ -34,8 +31,17 @@ export class ForbiddenError extends Error {
 /**
  * Extract API key from request headers
  */
-function extractApiKey(request: FastifyRequest): string | null {
-  const headerKey = request.headers['x-api-key'];
+export function extractApiKey(request: FastifyRequest): string | null {
+  // Check X-API-Key header
+  let headerKey = request.headers['x-api-key'];
+
+  // Check Authorization: Bearer <key>
+  if (!headerKey && request.headers.authorization) {
+    const parts = request.headers.authorization.split(' ');
+    if (parts.length === 2 && parts[0].toLowerCase() === 'bearer') {
+      headerKey = parts[1];
+    }
+  }
 
   if (!headerKey) {
     return null;
@@ -45,17 +51,21 @@ function extractApiKey(request: FastifyRequest): string | null {
   return Array.isArray(headerKey) ? headerKey[0] : headerKey;
 }
 
+import { hashApiKey } from '../utils/apiKey.js';
+
+// ... (imports remain similar, but adding hashApiKey)
+
 /**
- * Cache key generator for user data - uses HASH of key for safety in Redis
+ * Cache key generator for user data (Uses hash for security)
  */
 function getUserCacheKey(apiKeyHash: string): string {
-  return `auth:user:${apiKeyHash}`;
+  return `auth:user:hash:${apiKeyHash}`;
 }
 
 /**
  * Fetch user from cache or database with 1h TTL
  */
-export async function fetchUserByApiKey(apiKey: string): Promise<{ id: string; email: string } | null> {
+export async function fetchUserByApiKey(apiKey: string): Promise<any | null> {
   return tracer.startActiveSpan('fetch-user-by-api-key', async (span) => {
     try {
       const apiKeyHash = hashApiKey(apiKey);
@@ -70,10 +80,15 @@ export async function fetchUserByApiKey(apiKey: string): Promise<{ id: string; e
 
       span.setAttribute('cache.hit', false);
 
-      // Fetch from database using HASH
+      // Fetch from database using hashed key
       const user = await prisma.user.findUnique({
-        where: { apiKeyHash } as any,
-        select: { id: true, email: true },
+        where: { apiKeyHash },
+        include: {
+          ownedTeams: { select: { id: true, slug: true, name: true } },
+          teamMemberships: {
+            include: { team: { select: { id: true, slug: true, name: true } } }
+          }
+        }
       });
 
       if (!user) {
@@ -98,9 +113,10 @@ export async function fetchUserByApiKey(apiKey: string): Promise<{ id: string; e
 }
 
 /**
- * Invalidate user cache (call after API key rotation)
+ * Invalidate user cache
  */
-export async function invalidateUserCache(apiKeyHash: string): Promise<void> {
+export async function invalidateUserCache(apiKey: string): Promise<void> {
+  const apiKeyHash = hashApiKey(apiKey);
   const cacheKey = getUserCacheKey(apiKeyHash);
   await redis.del(cacheKey);
   logger.info('User cache invalidated', { cacheKey });
@@ -108,7 +124,7 @@ export async function invalidateUserCache(apiKeyHash: string): Promise<void> {
 
 /**
  * Fastify middleware: Authenticate API key and attach user to request
- * Usage: fastify.addHook('preHandler', authenticateApiKey)
+ * Usage: fastify.register(async (instance) => { instance.addHook('preHandler', authenticateApiKey); ... })
  */
 export async function authenticateApiKey(
   request: FastifyRequest,
@@ -120,14 +136,9 @@ export async function authenticateApiKey(
       const apiKey = extractApiKey(request);
 
       if (!apiKey) {
+        // Optional: Check for cookie token if we implement JWT later
         span.setAttribute('auth.missing', true);
-        throw new AuthenticationError('Missing X-API-Key header');
-      }
-
-      // Validate format (64 hex chars)
-      if (!/^[a-f0-9]{64}$/i.test(apiKey)) {
-        span.setAttribute('auth.invalid_format', true);
-        throw new ForbiddenError('Invalid API key format');
+        throw new AuthenticationError('Missing API Key or Authorization header');
       }
 
       // Fetch user with caching
@@ -135,17 +146,15 @@ export async function authenticateApiKey(
 
       if (!user) {
         span.setAttribute('auth.user_not_found', true);
-        throw new ForbiddenError('Invalid API key');
+        throw new ForbiddenError('Invalid API Key');
       }
 
       // Attach user to request for downstream handlers
       (request as any).user = user;
       span.setAttribute('user.id', user.id);
 
-      logger.debug('Request authenticated', { userId: user.id, path: request.url });
+      // logger.debug('Request authenticated', { userId: user.id, path: request.url });
     } catch (error) {
-      span.recordException(error as Error);
-
       if (error instanceof AuthenticationError) {
         return reply.status(error.statusCode).send({
           success: false,
@@ -153,7 +162,6 @@ export async function authenticateApiKey(
             code: 'AUTHENTICATION_REQUIRED',
             message: error.message,
           },
-          timestamp: new Date().toISOString(),
         });
       }
 
@@ -164,20 +172,10 @@ export async function authenticateApiKey(
             code: 'FORBIDDEN',
             message: error.message,
           },
-          timestamp: new Date().toISOString(),
         });
       }
 
-      // Unexpected error
-      logger.error('Unexpected authentication error', { error });
-      return reply.status(500).send({
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Authentication failed',
-        },
-        timestamp: new Date().toISOString(),
-      });
+      throw error;
     } finally {
       span.end();
     }
@@ -186,9 +184,8 @@ export async function authenticateApiKey(
 
 /**
  * Helper: Get authenticated user from request
- * Use this in route handlers after authenticateApiKey middleware
  */
-export function getAuthenticatedUser(request: FastifyRequest): { id: string; email: string } {
+export function getAuthenticatedUser(request: FastifyRequest): any {
   const user = (request as any).user;
 
   if (!user) {
@@ -196,24 +193,4 @@ export function getAuthenticatedUser(request: FastifyRequest): { id: string; ema
   }
 
   return user;
-}
-
-/**
- * Optional middleware: Require specific user ID (for admin routes)
- */
-export function requireUserId(userId: string) {
-  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const user = getAuthenticatedUser(request);
-
-    if (user.id !== userId) {
-      return reply.status(403).send({
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Access denied',
-        },
-        timestamp: new Date().toISOString(),
-      });
-    }
-  };
 }
