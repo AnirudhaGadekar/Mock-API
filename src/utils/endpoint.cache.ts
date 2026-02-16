@@ -30,7 +30,7 @@ export function getEndpointRequestCountKey(endpointId: string): string {
 /**
  * Generate hash for query parameters (for cache key uniqueness)
  */
-export function hashQueryParams(params: Record<string, any>): string {
+export function hashQueryParams(params: Record<string, unknown>): string {
   const sorted = Object.keys(params)
     .sort()
     .map((key) => `${key}=${params[key]}`)
@@ -51,7 +51,7 @@ export function hashQueryParams(params: Record<string, any>): string {
 export async function cacheEndpointList(
   userId: string,
   queryHash: string,
-  data: any
+  data: { endpoints: unknown[]; nextCursor?: string; totalCount: number }
 ): Promise<void> {
   return tracer.startActiveSpan('cache-endpoint-list', async (span) => {
     try {
@@ -73,7 +73,7 @@ export async function cacheEndpointList(
 export async function getCachedEndpointList(
   userId: string,
   queryHash: string
-): Promise<any | null> {
+): Promise<{ endpoints: unknown[]; nextCursor?: string; totalCount: number } | null> {
   return tracer.startActiveSpan('get-cached-endpoint-list', async (span) => {
     try {
       const key = getEndpointListCacheKey(userId, queryHash);
@@ -94,7 +94,7 @@ export async function getCachedEndpointList(
 /**
  * Cache single endpoint detail
  */
-export async function cacheEndpointDetail(endpointId: string, data: any): Promise<void> {
+export async function cacheEndpointDetail(endpointId: string, data: unknown): Promise<void> {
   return tracer.startActiveSpan('cache-endpoint-detail', async (span) => {
     try {
       const key = getEndpointDetailCacheKey(endpointId);
@@ -110,7 +110,7 @@ export async function cacheEndpointDetail(endpointId: string, data: any): Promis
 /**
  * Get cached endpoint detail
  */
-export async function getCachedEndpointDetail(endpointId: string): Promise<any | null> {
+export async function getCachedEndpointDetail(endpointId: string): Promise<unknown | null> {
   return tracer.startActiveSpan('get-cached-endpoint-detail', async (span) => {
     try {
       const key = getEndpointDetailCacheKey(endpointId);
@@ -132,7 +132,7 @@ export async function getCachedEndpointDetail(endpointId: string): Promise<any |
  */
 export async function cacheSubdomainMapping(
   subdomain: string,
-  endpointData: any
+  endpointData: unknown
 ): Promise<void> {
   return tracer.startActiveSpan('cache-subdomain-mapping', async (span) => {
     try {
@@ -152,7 +152,7 @@ export async function cacheSubdomainMapping(
 /**
  * Get cached subdomain mapping
  */
-export async function getCachedSubdomainMapping(subdomain: string): Promise<any | null> {
+export async function getCachedSubdomainMapping(subdomain: string): Promise<unknown | null> {
   return tracer.startActiveSpan('get-cached-subdomain-mapping', async (span) => {
     try {
       const key = getEndpointSubdomainCacheKey(subdomain);
@@ -241,35 +241,57 @@ export async function bufferRequestCount(endpointId: string): Promise<void> {
 
 /**
  * Flush counts to DB (Call this from a cron/interval)
+ * Uses SPOP to atomically get and remove items, preventing race conditions
  */
-export async function flushRequestCounts(prisma: any): Promise<void> {
+export async function flushRequestCounts(prisma: { endpoint: { update: (args: { where: { id: string }; data: { requestCount: { increment: number }; lastActiveAt: Date } }) => Promise<unknown> } }): Promise<void> {
   try {
-    const dirtyEndpoints = await redis.smembers('dirty_endpoints_counts');
-    if (dirtyEndpoints.length === 0) return;
+    const dirtySetKey = 'dirty_endpoints_counts';
+    const batchSize = 100; // Process in batches to avoid blocking
+    let processed = 0;
 
-    logger.debug('Flushing request counts to DB', { count: dirtyEndpoints.length });
+    // Use SPOP to atomically get and remove items one at a time
+    // This prevents race conditions where new items are added between read and delete
+    while (true) {
+      const id = await redis.spop(dirtySetKey) as string | null;
+      if (!id) break; // No more items
 
-    for (const id of dirtyEndpoints) {
       const key = getEndpointRequestCountKey(id);
-      // Get and reset counter atomically
-      const countStr = await redis.getset(key, '0');
-      const count = parseInt(countStr || '0', 10);
+      try {
+        // Get and reset counter atomically using GETSET
+        const countStr = await redis.getset(key, '0');
+        const count = parseInt(countStr || '0', 10);
 
-      if (count > 0) {
-        await prisma.endpoint.update({
-          where: { id },
-          data: {
-            requestCount: { increment: count },
-            lastActiveAt: new Date(),
-          },
-        }).catch((err: Error) => {
-          logger.error('Failed to flush count to DB', { err, id });
-        });
+        if (count > 0) {
+          await prisma.endpoint.update({
+            where: { id },
+            data: {
+              requestCount: { increment: count },
+              lastActiveAt: new Date(),
+            },
+          }).catch((err: Error) => {
+            logger.error('Failed to flush count to DB', { err, id });
+            // Re-add to set if DB update failed so it can be retried
+            redis.sadd(dirtySetKey, id).catch((err: unknown) => logger.warn('Failed to re-add dirty endpoint', { err, id }));
+          });
+        }
+      } catch (err) {
+        logger.error('Failed to process request count flush', { err, id });
+        // Re-add to set if processing failed
+        redis.sadd(dirtySetKey, id).catch((err: unknown) => logger.warn('Failed to re-add dirty endpoint after error', { err, id }));
+      }
+
+      processed++;
+      // Limit batch size to avoid blocking Redis for too long
+      if (processed >= batchSize) {
+        // Yield to allow other operations
+        await new Promise(resolve => setTimeout(resolve, 0));
+        processed = 0;
       }
     }
 
-    // Cleanup processed IDs (safe-ish, better to use Lua for perfect atomicity but this is fine for now)
-    await redis.srem('dirty_endpoints_counts', ...dirtyEndpoints);
+    if (processed > 0) {
+      logger.debug('Flushed request counts to DB', { count: processed });
+    }
   } catch (error) {
     logger.error('Failed to flush request counts', error);
   }
@@ -278,7 +300,7 @@ export async function flushRequestCounts(prisma: any): Promise<void> {
 export async function publishEndpointEvent(
   eventType: 'created' | 'updated' | 'deleted',
   userId: string,
-  endpointData: any
+  endpointData: unknown
 ): Promise<void> {
   const channel = `endpoint:${eventType}:${userId}`;
   const message = JSON.stringify({
@@ -287,22 +309,27 @@ export async function publishEndpointEvent(
     endpoint: endpointData,
     timestamp: new Date().toISOString(),
   });
-  await redis.publish(channel, message).catch(console.error);
+  await redis.publish(channel, message).catch((err: unknown) => logger.warn('Failed to publish endpoint event', { err, channel }));
 }
 
 /**
- * Get next sequence index using atomic Redis increment
+ * Get next sequence index using atomic Redis increment.
+ * Uses ruleGroupKey (rule ID if present, otherwise endpointId:firstRuleIndex) so that
+ * sequence state is stable across rule renames and path changes when rules have IDs.
  */
-export async function getNextSequenceIndex(endpointId: string, rulePath: string, method: string, modulo: number): Promise<number> {
-  const key = `sequence:${endpointId}:${rulePath}:${method}`;
+export async function getNextSequenceIndex(
+  endpointId: string,
+  ruleGroupKey: string,
+  modulo: number
+): Promise<number> {
+  const key = `sequence:${endpointId}:${ruleGroupKey}`;
   try {
     const next = await redis.incr(key);
+    // Set expiration on first increment (30 days) to prevent unbounded growth
+    if (next === 1) {
+      await redis.expire(key, 30 * 24 * 60 * 60);
+    }
     // Redis INCR starts at 1, we want 0-based.
-    // If modulo is 3:
-    // next=1 -> (0) % 3 = 0
-    // next=2 -> (1) % 3 = 1
-    // next=3 -> (2) % 3 = 2
-    // next=4 -> (3) % 3 = 0
     return (next - 1) % modulo;
   } catch (error) {
     logger.error('Failed to get next sequence index', { error });

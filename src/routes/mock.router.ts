@@ -9,6 +9,7 @@ import { redis } from '../lib/redis.js';
 import { setState } from '../lib/state.js';
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
 import { requestLoggerPostHook } from '../middleware/request-logger.middleware.js';
+import type { Endpoint, EndpointSettings, MatchedRule, Rule, RuleCondition, RuleResponse } from '../types/mock.types.js';
 import {
   bufferRequestCount,
   cacheSubdomainMapping,
@@ -86,7 +87,7 @@ function extractSubdomain(request: FastifyRequest): string | null {
 /**
  * Fetch endpoint by subdomain with caching
  */
-async function fetchEndpointBySubdomain(subdomain: string): Promise<any> {
+async function fetchEndpointBySubdomain(subdomain: string): Promise<Endpoint> {
   return tracer.startActiveSpan('fetch-endpoint-by-subdomain', async (span) => {
     try {
       span.setAttribute('endpoint.subdomain', subdomain);
@@ -168,52 +169,71 @@ function getPathname(request: FastifyRequest): string {
   return url.split('?')[0] || '/';
 }
 
-type RuleResponse = { status: number; body?: unknown; headers?: Record<string, string>; delay?: number };
-type RuleCondition = { queryParams?: Record<string, string>; headers?: Record<string, string>; bodyContains?: string };
-type Rule = { path: string; method: string; response: RuleResponse; condition?: RuleCondition; sequence?: boolean };
+/**
+ * Normalize path for rule matching.
+ *
+ * - Subdomain routing (e.g. https://my-api.mockurl.com/users): pathname is /users, subdomain is my-api → use /users
+ * - Path-based routing (e.g. https://app.com/my-api/users): pathname is /my-api/users, subdomain is my-api → strip /my-api prefix → /users
+ *
+ * This ensures rules defined as /users or /users/:id match correctly in both modes.
+ */
+function getPathForRuleMatching(pathname: string, subdomain: string | null): string {
+  if (!subdomain) return pathname;
+  const prefix = '/' + subdomain;
+  if (pathname === prefix || pathname.startsWith(prefix + '/')) {
+    return pathname.slice(prefix.length) || '/';
+  }
+  return pathname;
+}
 
-// Regex Cache to prevent ReDoS / Re-compilation
-const regexCache = new Map<string, RegExp>();
+// Types are now imported from '../types/mock.types.js'
+
+// Regex Cache to prevent ReDoS / Re-compilation. Stores both regex and param names for correct extraction.
+const MAX_REGEX_CACHE_SIZE = 1000; // Limit cache size to prevent memory leaks
+interface PathMatchCacheEntry {
+  regex: RegExp;
+  paramNames: string[]; // Order matches capture groups in regex
+}
+const pathMatchCache = new Map<string, PathMatchCacheEntry>();
 
 function escapeRegExpLiteral(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
- * Check if request path matches rule path (supports :param placeholders)
+ * Check if request path matches rule path (supports :param placeholders).
+ * Param names are cached with the regex so extraction order is always correct;
+ * handles duplicate param names by taking the last capture for that position.
  */
 function pathMatches(rulePath: string, pathname: string): { match: boolean; params: Record<string, string> } {
-  let regex = regexCache.get(rulePath);
+  let entry = pathMatchCache.get(rulePath);
 
-  if (!regex) {
-    const params: string[] = [];
+  if (!entry) {
+    const paramNames: string[] = [];
     const tokens = rulePath.split('/').map((segment) => {
       if (segment.startsWith(':') && segment.length > 1) {
-        params.push(segment.slice(1));
+        paramNames.push(segment.slice(1));
         return '([^/]+)';
       }
       return escapeRegExpLiteral(segment);
     });
     const pattern = tokens.join('/');
-    // Add start/end anchors
-    regex = new RegExp(`^${pattern}$`);
-    // Store params info with regex if possible, but for now we re-extract. 
-    // To properly cache params extraction we need a more complex cache structure.
-    // For now we just cache the Regex compilation.
-    regexCache.set(rulePath, regex);
+    const regex = new RegExp(`^${pattern}$`);
+    entry = { regex, paramNames };
+    if (pathMatchCache.size >= MAX_REGEX_CACHE_SIZE) {
+      const firstKey = pathMatchCache.keys().next().value;
+      if (firstKey) pathMatchCache.delete(firstKey);
+    }
+    pathMatchCache.set(rulePath, entry);
   }
 
-  const m = pathname.match(regex);
+  const m = pathname.match(entry.regex);
   if (!m) return { match: false, params: {} };
 
   const params: Record<string, string> = {};
-  // Re-extract param names (fast enough linear scan)
-  // This is a simplified param extractor that assumes order matches. 
-  // For standard :id style params this works.
-  const paramNames = (rulePath.match(/:[^/]+/g) || []).map(s => s.slice(1));
-
-  paramNames.forEach((name, i) => {
-    params[name] = m[i + 1];
+  entry.paramNames.forEach((name, i) => {
+    const value = m[i + 1];
+    if (value !== undefined) params[name] = value;
   });
 
   return { match: true, params };
@@ -258,9 +278,10 @@ function matchesCondition(condition: RuleCondition | undefined, request: Fastify
 
 /**
  * Find first rule that matches method, path, and conditions (with sequence support)
- */
-/**
- * Find first rule that matches method, path, and conditions (with sequence support)
+ * 
+ * Sequence logic: If any rule with matching path/method has sequence=true,
+ * cycle through ALL such rules (regardless of conditions), then check if
+ * the selected rule matches conditions.
  */
 async function findMatchingRule(
   rules: unknown,
@@ -268,31 +289,62 @@ async function findMatchingRule(
   pathname: string,
   request: FastifyRequest,
   endpointId: string
-): Promise<{ rule: Rule; params: Record<string, string>; sequenceIndex?: number } | null> {
+): Promise<MatchedRule | null> {
   const arr = Array.isArray(rules) ? rules : [];
-  const matchingRules: Array<{ rule: Rule; params: Record<string, string> }> = [];
-
-  for (const r of arr) {
-    const rule = r as Rule;
+  
+  // First pass: Find all rules with matching path/method (regardless of conditions)
+  const pathMethodRules: Array<{ rule: Rule; params: Record<string, string>; index: number }> = [];
+  for (let i = 0; i < arr.length; i++) {
+    const rule = arr[i] as Rule;
     if (rule.method !== method) continue;
     const { match, params } = pathMatches(rule.path, pathname);
     if (!match) continue;
-    if (!matchesCondition(rule.condition, request)) continue;
-    matchingRules.push({ rule, params });
+    pathMethodRules.push({ rule, params, index: i });
   }
 
-  if (matchingRules.length === 0) return null;
+  if (pathMethodRules.length === 0) return null;
 
-  const first = matchingRules[0];
-  if (first.rule.sequence && matchingRules.length > 1) {
-    // Redis-based atomic counter for round-robin
-    const index = await getNextSequenceIndex(endpointId, first.rule.path, first.rule.method, matchingRules.length);
-    const selected = matchingRules[index];
-
-    return { ...selected, sequenceIndex: index };
+  // Check if any rule has sequence enabled
+  const hasSequence = pathMethodRules.some(r => r.rule.sequence === true);
+  
+  if (hasSequence) {
+    // Use sequence logic: cycle through all path/method matching rules
+    const sequenceCount = pathMethodRules.length;
+    // Use rule ID if present for stable key across edits, else use first rule index in array
+    const firstRule = pathMethodRules[0].rule;
+    const ruleGroupKey =
+      typeof firstRule.id === 'string' && firstRule.id
+        ? firstRule.id
+        : `i${pathMethodRules[0].index}`;
+    const sequenceIndex = await getNextSequenceIndex(endpointId, ruleGroupKey, sequenceCount);
+    const selected = pathMethodRules[sequenceIndex];
+    
+    // Check if selected rule matches conditions
+    if (matchesCondition(selected.rule.condition, request)) {
+      return { rule: selected.rule, params: selected.params, sequenceIndex };
+    }
+    
+    // If selected rule doesn't match conditions, try to find next matching rule in sequence
+    // This handles cases where some sequence rules have conditions and others don't
+    for (let offset = 1; offset < sequenceCount; offset++) {
+      const nextIndex = (sequenceIndex + offset) % sequenceCount;
+      const nextRule = pathMethodRules[nextIndex];
+      if (matchesCondition(nextRule.rule.condition, request)) {
+        return { rule: nextRule.rule, params: nextRule.params, sequenceIndex: nextIndex };
+      }
+    }
+    
+    // No sequence rule matches conditions, fall through to non-sequence matching
   }
 
-  return first;
+  // Non-sequence logic: return first rule that matches conditions
+  for (const { rule, params } of pathMethodRules) {
+    if (matchesCondition(rule.condition, request)) {
+      return { rule, params };
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -346,7 +398,7 @@ async function applyInterpolation(
     }
   }
 
-  const endpoint = (request as any).endpoint as { id: string; name: string } | undefined;
+        const endpoint = (request as FastifyRequest & { endpoint?: Endpoint }).endpoint;
   const templateCtx: TemplateContext = {
     req: {
       method: request.method,
@@ -384,7 +436,7 @@ async function triggerWebhook(url: string, request: FastifyRequest, response: Ru
     const safeUrl = await assertSafeWebhookUrl(url);
     const payload = {
       timestamp: new Date().toISOString(),
-      endpointId: (request as any).endpoint?.id,
+      endpointId: request.endpoint?.id,
       method: request.method,
       path: request.url,
       query: request.query,
@@ -468,13 +520,10 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
           });
         }
 
-        (request as any).endpoint = endpoint;
-        (request as any)._requestLogStart = Date.now();
-        const pathnameForRules = getPathname(request);
-        const pathForRules = subdomain && pathnameForRules.startsWith('/' + subdomain)
-          ? pathnameForRules.slice(subdomain.length + 1) || '/'
-          : pathnameForRules;
-        (request as any)._pathForRules = pathForRules;
+        request.endpoint = endpoint;
+        request._requestLogStart = Date.now();
+        const pathname = getPathname(request);
+        request._pathForRules = getPathForRuleMatching(pathname, subdomain);
         applyCorsHeaders(reply, request);
 
         // FIXED: Use buffered counter
@@ -521,7 +570,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
         const startTime = Date.now();
 
         try {
-          const endpoint = (request as any).endpoint;
+          const endpoint = request.endpoint;
 
           if (!endpoint) {
             throw new Error('Endpoint not attached to request');
@@ -531,7 +580,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
           span.setAttribute('request.method', request.method);
           span.setAttribute('request.path', request.url);
 
-          const pathname = (request as any)._pathForRules ?? getPathname(request);
+          const pathname = request._pathForRules ?? getPathname(request);
           const matched = await findMatchingRule(endpoint.rules, request.method, pathname, request, endpoint.id);
 
           reply.header('X-Mock-Active', 'true');
@@ -570,7 +619,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
             }
 
             // Trigger webhook if configured (async, non-blocking)
-            const settings = (endpoint as any).settings as { webhookUrl?: string } | undefined;
+            const settings = endpoint.settings as EndpointSettings | undefined;
             if (settings?.webhookUrl) {
               triggerWebhook(settings.webhookUrl, request, res).catch((err) => {
                 logger.error('Webhook trigger failed', { err, webhookUrl: settings.webhookUrl });
@@ -631,13 +680,13 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
           }
 
           // Proxy / Fallback Logic
-          const settings = (endpoint as any).settings as { targetUrl?: string } | undefined;
+          const settings = endpoint.settings as EndpointSettings | undefined;
           if (settings?.targetUrl) {
             try {
               let path = request.url;
               // Use normalized path (stripping subdomain prefix if using path-based routing)
-              if ((request as any)._pathForRules) {
-                path = (request as any)._pathForRules;
+              if (request._pathForRules) {
+                path = request._pathForRules;
                 const query = request.url.split('?')[1];
                 if (query) path += '?' + query;
               }
@@ -661,8 +710,8 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
 
               // Read response body
               const proxyBodyText = await proxyRes.text();
-              let proxyBody: any = proxyBodyText;
-              try { proxyBody = JSON.parse(proxyBodyText); } catch { }
+              let proxyBody: unknown = proxyBodyText;
+              try { proxyBody = JSON.parse(proxyBodyText); } catch { /* keep as string */ }
 
               const latency = Date.now() - startTime;
               span.setAttribute('proxy.target', targetUrl);
@@ -688,7 +737,9 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
                   latencyMs: latency,
                   chaosApplied: ['proxy'],
                 });
-              } catch { }
+              } catch (broadcastErr) {
+                logger.debug('WebSocket broadcast failed for proxy response', { err: broadcastErr, endpointId: endpoint.id });
+              }
 
               // Forward response headers
               proxyRes.headers.forEach((v, k) => {
@@ -747,8 +798,8 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
               latencyMs: latency,
               chaosApplied: [],
             });
-          } catch {
-            // ignore WS errors
+          } catch (broadcastErr) {
+            logger.debug('WebSocket broadcast failed for default response', { err: broadcastErr, endpointId: endpoint.id });
           }
 
           return reply.status(200).send(defaultResponse);
