@@ -53,6 +53,11 @@ tmp/
 md/
 verify-teams.ts
 debug-prisma.ts
+*.log
+clear-chaos.ts
+debug-endpoints.ts
+test-features.cjs
+verify_features.js
 
 # Secrets
 RENDER_SECRETS.md
