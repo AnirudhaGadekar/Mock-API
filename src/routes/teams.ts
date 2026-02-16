@@ -1,8 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { authenticateApiKey } from '../middleware/auth.middleware.js';
 import { teamService } from '../services/team.service.js';
 
 export async function teamRoutes(fastify: FastifyInstance) {
+    // Apply authentication to all routes
+    fastify.addHook('preHandler', authenticateApiKey);
 
     // POST /api/teams - Create Team
     fastify.post('/', {
