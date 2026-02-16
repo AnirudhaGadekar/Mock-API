@@ -42,37 +42,49 @@ config();
  * This prevents insecure defaults in production.
  */
 function validateEnvironment() {
+  // Provide sensible defaults for optional or derivable variables
+  if (!process.env.JWT_EXPIRES_IN) {
+    process.env.JWT_EXPIRES_IN = '7d';
+    logger.info('ℹ️  Using default JWT_EXPIRES_IN: 7d');
+  }
+
+  if (!process.env.PORT) {
+    process.env.PORT = '10000';
+    logger.info('ℹ️  Using default PORT: 10000');
+  }
+
   const required = [
     'JWT_SECRET',
-    'JWT_EXPIRES_IN',
     'DATABASE_URL',
-    'DIRECT_DATABASE_URL',
-    'REDIS_HOST',
-    'REDIS_PORT',
-    'PORT',
   ];
 
   const missing = required.filter((key) => !process.env[key]);
 
+  // Check Redis: Either REDIS_URL or (HOST + PORT)
+  const hasRedis = process.env.REDIS_URL || (process.env.REDIS_HOST && process.env.REDIS_PORT);
+  if (!hasRedis) {
+    missing.push('REDIS_URL (or REDIS_HOST and REDIS_PORT)');
+  }
+
   if (missing.length > 0) {
     throw new Error(
-      `Missing required environment variables: ${missing.join(', ')}\n` +
-      'Please check your .env file',
+      `❌ Missing required environment variables: ${missing.join(', ')}\n` +
+      'Please check your .env file or Render environment settings.',
     );
   }
 
   // Validate JWT secret strength
   if ((process.env.JWT_SECRET || '').length < 32) {
-    throw new Error('JWT_SECRET must be at least 32 characters for security');
+    logger.warn('⚠️  JWT_SECRET is shorter than 32 characters. This is insecure for production.');
   }
 
   // Validate numeric env vars
   if (isNaN(Number(process.env.PORT))) {
-    throw new Error('PORT must be a valid number');
+    throw new Error('❌ PORT must be a valid number');
   }
 
-  if (isNaN(Number(process.env.REDIS_PORT))) {
-    throw new Error('REDIS_PORT must be a valid number');
+  if (process.env.REDIS_PORT && isNaN(Number(process.env.REDIS_PORT))) {
+    throw new Error('❌ REDIS_PORT must be a valid number');
   }
 
   logger.info('✅ Environment validation passed');

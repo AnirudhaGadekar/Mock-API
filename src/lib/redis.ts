@@ -33,7 +33,11 @@ const getRedisClient = () => {
 
   if (process.env.REDIS_URL) {
     logger.info('Redis: Using REDIS_URL for connection');
-    return new Redis(process.env.REDIS_URL, options);
+    const isTls = process.env.REDIS_URL.startsWith('rediss://');
+    return new Redis(process.env.REDIS_URL, {
+      ...options,
+      tls: isTls ? {} : undefined,
+    });
   }
 
   return new Redis({
