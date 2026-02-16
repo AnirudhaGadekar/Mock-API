@@ -1,9 +1,8 @@
-
 import { TeamRole } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
-import { prisma } from '../lib/db';
-// import { emailService } from './email.service'; // TODO: Implement Email Service
-import { AppError } from '../lib/errors';
+import { prisma } from '../lib/db.js';
+// import { emailService } from './email.service.js'; // TODO: Implement Email Service
+import { ApiError } from '../lib/errors.js';
 
 // Mock Email Service for now
 const emailService = {
@@ -12,7 +11,13 @@ const emailService = {
     }
 };
 
-const ROLE_PERMISSIONS: Record<TeamRole, { canEdit: boolean; canInvite: boolean; canManageMembers: boolean }> = {
+interface RolePermissions {
+    canEdit: boolean;
+    canInvite: boolean;
+    canManageMembers: boolean;
+}
+
+const ROLE_PERMISSIONS: Record<TeamRole, RolePermissions> = {
     OWNER: { canEdit: true, canInvite: true, canManageMembers: true },
     ADMIN: { canEdit: true, canInvite: true, canManageMembers: true },
     MEMBER: { canEdit: true, canInvite: false, canManageMembers: false },
@@ -24,7 +29,7 @@ export const teamService = {
         // Check slug uniqueness
         const existing = await prisma.team.findUnique({ where: { slug } });
         if (existing) {
-            throw new AppError('Team slug already exists', 409);
+            throw new ApiError('Team slug already exists', { statusCode: 409, code: 'CONFLICT' });
         }
 
         return prisma.$transaction(async (tx: any) => {
@@ -55,9 +60,9 @@ export const teamService = {
             include: { user: true }
         });
 
-        if (!inviter) throw new AppError('Not a team member', 403);
+        if (!inviter) throw new ApiError('Not a team member', { statusCode: 403, code: 'FORBIDDEN' });
         if (!ROLE_PERMISSIONS[inviter.role].canInvite) {
-            throw new AppError('Insufficient permissions', 403);
+            throw new ApiError('Insufficient permissions', { statusCode: 403, code: 'FORBIDDEN' });
         }
 
         // Check if user is already a member
@@ -66,7 +71,7 @@ export const teamService = {
             const alreadyMember = await prisma.teamMember.findUnique({
                 where: { teamId_userId: { teamId, userId: existingUser.id } },
             });
-            if (alreadyMember) throw new AppError('User is already a team member', 409);
+            if (alreadyMember) throw new ApiError('User is already a team member', { statusCode: 409, code: 'CONFLICT' });
         }
 
         // Generate token
@@ -95,15 +100,15 @@ export const teamService = {
             where: { token },
         });
 
-        if (!invitation) throw new AppError('Invalid invitation', 404);
-        if (invitation.acceptedAt) throw new AppError('Invitation already accepted', 409);
-        if (invitation.expiresAt < new Date()) throw new AppError('Invitation expired', 410);
+        if (!invitation) throw new ApiError('Invalid invitation', { statusCode: 404, code: 'NOT_FOUND' });
+        if (invitation.acceptedAt) throw new ApiError('Invitation already accepted', { statusCode: 409, code: 'CONFLICT' });
+        if (invitation.expiresAt < new Date()) throw new ApiError('Invitation expired', { statusCode: 410, code: 'GONE' });
 
         const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
         // Simple email check - in production verify emails match strictly if required
         if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
-            throw new AppError('Email mismatch', 403);
+            throw new ApiError('Email mismatch', { statusCode: 403, code: 'FORBIDDEN' });
         }
 
         await prisma.$transaction([
@@ -127,16 +132,16 @@ export const teamService = {
         });
 
         if (!requester || !ROLE_PERMISSIONS[requester.role].canManageMembers) {
-            throw new AppError('Insufficient permissions', 403);
+            throw new ApiError('Insufficient permissions', { statusCode: 403, code: 'FORBIDDEN' });
         }
 
         const target = await prisma.teamMember.findUnique({
             where: { teamId_userId: { teamId, userId: targetUserId } },
         });
 
-        if (!target) throw new AppError('Member not found', 404);
+        if (!target) throw new ApiError('Member not found', { statusCode: 404, code: 'NOT_FOUND' });
         if (target.role === 'OWNER') {
-            throw new AppError('Cannot change owner role', 403);
+            throw new ApiError('Cannot change owner role', { statusCode: 403, code: 'FORBIDDEN' });
         }
 
         return prisma.teamMember.update({
@@ -151,19 +156,19 @@ export const teamService = {
         });
 
         if (!requester || !ROLE_PERMISSIONS[requester.role].canManageMembers) {
-            throw new AppError('Insufficient permissions', 403);
+            throw new ApiError('Insufficient permissions', { statusCode: 403, code: 'FORBIDDEN' });
         }
 
         const target = await prisma.teamMember.findUnique({
             where: { teamId_userId: { teamId, userId: targetUserId } },
         });
 
-        if (!target) throw new AppError('Member not found', 404);
+        if (!target) throw new ApiError('Member not found', { statusCode: 404, code: 'NOT_FOUND' });
         if (target.role === 'OWNER') {
-            throw new AppError('Cannot remove team owner', 403);
+            throw new ApiError('Cannot remove team owner', { statusCode: 403, code: 'FORBIDDEN' });
         }
         if (targetUserId === requesterId) {
-            throw new AppError('Use leave endpoint to remove yourself', 400);
+            throw new ApiError('Use leave endpoint to remove yourself', { statusCode: 400, code: 'BAD_REQUEST' });
         }
 
         await prisma.teamMember.delete({
@@ -184,7 +189,7 @@ export const teamService = {
             where: { teamId_userId: { teamId, userId } },
         });
 
-        if (!member) throw new AppError('Access denied', 403);
+        if (!member) throw new ApiError('Access denied', { statusCode: 403, code: 'FORBIDDEN' });
 
         const team = await prisma.team.findUniqueOrThrow({
             where: { id: teamId },

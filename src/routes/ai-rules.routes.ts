@@ -22,7 +22,7 @@ export async function aiRulesRoutes(fastify: FastifyInstance) {
 
             return reply.send({ rule });
         } catch (error: any) {
-            logger.error({ error }, 'AI rule generation error');
+            logger.error('AI rule generation error', { error: error.message });
             return reply.status(500).send({
                 error: 'Failed to generate rule',
                 message: error.message
@@ -42,7 +42,7 @@ export async function aiRulesRoutes(fastify: FastifyInstance) {
 
             return reply.send({ rules });
         } catch (error: any) {
-            logger.error({ error }, 'AI rules generation error');
+            logger.error('AI rules generation error', { error: error.message });
             return reply.status(500).send({
                 error: 'Failed to generate rules',
                 message: error.message
@@ -62,7 +62,7 @@ export async function aiRulesRoutes(fastify: FastifyInstance) {
 
             return reply.send({ rule: refinedRule });
         } catch (error: any) {
-            logger.error({ error }, 'AI rule refinement error');
+            logger.error('AI rule refinement error', { error: error.message });
             return reply.status(500).send({
                 error: 'Failed to refine rule',
                 message: error.message

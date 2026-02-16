@@ -1,5 +1,4 @@
-
-import { SocketStream } from '@fastify/websocket';
+// import { SocketStream } from '@fastify/websocket'; // Removed due to export issue
 import { FastifyPluginAsync } from 'fastify';
 import { activeTunnels, getTunnel, registerTunnel, removeTunnel } from '../lib/active-tunnels.js';
 import { logger } from '../lib/logger.js';
@@ -20,7 +19,7 @@ interface ResponseMessage {
 }
 
 const tunnelWsRoute: FastifyPluginAsync = async (fastify) => {
-    fastify.get('/tunnel-ws', { websocket: true }, (connection: SocketStream, req: any) => {
+    fastify.get('/tunnel-ws', { websocket: true }, (connection: any /* SocketStream */, req: any) => {
         const socket = connection.socket;
         let currentTunnelId: string | null = null;
 

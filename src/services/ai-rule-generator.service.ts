@@ -21,7 +21,7 @@ interface GeneratedRule {
 }
 
 export class AIRuleGeneratorService {
-    private anthropic: Anthropic;
+    private anthropic: Anthropic | undefined;
     private apiKey: string | undefined;
 
     constructor() {
@@ -37,7 +37,7 @@ export class AIRuleGeneratorService {
     }
 
     async generateRule(request: RuleGenerationRequest): Promise<GeneratedRule> {
-        if (!this.apiKey) {
+        if (!this.anthropic) {
             // Mock response for testing/development without API key
             logger.info('Generating mock AI response (no API key)');
             return {
@@ -82,17 +82,18 @@ export class AIRuleGeneratorService {
             this.validateRule(generatedRule);
 
             return generatedRule;
-        } catch (error) {
-            logger.error({ error }, 'Failed to generate rule with AI');
+        } catch (error: any) {
+            logger.error('Failed to generate rule with AI', { error: error.message });
             throw error;
         }
     }
 
     async generateMultipleRules(
         prompt: string,
-        endpointId: string
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        _endpointId: string
     ): Promise<GeneratedRule[]> {
-        if (!this.apiKey) {
+        if (!this.anthropic) {
             return [{
                 path: '/mock-list',
                 method: 'GET',
@@ -131,8 +132,8 @@ export class AIRuleGeneratorService {
             rules.forEach(rule => this.validateRule(rule));
 
             return rules;
-        } catch (error) {
-            logger.error({ error }, 'Failed to generate multiple rules with AI');
+        } catch (error: any) {
+            logger.error('Failed to generate multiple rules with AI', { error: error.message });
             throw error;
         }
     }
@@ -141,7 +142,7 @@ export class AIRuleGeneratorService {
         existingRule: GeneratedRule,
         refinementPrompt: string
     ): Promise<GeneratedRule> {
-        if (!this.apiKey) {
+        if (!this.anthropic) {
             return {
                 ...existingRule,
                 description: existingRule.description + ' (Mock refined)'
@@ -176,8 +177,8 @@ export class AIRuleGeneratorService {
             this.validateRule(refinedRule);
 
             return refinedRule;
-        } catch (error) {
-            logger.error({ error }, 'Failed to refine rule with AI');
+        } catch (error: any) {
+            logger.error('Failed to refine rule with AI', { error: error.message });
             throw error;
         }
     }
@@ -245,7 +246,7 @@ Rules:
             if (request.context.existingRules?.length) {
                 message += '\nExisting rules:';
                 request.context.existingRules.forEach(rule => {
-                    message += `\n- ${rule.method} ${rule.path}`;
+                    message += `\n- ${rule.method} ${rule.method}`;
                 });
             }
         }

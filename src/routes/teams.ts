@@ -1,7 +1,6 @@
-
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { teamService } from '../services/team.service';
+import { teamService } from '../services/team.service.js';
 
 export async function teamRoutes(fastify: FastifyInstance) {
 
@@ -28,7 +27,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
     });
 
     // GET /api/teams/:teamId - Get Team Details
-    fastify.get('/:teamId', async (request, reply) => {
+    fastify.get('/:teamId', async (request) => {
         // @ts-ignore
         return teamService.getTeamDetails((request.params as any).teamId, request.user.id);
     });
@@ -50,7 +49,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
     });
 
     // POST /api/teams/invitations/:token/accept - Accept Invite
-    fastify.post('/invitations/:token/accept', async (request, reply) => {
+    fastify.post('/invitations/:token/accept', async (request) => {
         // @ts-ignore
         await teamService.acceptInvitation((request.params as any).token, request.user.id);
         return { ok: true };
