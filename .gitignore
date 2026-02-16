@@ -37,7 +37,7 @@ coverage/
 .DS_Store
 
 # Prisma
-src/prisma/migrations/**
+# src/prisma/migrations/**
 !src/prisma/migrations/.gitkeep
 
 # Docker
