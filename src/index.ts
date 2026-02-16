@@ -77,13 +77,19 @@ const PORT = Number(process.env.PORT || 10000);
 // if HOST is set to an external IP address.
 const HOST = '0.0.0.0';
 
+import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
+
 async function buildApp() {
   const app = fastify({
     logger: false,
     trustProxy: true,
     requestIdHeader: 'x-request-id',
     disableRequestLogging: true,
-  });
+  }).withTypeProvider<ZodTypeProvider>();
+
+  // Register Zod compilers
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
 
 
   // Security + CORS
