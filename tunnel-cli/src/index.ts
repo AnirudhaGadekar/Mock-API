@@ -6,8 +6,8 @@ import { TunnelClient } from './tunnel-client.js';
 const program = new Command();
 
 program
-    .name('beeceptor')
-    .description('Expose localhost to the internet via Beeceptor tunnel')
+    .name('mockurl')
+    .description('Expose localhost to the internet via MockUrl tunnel')
     .version('1.0.0');
 
 program

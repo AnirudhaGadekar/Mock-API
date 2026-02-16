@@ -7,10 +7,6 @@
   "engines": {
     "node": "22.x"
   },
-  "prisma": {
-    "schema": "src/prisma/schema.prisma",
-    "seed": "tsx src/prisma/seed.ts"
-  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "smoke": "tsx src/smoke.ts",
@@ -54,6 +50,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@prisma/config": "^7.4.0",
     "@types/bcrypt": "^5.0.2",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.2",

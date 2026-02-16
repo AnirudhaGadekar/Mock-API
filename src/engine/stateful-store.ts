@@ -1,7 +1,7 @@
 /**
  * stateful-store.ts — Schema-less JSON store with CRUD + filter/sort/push.
  *
- * This is the Beeceptor differentiator: persistent stateful mocking.
+ * This is the MockUrl differentiator: persistent stateful mocking.
  * Data persists across requests and supports rich querying.
  *
  * Operations:

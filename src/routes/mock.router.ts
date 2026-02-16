@@ -297,7 +297,7 @@ async function findMatchingRule(
 }
 
 /**
- * Simple template substitution (Beeceptor-style): {{req.body}}, {{req.params.id}}, {{JSON.stringify(req.body)}}
+ * Simple template substitution (MockUrl-style): {{req.body}}, {{req.params.id}}, {{JSON.stringify(req.body)}}
  */
 function interpolate(
   value: string,
@@ -410,7 +410,7 @@ async function triggerWebhook(url: string, request: FastifyRequest, response: Ru
 }
 
 /**
- * Default response when no rule matches (Beeceptor-style fallback)
+ * Default response when no rule matches (MockUrl-style fallback)
  */
 function generateDefaultResponse(endpoint: { id: string; name: string; rules: unknown }, _request: FastifyRequest) {
   const rulesArr = Array.isArray(endpoint.rules) ? endpoint.rules : [];

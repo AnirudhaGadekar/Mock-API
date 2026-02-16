@@ -90,9 +90,12 @@ export const teamService = {
             include: { team: true },
         });
 
+
         await emailService.sendTeamInvitation(email, invitation.team.name, inviter.user.email, token);
 
-        return invitation;
+        const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/teams/invitations/${token}`;
+
+        return { ...invitation, inviteLink };
     },
 
     async acceptInvitation(token: string, userId: string) {

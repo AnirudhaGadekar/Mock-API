@@ -1,10 +1,10 @@
 {
-    "name": "@beeceptor/tunnel",
+    "name": "@mockurl/tunnel",
     "version": "1.0.0",
     "description": "CLI tool for MockURL local tunneling",
     "bin": {
-        "beeceptor": "./dist/index.js",
-        "bct": "./dist/index.js"
+        "mockurl": "./dist/index.js",
+        "murl": "./dist/index.js"
     },
     "scripts": {
         "build": "tsc",

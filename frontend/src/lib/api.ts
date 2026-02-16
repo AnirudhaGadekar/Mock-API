@@ -1,7 +1,7 @@
 /**
  * api.ts – MockUrl Console API client.
  *
- * Beeceptor-style: auto-creates an anonymous session on first visit.
+ * MockUrl-style: auto-creates an anonymous session on first visit.
  * The API key is stored in localStorage and injected automatically.
  */
 import axios from 'axios';

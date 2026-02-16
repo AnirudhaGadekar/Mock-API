@@ -1,5 +1,5 @@
 /**
- * Session routes — Beeceptor-style zero-signup auth.
+ * Session routes — MockUrl-style zero-signup auth.
  *
  * POST /api/v1/session       → auto-create anonymous user, return API key
  * GET  /api/v1/session/me    → validate session and return user info

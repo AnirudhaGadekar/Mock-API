@@ -85,10 +85,10 @@ export default function TunnelDashboard() {
                     <CardContent>
                         <div className="bg-slate-900 text-slate-50 p-4 rounded-md font-mono text-sm overflow-x-auto">
                             <p className="text-slate-400"># Install the CLI</p>
-                            <p>$ npm install -g @beeceptor/tunnel</p>
+                            <p>$ npm install -g @mockurl/tunnel</p>
                             <br />
                             <p className="text-slate-400"># Start a tunnel (port 3000)</p>
-                            <p>$ beeceptor tunnel -p 3000</p>
+                            <p>$ mockurl tunnel -p 3000</p>
                         </div>
                     </CardContent>
                 </Card>
