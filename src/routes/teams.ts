@@ -57,7 +57,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
     // ============================================
     fastify.get('/', {
         preHandler: [authenticateApiKey]
-    }, async (request: any, reply) => {
+    }, async (request: any, _reply) => {
         const user = getAuthenticatedUser(request);
 
         const teams = await prisma.team.findMany({
@@ -128,6 +128,7 @@ export async function teamRoutes(fastify: FastifyInstance) {
             data: {
                 token,
                 teamId,
+                email: 'invited@mockurl.local', // Placeholder or add to request body
                 createdById: user.id,
                 expiresAt
             }

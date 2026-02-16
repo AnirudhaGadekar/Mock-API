@@ -75,6 +75,7 @@ export const oasRoutes: FastifyPluginAsync = async (fastify) => {
                 const endpoint = await prisma.endpoint.create({
                     data: {
                         name: gen.name,
+                        slug: gen.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
                         userId: user.id,
                         rules: rulesJson,
                     },

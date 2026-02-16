@@ -117,9 +117,12 @@ model TeamInvite {
   token         String    @unique
   
   // Invite settings
+  email         String
+  role          TeamRole  @default(MEMBER)
   expiresAt     DateTime
   maxUses       Int?      // NULL = unlimited
   usedCount     Int       @default(0)
+  acceptedAt    DateTime?
   
   // Relations
   teamId        String

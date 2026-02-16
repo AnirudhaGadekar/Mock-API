@@ -15,7 +15,7 @@ export const chaosRoutes: FastifyPluginAsync = async (fastify) => {
 
     async function assertEndpointOwned(endpointId: string, userId: string) {
         const endpoint = await prisma.endpoint.findFirst({
-            where: { id: endpointId, userId, deletedAt: null },
+            where: { id: endpointId, userId },
             select: { id: true },
         });
         return !!endpoint;

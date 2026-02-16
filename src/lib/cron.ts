@@ -19,7 +19,7 @@ export async function cleanupOldLogs(): Promise<void> {
   try {
     const result = await prisma.requestLog.deleteMany({
       where: {
-        timestamp: {
+        createdAt: {
           lt: cutoffDate,
         },
       },

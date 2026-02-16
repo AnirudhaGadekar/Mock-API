@@ -39,10 +39,10 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/overview', async (_request, reply) => {
     try {
       const [endpointCount, userCount, logsToday, totalLogs, errorLogs] = await Promise.all([
-        prisma.endpoint.count({ where: { deletedAt: null } }),
+        prisma.endpoint.count(),
         prisma.user.count(),
         prisma.requestLog.count({
-          where: { timestamp: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+          where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
         }),
         prisma.requestLog.count(),
         prisma.requestLog.count({ where: { responseStatus: { gte: 400 } } }),
@@ -119,7 +119,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const limit = Math.min(parseInt(request.query.limit || '50'), 200);
         const offset = parseInt(request.query.offset || '0');
-        const where: Record<string, unknown> = { deletedAt: null };
+        const where: Record<string, unknown> = {};
         if (request.query.userId) where.userId = request.query.userId;
 
         const [endpoints, total] = await Promise.all([
@@ -146,7 +146,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
             id: ep.id,
             name: ep.name,
             userId: ep.userId,
-            userEmail: ep.user.email,
+            userEmail: ep.user?.email || 'N/A',
             requestCount: ep.requestCount,
             createdAt: ep.createdAt,
           })),
@@ -197,7 +197,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
           where,
           take: limit,
           skip: offset,
-          orderBy: { timestamp: 'desc' },
+          orderBy: { createdAt: 'desc' },
           include: {
             endpoint: { select: { name: true, userId: true, user: { select: { email: true } } } },
           },
@@ -211,19 +211,17 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
           id: l.id,
           endpointId: l.endpointId,
           endpointName: l.endpoint.name,
-          userEmail: l.endpoint.user.email,
-          timestamp: l.timestamp,
+          userEmail: l.endpoint.user?.email || 'N/A',
+          timestamp: l.createdAt,
           method: l.method,
           path: l.path,
-          query: l.query,
+          queryParams: l.queryParams,
           headers: l.headers,
           body: l.body,
           ip: l.ip,
           userAgent: l.userAgent,
           responseStatus: l.responseStatus,
-          responseHeaders: l.responseHeaders,
-          responseBody: l.responseBody,
-          latencyMs: l.latencyMs,
+          durationMs: l.durationMs,
         })),
         total,
         limit,
@@ -251,7 +249,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
             where,
             take: limit,
             skip: offset,
-            orderBy: { timestamp: 'desc' },
+            orderBy: { createdAt: 'desc' },
             include: {
               endpoint: { select: { name: true, userId: true, user: { select: { email: true } } } },
             },
@@ -265,14 +263,13 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
             id: l.id,
             endpointId: l.endpointId,
             endpointName: l.endpoint.name,
-            userEmail: l.endpoint.user.email,
-            timestamp: l.timestamp,
+            userEmail: l.endpoint.user?.email || 'N/A',
+            timestamp: l.createdAt,
             method: l.method,
             path: l.path,
             body: l.body,
             responseStatus: l.responseStatus,
-            responseBody: l.responseBody,
-            latencyMs: l.latencyMs,
+            durationMs: l.durationMs,
           })),
           total,
           limit,

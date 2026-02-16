@@ -13,7 +13,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
      * POST /api/v1/session
      * Auto-create an anonymous user and return their API key.
      */
-    fastify.post('/', async (request, reply) => {
+    fastify.post('/', async (_request, reply) => {
         try {
             const rateLimit = await checkRateLimit(`session:create:${reply.request.ip}`, 20, 60);
             if (!rateLimit.allowed) {

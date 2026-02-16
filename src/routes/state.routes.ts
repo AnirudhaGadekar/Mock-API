@@ -97,7 +97,7 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
       const { endpointId, key } = request.params;
 
       const endpoint = await prisma.endpoint.findFirst({
-        where: { id: endpointId, userId: user.id, deletedAt: null },
+        where: { id: endpointId, userId: user.id },
       });
       if (!endpoint) return notFoundError(reply);
 
@@ -156,7 +156,7 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
       const { value } = request.body;
 
       const endpoint = await prisma.endpoint.findFirst({
-        where: { id: endpointId, userId: user.id, deletedAt: null },
+        where: { id: endpointId, userId: user.id },
       });
       if (!endpoint) return notFoundError(reply);
 
@@ -201,7 +201,7 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
       const { endpointId, key } = request.params;
 
       const endpoint = await prisma.endpoint.findFirst({
-        where: { id: endpointId, userId: user.id, deletedAt: null },
+        where: { id: endpointId, userId: user.id },
       });
       if (!endpoint) return notFoundError(reply);
 
@@ -237,7 +237,7 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
       const { endpointId } = request.params;
 
       const endpoint = await prisma.endpoint.findFirst({
-        where: { id: endpointId, userId: user.id, deletedAt: null },
+        where: { id: endpointId, userId: user.id },
       });
       if (!endpoint) return notFoundError(reply);
 

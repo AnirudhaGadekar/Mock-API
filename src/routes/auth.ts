@@ -11,7 +11,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     // ============================================
     // CREATE ANONYMOUS USER
     // ============================================
-    fastify.post('/anonymous', async (request, reply) => {
+    fastify.post('/anonymous', async (_request, reply) => {
         try {
             const anonymousEmail = `anon-${crypto.randomBytes(8).toString('hex')}@mockurl.local`;
 
@@ -179,7 +179,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     // ============================================
     fastify.post('/logout', {
         preHandler: [authenticateApiKey]
-    }, async (request: any, reply) => {
+    }, async (request: any, _reply) => {
         const apiKey = request.headers['x-api-key'] || request.headers.authorization?.replace('Bearer ', '');
         if (apiKey) {
             await invalidateUserCache(apiKey as string);

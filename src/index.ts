@@ -1,9 +1,9 @@
 import fastifyCookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import fastifyJwt from '@fastify/jwt';
 import { config } from 'dotenv';
 import fastify from 'fastify';
-import fastifyJwt from 'fastify-jwt';
 
 import { websocketPlugin } from './engine/websocket.js';
 import { startCronJobs } from './lib/cron.js';

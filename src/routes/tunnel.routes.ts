@@ -111,7 +111,7 @@ export const tunnelRoutes: FastifyPluginAsync = async (fastify) => {
       if (session.userId === user.id) {
         items.push({
           id: session.tunnelId,
-          userId: session.userId,
+          userId: session.userId || '',
           targetUrl: 'Local Client', // Or "CLI"
           createdAt: session.createdAt.toISOString(),
           type: 'WEBSOCKET'

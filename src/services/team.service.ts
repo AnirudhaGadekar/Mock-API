@@ -56,7 +56,7 @@ export const teamService = {
     async inviteMember(teamId: string, email: string, role: TeamRole, invitedById: string) {
         // Verify inviter permissions
         const inviter = await prisma.teamMember.findUnique({
-            where: { teamId_userId: { teamId, userId: invitedById } },
+            where: { userId_teamId: { teamId, userId: invitedById } },
             include: { user: true }
         });
 
@@ -69,7 +69,7 @@ export const teamService = {
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
             const alreadyMember = await prisma.teamMember.findUnique({
-                where: { teamId_userId: { teamId, userId: existingUser.id } },
+                where: { userId_teamId: { teamId, userId: existingUser.id } },
             });
             if (alreadyMember) throw new ApiError('User is already a team member', { statusCode: 409, code: 'CONFLICT' });
         }
@@ -78,13 +78,13 @@ export const teamService = {
         const token = randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-        const invitation = await prisma.teamInvitation.create({
+        const invitation = await prisma.teamInvite.create({
             data: {
                 teamId,
                 email,
                 role,
                 token,
-                invitedById,
+                createdById: invitedById,
                 expiresAt,
             },
             include: { team: true },
@@ -99,7 +99,7 @@ export const teamService = {
     },
 
     async acceptInvitation(token: string, userId: string) {
-        const invitation = await prisma.teamInvitation.findUnique({
+        const invitation = await prisma.teamInvite.findUnique({
             where: { token },
         });
 
@@ -122,7 +122,7 @@ export const teamService = {
                     role: invitation.role,
                 },
             }),
-            prisma.teamInvitation.update({
+            prisma.teamInvite.update({
                 where: { id: invitation.id },
                 data: { acceptedAt: new Date() },
             }),
@@ -131,7 +131,7 @@ export const teamService = {
 
     async updateMemberRole(teamId: string, targetUserId: string, newRole: TeamRole, requesterId: string) {
         const requester = await prisma.teamMember.findUnique({
-            where: { teamId_userId: { teamId, userId: requesterId } },
+            where: { userId_teamId: { teamId, userId: requesterId } },
         });
 
         if (!requester || !ROLE_PERMISSIONS[requester.role].canManageMembers) {
@@ -139,7 +139,7 @@ export const teamService = {
         }
 
         const target = await prisma.teamMember.findUnique({
-            where: { teamId_userId: { teamId, userId: targetUserId } },
+            where: { userId_teamId: { teamId, userId: targetUserId } },
         });
 
         if (!target) throw new ApiError('Member not found', { statusCode: 404, code: 'NOT_FOUND' });
@@ -148,14 +148,14 @@ export const teamService = {
         }
 
         return prisma.teamMember.update({
-            where: { teamId_userId: { teamId, userId: targetUserId } },
+            where: { userId_teamId: { teamId, userId: targetUserId } },
             data: { role: newRole },
         });
     },
 
     async removeMember(teamId: string, targetUserId: string, requesterId: string) {
         const requester = await prisma.teamMember.findUnique({
-            where: { teamId_userId: { teamId, userId: requesterId } },
+            where: { userId_teamId: { teamId, userId: requesterId } },
         });
 
         if (!requester || !ROLE_PERMISSIONS[requester.role].canManageMembers) {
@@ -163,7 +163,7 @@ export const teamService = {
         }
 
         const target = await prisma.teamMember.findUnique({
-            where: { teamId_userId: { teamId, userId: targetUserId } },
+            where: { userId_teamId: { teamId, userId: targetUserId } },
         });
 
         if (!target) throw new ApiError('Member not found', { statusCode: 404, code: 'NOT_FOUND' });
@@ -175,7 +175,7 @@ export const teamService = {
         }
 
         await prisma.teamMember.delete({
-            where: { teamId_userId: { teamId, userId: targetUserId } },
+            where: { userId_teamId: { teamId, userId: targetUserId } },
         });
     },
 
@@ -189,7 +189,7 @@ export const teamService = {
     async getTeamDetails(teamId: string, userId: string) {
         // Check membership
         const member = await prisma.teamMember.findUnique({
-            where: { teamId_userId: { teamId, userId } },
+            where: { userId_teamId: { teamId, userId } },
         });
 
         if (!member) throw new ApiError('Access denied', { statusCode: 403, code: 'FORBIDDEN' });
@@ -199,7 +199,7 @@ export const teamService = {
             include: {
                 members: { include: { user: { select: { id: true, email: true } } } },
                 endpoints: true,
-                invitations: {
+                invites: {
                     where: { acceptedAt: null, expiresAt: { gt: new Date() } }
                 },
             },
@@ -210,7 +210,7 @@ export const teamService = {
 
     async getUserRole(teamId: string, userId: string): Promise<TeamRole | null> {
         const member = await prisma.teamMember.findUnique({
-            where: { teamId_userId: { teamId, userId } },
+            where: { userId_teamId: { teamId, userId } },
         });
         return member?.role ?? null;
     },

@@ -61,8 +61,8 @@ export function captureRequestLog(
   endpointId: string,
   request: FastifyRequest,
   responseStatus: number,
-  responseHeaders: Record<string, string | number>,
-  responseBody: string,
+  _responseHeaders: Record<string, string | number>,
+  _responseBody: string,
   latencyMs: number
 ): void {
   const start = Date.now();
@@ -93,18 +93,13 @@ export function captureRequestLog(
         endpointId,
         method: request.method,
         path: request.url.split('?')[0] || request.url,
-        query: queryJson,
+        queryParams: queryJson,
         headers: headersJson,
-        body: bodyStr,
+        body: bodyStr ? (JSON.parse(bodyStr) as Prisma.InputJsonValue) : Prisma.JsonNull,
         ip: request.ip ?? null,
         userAgent: request.headers['user-agent'] ?? null,
         responseStatus,
-        responseHeaders: responseHeaders as object,
-        responseBody:
-          responseBody.length > BODY_TRUNCATE
-            ? responseBody.slice(0, BODY_TRUNCATE) + '...[truncated]'
-            : responseBody,
-        latencyMs,
+        durationMs: latencyMs,
       },
     })
     .then((log) => {
@@ -118,8 +113,8 @@ export function captureRequestLog(
           method: log.method,
           path: log.path,
           status: log.responseStatus ?? responseStatus,
-          timestamp: log.timestamp,
-          latencyMs: log.latencyMs ?? latencyMs,
+          timestamp: log.createdAt,
+          latencyMs: log.durationMs ?? latencyMs,
         });
       } catch {
         // Swallow event errors – never block request path

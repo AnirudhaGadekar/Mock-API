@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
-import { hashApiKey } from '../middleware/auth.middleware.js';
+import { hashApiKey } from '../utils/apiKey.js';
 
 const prisma = new PrismaClient();
 
@@ -45,6 +45,7 @@ async function main() {
     data: {
       userId: user1.id,
       name: 'my-api',
+      slug: 'my-api',
       rules: [],
       settings: {},
     },

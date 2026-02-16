@@ -105,7 +105,6 @@ async function fetchEndpointBySubdomain(subdomain: string): Promise<any> {
       const endpoint = await prisma.endpoint.findFirst({
         where: {
           name: subdomain,
-          deletedAt: null,
         },
         select: {
           id: true,

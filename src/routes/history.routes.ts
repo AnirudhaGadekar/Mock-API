@@ -25,7 +25,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
     const query = request.query as { format?: string; after?: string };
 
     const endpoint = await prisma.endpoint.findFirst({
-      where: { id: endpointId, userId: user.id, deletedAt: null },
+      where: { id: endpointId, userId: user.id },
     });
     if (!endpoint) {
       return reply.status(404).send({
@@ -36,11 +36,11 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const where: Record<string, unknown> = { endpointId };
-    if (query.after) where.timestamp = { gte: new Date(query.after) };
+    if (query.after) where.createdAt = { gte: new Date(query.after) };
 
     const logs = await prisma.requestLog.findMany({
       where,
-      orderBy: { timestamp: 'desc' },
+      orderBy: { createdAt: 'desc' },
       take: 1000,
     });
 
@@ -55,7 +55,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
     const q = parsed.success ? parsed.data : { limit: 50 };
 
     const endpoint = await prisma.endpoint.findFirst({
-      where: { id: endpointId, userId: user.id, deletedAt: null },
+      where: { id: endpointId, userId: user.id },
     });
     if (!endpoint) {
       return reply.status(404).send({
@@ -66,7 +66,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const where: Record<string, unknown> = { endpointId };
-    if (q.after) where.timestamp = { gte: new Date(q.after) };
+    if (q.after) where.createdAt = { gte: new Date(q.after) };
     if (q.method) where.method = q.method;
     if (q.status !== undefined) where.responseStatus = q.status;
     if (q.search) {
@@ -80,7 +80,7 @@ export const historyRoutes: FastifyPluginAsync = async (fastify) => {
       prisma.requestLog.findMany({
         where,
         take: q.limit,
-        orderBy: { timestamp: 'desc' },
+        orderBy: { createdAt: 'desc' },
       }),
       prisma.requestLog.count({ where }),
     ]);
