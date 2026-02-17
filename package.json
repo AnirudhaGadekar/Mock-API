@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "smoke": "tsx src/smoke.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "npm run prisma:deploy && node dist/index.js",
     "lint": "eslint src --ext .ts",
     "test": "vitest",
