@@ -3,12 +3,11 @@ import crypto from 'crypto';
 const API_KEY_SECRET = process.env.API_KEY_SECRET;
 
 if (!API_KEY_SECRET) {
-    // In development, we can fallback to a default but log a warning
-    // In production, the system should fail fast (handled in index.ts)
-    if (process.env.NODE_ENV === 'production') {
-        throw new Error('API_KEY_SECRET environment variable is required in production!');
-    }
+    console.warn('[WARN] API_KEY_SECRET is not set. Using a random fallback. Set this env var for stable API key hashing!');
 }
+
+// Always have a usable secret — random fallback if env var is missing
+const EFFECTIVE_SECRET = API_KEY_SECRET || crypto.randomBytes(32).toString('hex');
 
 /**
  * Generate a new API key with prefix
@@ -23,12 +22,8 @@ export function generateApiKey(): string {
  * This is fast and secure for API key hashing
  */
 export function hashApiKey(apiKey: string): string {
-    if (!API_KEY_SECRET) {
-        // Fallback for development if not set yet, but not ideal
-        return crypto.createHash('sha256').update(apiKey).digest('hex');
-    }
     return crypto
-        .createHmac('sha256', API_KEY_SECRET)
+        .createHmac('sha256', EFFECTIVE_SECRET)
         .update(apiKey)
         .digest('hex');
 }

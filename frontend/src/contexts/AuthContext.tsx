@@ -22,6 +22,7 @@ interface AuthContextType {
     signup: (email: string, password: string, name?: string, conversionToken?: string) => Promise<void>;
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
+    switchWorkspace: (type: 'PERSONAL' | 'TEAM', teamId?: string) => Promise<void>;
     showAuthModal: (mode?: 'login' | 'signup') => void;
     hideAuthModal: () => void;
     authModalState: { open: boolean; mode: 'login' | 'signup' };
@@ -158,6 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             signup,
             logout,
             refreshUser,
+            switchWorkspace,
             showAuthModal,
             hideAuthModal,
             authModalState
