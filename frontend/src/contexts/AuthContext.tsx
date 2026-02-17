@@ -1,8 +1,9 @@
 import axios from 'axios';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { setApiKeyRef } from '../lib/api';
 
-// API URL from environment
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+// API URL from environment — must match api.ts pattern
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? `http://${window.location.hostname}:3000`;
 
 interface User {
     id: string;
@@ -10,6 +11,8 @@ interface User {
     name?: string;
     picture?: string;
     isAnonymous: boolean;
+    authProvider?: string;
+    emailVerified?: boolean;
     currentWorkspaceType: 'PERSONAL' | 'TEAM';
     currentTeamId?: string;
 }
@@ -18,8 +21,9 @@ interface AuthContextType {
     user: User | null;
     loading: boolean;
     apiKey: string | null;
+    isAnonymous: boolean;
     login: (email: string, password: string) => Promise<void>;
-    signup: (email: string, password: string, name?: string, conversionToken?: string) => Promise<void>;
+    signup: (email: string, password: string, name?: string) => Promise<void>;
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
     switchWorkspace: (type: 'PERSONAL' | 'TEAM', teamId?: string) => Promise<void>;
@@ -42,10 +46,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const showAuthModal = (mode: 'login' | 'signup' = 'login') => setAuthModalState({ open: true, mode });
     const hideAuthModal = () => setAuthModalState({ ...authModalState, open: false });
 
-    // NEW: Switch between Personal and Team workspaces
+    // Computed: is the current user anonymous?
+    const isAnonymous = !user || user.isAnonymous;
+
+    // ──── BRIDGE: sync apiKey with api.ts interceptor ────
+    const syncApiKey = (key: string | null) => {
+        setApiKey(key);
+        if (key) {
+            localStorage.setItem('mockurl_api_key', key);
+            setApiKeyRef(key);
+        } else {
+            localStorage.removeItem('mockurl_api_key');
+            setApiKeyRef('');
+        }
+    };
+
+    // Switch workspace
     const switchWorkspace = async (type: 'PERSONAL' | 'TEAM', teamId?: string) => {
         try {
-            await axios.post(`${API_URL}/workspace/switch`, { type: type.toLowerCase(), teamId }, {
+            await axios.post(`${API_URL}/api/v1/workspace/switch`, { type: type.toLowerCase(), teamId }, {
                 headers: { 'x-api-key': apiKey }
             });
             await refreshUser();
@@ -59,17 +78,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         const initAuth = async () => {
             try {
-                if (apiKey) {
-                    // Attempt to fetch current user with existing API key
+                const storedKey = localStorage.getItem('mockurl_api_key');
+                if (storedKey) {
+                    // Sync the key to api.ts immediately
+                    setApiKeyRef(storedKey);
                     try {
-                        const res = await axios.get(`${API_URL}/auth/me`, {
-                            headers: { 'x-api-key': apiKey }
+                        // Validate existing key via the new auth/me endpoint
+                        const res = await axios.get(`${API_URL}/api/v1/auth/me`, {
+                            headers: { 'x-api-key': storedKey }
                         });
-                        setUser(res.data);
+                        const userData = res.data;
+                        setUser({
+                            ...userData,
+                            isAnonymous: userData.authProvider === 'ANONYMOUS' || userData.email?.endsWith('@mockurl.local')
+                        });
+                        setApiKey(storedKey);
                     } catch (err) {
                         console.error('Failed to restore session', err);
-                        // If key is invalid, clear it and create new anonymous
                         localStorage.removeItem('mockurl_api_key');
+                        setApiKeyRef('');
                         setApiKey(null);
                         await createAnonymousSession();
                     }
@@ -88,51 +115,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const createAnonymousSession = async () => {
         try {
-            const res = await axios.post(`${API_URL}/auth/anonymous`);
+            // Try new auth endpoint first
+            const res = await axios.post(`${API_URL}/api/v1/auth/anonymous`);
             const { apiKey: newKey, user: newUser } = res.data;
-            setApiKey(newKey);
-            setUser(newUser);
-            localStorage.setItem('mockurl_api_key', newKey);
+            syncApiKey(newKey);
+            setUser({ ...newUser, isAnonymous: true });
         } catch (err) {
-            console.error('Failed to create anonymous session', err);
+            console.error('New auth/anonymous failed, trying old session endpoint', err);
+            try {
+                // Fallback: old session endpoint for backward compatibility
+                const res = await axios.post(`${API_URL}/api/v1/session`);
+                if (res.data.success && res.data.session?.apiKey) {
+                    const newKey = res.data.session.apiKey;
+                    syncApiKey(newKey);
+                    setUser({
+                        id: res.data.session.userId,
+                        email: res.data.session.email,
+                        isAnonymous: true,
+                        currentWorkspaceType: 'PERSONAL'
+                    });
+                }
+            } catch (fallbackErr) {
+                console.error('Failed to create any session', fallbackErr);
+            }
         }
     };
 
     const login = async (email: string, password: string) => {
-        const res = await axios.post(`${API_URL}/auth/login`, { email, password });
+        const res = await axios.post(`${API_URL}/api/v1/auth/login`, { email, password });
         const { apiKey: newKey, user: loggedInUser } = res.data;
-        setApiKey(newKey);
-        setUser(loggedInUser);
-        localStorage.setItem('mockurl_api_key', newKey);
+        syncApiKey(newKey);
+        setUser({ ...loggedInUser, isAnonymous: false });
         hideAuthModal();
     };
 
-    const signup = async (email: string, password: string, name?: string, conversionToken?: string) => {
-        const res = await axios.post(`${API_URL}/auth/signup`, {
+    const signup = async (email: string, password: string, name?: string) => {
+        const res = await axios.post(`${API_URL}/api/v1/auth/signup`, {
             email,
             password,
             name,
-            conversionToken: conversionToken || (user?.isAnonymous ? apiKey : undefined)
+            conversionToken: isAnonymous ? apiKey : undefined
         });
         const { apiKey: newKey, user: signedUpUser } = res.data;
-        setApiKey(newKey);
-        setUser(signedUpUser);
-        localStorage.setItem('mockurl_api_key', newKey);
+        syncApiKey(newKey);
+        setUser({ ...signedUpUser, isAnonymous: false });
         hideAuthModal();
     };
 
     const logout = async () => {
         if (!apiKey) return;
         try {
-            await axios.post(`${API_URL}/auth/logout`, {}, {
+            await axios.post(`${API_URL}/api/v1/auth/logout`, {}, {
                 headers: { 'x-api-key': apiKey }
             });
         } catch (err) {
             console.error('Logout failed on server', err);
         } finally {
-            // After logout, always revert to a fresh anonymous session for "Lazy Login" UX
-            localStorage.removeItem('mockurl_api_key');
-            setApiKey(null);
+            syncApiKey(null);
             setUser(null);
             await createAnonymousSession();
         }
@@ -141,10 +180,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const refreshUser = async () => {
         if (!apiKey) return;
         try {
-            const res = await axios.get(`${API_URL}/auth/me`, {
+            const res = await axios.get(`${API_URL}/api/v1/auth/me`, {
                 headers: { 'x-api-key': apiKey }
             });
-            setUser(res.data);
+            const userData = res.data;
+            setUser({
+                ...userData,
+                isAnonymous: userData.authProvider === 'ANONYMOUS' || userData.email?.endsWith('@mockurl.local')
+            });
         } catch (err) {
             console.error('Failed to refresh user', err);
         }
@@ -155,6 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             user,
             loading,
             apiKey,
+            isAnonymous,
             login,
             signup,
             logout,

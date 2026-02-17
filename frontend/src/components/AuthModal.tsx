@@ -36,7 +36,7 @@ export const AuthModal: React.FC = () => {
     const handleOAuth = (provider: 'google' | 'github') => {
         // Redirect to OAuth initiate route
         const currentApiKey = localStorage.getItem('mockurl_api_key');
-        const oauthUrl = new URL(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'}/oauth/${provider}`);
+        const oauthUrl = new URL(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/v1/oauth/${provider}`);
         if (currentApiKey) {
             oauthUrl.searchParams.append('conversionToken', currentApiKey);
         }

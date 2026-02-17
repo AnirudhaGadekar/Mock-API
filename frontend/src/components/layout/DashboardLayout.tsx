@@ -1,12 +1,15 @@
 
 import { TeamSwitcher } from "@/components/TeamSwitcher";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import {
     Activity,
     Database,
     Globe,
     LayoutDashboard,
+    LogIn,
+    LogOut,
     Menu,
     Network,
     Settings,
@@ -19,6 +22,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 export function DashboardLayout() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const location = useLocation();
+    const { user, isAnonymous, showAuthModal, logout, loading } = useAuth();
 
     // Determine page title based on path
     const getPageTitle = (pathname: string) => {
@@ -31,6 +35,18 @@ export function DashboardLayout() {
         if (pathname.startsWith("/settings")) return "Settings";
         if (pathname.startsWith("/team/settings")) return "Team Settings";
         return "Console";
+    };
+
+    // Get user initials for avatar
+    const getUserInitials = () => {
+        if (!user) return "?";
+        if (user.name) {
+            return user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+        }
+        if (!isAnonymous && user.email) {
+            return user.email[0].toUpperCase();
+        }
+        return "A";
     };
 
     return (
@@ -95,17 +111,71 @@ export function DashboardLayout() {
                     </NavItem>
                 </nav>
 
-                {/* Footer/User */}
-                <div className="p-4 border-t border-border/50">
-                    <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border/50">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                            DEV
+                {/* Footer: User Section */}
+                <div className="p-4 border-t border-border/50 space-y-2">
+                    {loading ? (
+                        <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border/50">
+                            <div className="w-8 h-8 rounded-full bg-muted/30 animate-pulse" />
+                            <div className="flex-1 min-w-0 space-y-1">
+                                <div className="h-4 w-20 bg-muted/30 rounded animate-pulse" />
+                                <div className="h-3 w-28 bg-muted/30 rounded animate-pulse" />
+                            </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">Developer Mode</p>
-                            <p className="text-xs text-muted-foreground truncate">Local Session</p>
-                        </div>
-                    </div>
+                    ) : isAnonymous ? (
+                        <>
+                            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border/50">
+                                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300">
+                                    A
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">Anonymous</p>
+                                    <p className="text-xs text-muted-foreground truncate">Unsaved session</p>
+                                </div>
+                            </div>
+                            <Button
+                                variant="default"
+                                size="sm"
+                                className="w-full gap-2"
+                                onClick={() => showAuthModal('login')}
+                            >
+                                <LogIn size={14} />
+                                Sign In / Sign Up
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border/50">
+                                {user?.picture ? (
+                                    <img
+                                        src={user.picture}
+                                        alt="avatar"
+                                        className="w-8 h-8 rounded-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                                        {getUserInitials()}
+                                    </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">
+                                        {user?.name || user?.email?.split("@")[0] || "User"}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                        {user?.email}
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full gap-2 text-muted-foreground hover:text-destructive"
+                                onClick={logout}
+                            >
+                                <LogOut size={14} />
+                                Sign Out
+                            </Button>
+                        </>
+                    )}
                 </div>
             </aside>
 
@@ -126,7 +196,15 @@ export function DashboardLayout() {
                     </h1>
 
                     <div className="ml-auto flex items-center gap-2">
-                        {/* Header actions can go here */}
+                        {isAnonymous && (
+                            <button
+                                onClick={() => showAuthModal('signup')}
+                                className="hidden md:flex items-center gap-2 text-xs text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-full border border-indigo-500/30 transition-colors cursor-pointer"
+                            >
+                                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                                Save your work — Sign Up
+                            </button>
+                        )}
                         <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 px-3 py-1.5 rounded-full border border-border/50">
                             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                             System Operational

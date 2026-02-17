@@ -1,6 +1,6 @@
 
+import { AuthModal } from "@/components/AuthModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { initSession } from "@/lib/api";
 import Chaos from "@/pages/Chaos";
 import Dashboard from "@/pages/Dashboard";
 import EndpointConfig from "@/pages/EndpointConfig";
@@ -10,16 +10,10 @@ import Settings from "@/pages/Settings";
 import StateStore from "@/pages/StateStore";
 import TeamSettings from "@/pages/TeamSettings";
 import TunnelDashboard from "@/pages/TunnelDashboard";
-import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 export default function App() {
-    // Initialize session on mount
-    useEffect(() => {
-        initSession().catch(console.error);
-    }, []);
-
     return (
         <BrowserRouter>
             <Toaster
@@ -32,6 +26,8 @@ export default function App() {
                     }
                 }}
             />
+            {/* Global Auth Modal — triggered via useAuth().showAuthModal() */}
+            <AuthModal />
             <Routes>
                 <Route path="/" element={<DashboardLayout />}>
                     <Route index element={<Dashboard />} />
