@@ -60,12 +60,18 @@ function validateEnvironment() {
     (/[^a-zA-Z0-9]/.test(jwtSecret) ? 1 : 0);
   const jwtSecretStrong = jwtSecret.length >= 32 && jwtComplexityScore >= 3;
 
-  const authMode = process.env.AUTH_MODE;
+  let authMode = process.env.AUTH_MODE?.trim().toLowerCase();
   const isProd = process.env.NODE_ENV === 'production';
+
+  if (isProd && !authMode) {
+    authMode = 'otp';
+    process.env.AUTH_MODE = 'otp';
+    logger.warn('⚠️  AUTH_MODE was not set in production. Defaulting to AUTH_MODE=otp.');
+  }
 
   // --- MANDATORY STARTUP VALIDATION (Enterprise Security) ---
   if (isProd && authMode !== 'otp') {
-    throw new Error('❌ SECURITY ERROR: Production cannot run with AUTH_MODE != otp');
+    throw new Error(`❌ SECURITY ERROR: Production cannot run with AUTH_MODE=${authMode}. Set AUTH_MODE=otp.`);
   }
 
   if (!isProd && authMode === 'dev-bypass') {
