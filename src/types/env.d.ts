@@ -16,6 +16,13 @@ declare global {
       
       JWT_SECRET: string;
       JWT_EXPIRES_IN: string;
+      JWT_EXPIRY?: string;
+      EXPOSE_STACK_TRACE?: 'true' | 'false';
+      AUTH_MODE?: 'otp' | 'dev-bypass';
+      ALLOW_OTP_FOR_PASSWORD_USERS?: 'true' | 'false';
+      API_KEY_COOKIE_MAX_AGE_SECONDS?: string;
+      OTP_SECRET: string;
+      API_KEY_SECRET: string;
       
       RATE_LIMIT_MAX: string;
       RATE_LIMIT_WINDOW: string;

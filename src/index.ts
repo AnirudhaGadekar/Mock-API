@@ -1,8 +1,9 @@
+import 'dotenv/config';
+
 import fastifyCookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import fastifyJwt from '@fastify/jwt';
-import { config } from 'dotenv';
 import fastify from 'fastify';
 
 import { websocketPlugin } from './engine/websocket.js';
@@ -25,6 +26,7 @@ import { inviteRoutes } from './routes/invites.js';
 import { mockRouterPlugin } from './routes/mock.router.js';
 import { oasRoutes } from './routes/oas.routes.js';
 import { oauthRoutes } from './routes/oauth.js';
+import { otpRoutes } from './routes/otp.routes.js';
 import { sessionRoutes } from './routes/session.routes.js';
 import { stateRoutes } from './routes/state.routes.js';
 import { storeRoutes } from './routes/store.routes.js';
@@ -33,9 +35,6 @@ import tunnelWsRoute from './routes/tunnel-ws.js';
 import { tunnelRoutes } from './routes/tunnel.routes.js';
 import { userRoutes } from './routes/user.routes.js';
 import { workspaceRoutes } from './routes/workspace.js';
-
-
-config();
 
 /**
  * Validate environment variables at startup (fail fast).
@@ -53,9 +52,40 @@ function validateEnvironment() {
     logger.info('ℹ️  Using default PORT: 10000');
   }
 
+  const jwtSecret = process.env.JWT_SECRET || '';
+  const jwtComplexityScore =
+    (/[a-z]/.test(jwtSecret) ? 1 : 0) +
+    (/[A-Z]/.test(jwtSecret) ? 1 : 0) +
+    (/\d/.test(jwtSecret) ? 1 : 0) +
+    (/[^a-zA-Z0-9]/.test(jwtSecret) ? 1 : 0);
+  const jwtSecretStrong = jwtSecret.length >= 32 && jwtComplexityScore >= 3;
+
+  const authMode = process.env.AUTH_MODE;
+  const isProd = process.env.NODE_ENV === 'production';
+
+  // --- MANDATORY STARTUP VALIDATION (Enterprise Security) ---
+  if (isProd && authMode !== 'otp') {
+    throw new Error('❌ SECURITY ERROR: Production cannot run with AUTH_MODE != otp');
+  }
+
+  if (!isProd && authMode === 'dev-bypass') {
+    logger.warn('⚠️  [DEV-BYPASS] Auth bypass mode is ACTIVE. OTPs will be logged to console and returned in responses. DO NOT use in production.');
+  }
+
+  if (isProd) {
+    if (!jwtSecretStrong) {
+      throw new Error('❌ Production requires JWT_SECRET with at least 32 chars and strong complexity');
+    }
+    if (!process.env.BASE_MOCK_DOMAIN) {
+      logger.warn('⚠️  Production: BASE_MOCK_DOMAIN not set, using default');
+    }
+  }
+
   const required = [
     'JWT_SECRET',
     'DATABASE_URL',
+    'OTP_SECRET',
+    'API_KEY_SECRET',
   ];
 
   const missing = required.filter((key) => !process.env[key]);
@@ -73,9 +103,8 @@ function validateEnvironment() {
     );
   }
 
-  // Validate JWT secret strength
-  if ((process.env.JWT_SECRET || '').length < 32) {
-    logger.warn('⚠️  JWT_SECRET is shorter than 32 characters. This is insecure for production.');
+  if (!jwtSecretStrong) {
+    logger.warn('⚠️  JWT_SECRET is weak. Use at least 32 chars with mixed complexity.');
   }
 
   // Validate numeric env vars
@@ -85,6 +114,9 @@ function validateEnvironment() {
 
   if (process.env.REDIS_PORT && isNaN(Number(process.env.REDIS_PORT))) {
     throw new Error('❌ REDIS_PORT must be a valid number');
+  }
+  if (process.env.BODY_LIMIT && isNaN(Number(process.env.BODY_LIMIT))) {
+    throw new Error('❌ BODY_LIMIT must be a valid number');
   }
 
   logger.info('✅ Environment validation passed');
@@ -98,11 +130,13 @@ const HOST = '0.0.0.0';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
 
 async function buildApp() {
+  const bodyLimit = Number(process.env.BODY_LIMIT ?? 1048576);
   const app = fastify({
     logger: false,
     trustProxy: true,
     requestIdHeader: 'x-request-id',
     disableRequestLogging: true,
+    bodyLimit,
   }).withTypeProvider<ZodTypeProvider>();
 
   // Register Zod compilers
@@ -247,7 +281,8 @@ async function buildApp() {
   await app.register(tunnelRoutes, { prefix: '/api/v1/tunnel' });
   await app.register(teamRoutes, { prefix: '/api/v1/teams' });
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
-  await app.register(oauthRoutes, { prefix: '/api/v1/oauth' });
+  await app.register(otpRoutes, { prefix: '/api/v1/auth' });
+    await app.register(oauthRoutes, { prefix: '/api/v1/oauth' });
   await app.register(inviteRoutes, { prefix: '/api/v1/invites' });
   await app.register(workspaceRoutes, { prefix: '/api/v1/workspace' });
   await app.register(tunnelProxyPlugin);
@@ -268,14 +303,14 @@ async function buildApp() {
       requestId: request.id,
     });
 
-    const isDev = process.env.NODE_ENV === 'development';
+    const exposeStackTrace = process.env.EXPOSE_STACK_TRACE === 'true';
 
     return reply.status(500).send({
       success: false,
       error: {
         code: 'INTERNAL_ERROR',
-        message: isDev ? err.message : 'Internal server error',
-        ...(isDev && { stack: err.stack }),
+        message: exposeStackTrace ? err.message : 'Internal server error',
+        ...(exposeStackTrace && { stack: err.stack }),
       },
       timestamp: new Date().toISOString(),
     });

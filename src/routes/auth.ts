@@ -1,12 +1,14 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
+import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
-import { authenticateApiKey, invalidateUserCache } from '../middleware/auth.middleware.js';
+import { authenticateApiKey, extractApiKey, invalidateUserCache } from '../middleware/auth.middleware.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKey.js';
 
 export async function authRoutes(fastify: FastifyInstance) {
+    const API_KEY_COOKIE = getApiKeyCookieName();
 
     // ============================================
     // CREATE ANONYMOUS USER
@@ -35,6 +37,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
             logger.info('Created anonymous user', { userId: user.id });
 
+            reply.setCookie(API_KEY_COOKIE, apiKey, getApiKeyCookieOptions());
             return {
                 apiKey, // Return plaintext to user (ONCE!)
                 user: {
@@ -110,6 +113,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
             logger.info('User signed up', { userId: user.id, isConversion: !!conversionToken });
 
+            reply.setCookie(API_KEY_COOKIE, apiKey, getApiKeyCookieOptions());
             return {
                 apiKey,
                 user: {
@@ -160,6 +164,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
             logger.info('User logged in', { userId: user.id });
 
+            reply.setCookie(API_KEY_COOKIE, apiKey, getApiKeyCookieOptions());
             return {
                 apiKey,
                 user: {
@@ -180,10 +185,11 @@ export async function authRoutes(fastify: FastifyInstance) {
     fastify.post('/logout', {
         preHandler: [authenticateApiKey]
     }, async (request: any, _reply) => {
-        const apiKey = request.headers['x-api-key'] || request.headers.authorization?.replace('Bearer ', '');
+        const apiKey = extractApiKey(request);
         if (apiKey) {
             await invalidateUserCache(apiKey as string);
         }
+        _reply.clearCookie(API_KEY_COOKIE, { path: '/' });
         logger.info('User logged out', { userId: request.user.id });
         return { success: true };
     });
@@ -196,7 +202,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         try {
             const userId = request.user.id;
-            const oldApiKey = request.headers['x-api-key'] || request.headers.authorization?.replace('Bearer ', '');
+            const oldApiKey = extractApiKey(request);
 
             if (oldApiKey) {
                 await invalidateUserCache(oldApiKey as string);
@@ -210,6 +216,7 @@ export async function authRoutes(fastify: FastifyInstance) {
                 data: { apiKeyHash: newApiKeyHash }
             });
 
+            reply.setCookie(API_KEY_COOKIE, newApiKey, getApiKeyCookieOptions());
             return {
                 apiKey: newApiKey,
                 message: 'API key regenerated successfully.'

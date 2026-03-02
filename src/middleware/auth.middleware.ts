@@ -1,15 +1,12 @@
 import { trace } from '@opentelemetry/api';
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { prisma } from '../lib/db.js'; // Updated import path to match others? Or ../lib/prisma.js?
+import { getApiKeyCookieName } from '../lib/auth-cookie.js';
+import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
-// The file I read used ../lib/prisma.js. Let's check if that exists.
-// src/index.ts used ./lib/db.js.
-// I'll stick to ../lib/db.js if it works, or check list_dir.
-// Previous file used ../lib/prisma.js. I'll check if both exist.
-
 import { redis } from '../lib/redis.js';
 
 const tracer = trace.getTracer('auth-middleware');
+const API_KEY_COOKIE = getApiKeyCookieName();
 
 /**
  * Custom error classes for authentication
@@ -40,6 +37,14 @@ export function extractApiKey(request: FastifyRequest): string | null {
     const parts = request.headers.authorization.split(' ');
     if (parts.length === 2 && parts[0].toLowerCase() === 'bearer') {
       headerKey = parts[1];
+    }
+  }
+
+  if (!headerKey) {
+    const cookies = (request as any).cookies as Record<string, string> | undefined;
+    const cookieKey = cookies?.[API_KEY_COOKIE];
+    if (cookieKey) {
+      headerKey = cookieKey;
     }
   }
 

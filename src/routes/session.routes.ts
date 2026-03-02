@@ -4,11 +4,14 @@
  */
 import { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../lib/db.js';
+import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
 import { logger } from '../lib/logger.js';
+import { extractApiKey } from '../middleware/auth.middleware.js';
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKey.js';
 
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
+    const API_KEY_COOKIE = getApiKeyCookieName();
     /**
      * POST /api/v1/session
      * Auto-create an anonymous user and return their API key.
@@ -46,6 +49,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
             logger.info('Anonymous session created', { userId: user.id });
 
+            reply.setCookie(API_KEY_COOKIE, apiKey, getApiKeyCookieOptions());
             return reply.status(201).send({
                 success: true,
                 session: {
@@ -74,7 +78,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
      */
     fastify.get('/me', async (request, reply) => {
         try {
-            const apiKey = request.headers['x-api-key'] as string | undefined;
+            const apiKey = extractApiKey(request);
 
             if (!apiKey) {
                 return reply.status(401).send({

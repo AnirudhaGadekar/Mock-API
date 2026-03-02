@@ -44,6 +44,7 @@ model User {
   teamMemberships       TeamMember[]
   createdInvites        TeamInvite[]   @relation("InviteCreator")
   requestLogs           RequestLog[]
+  endpointAuditLogs     EndpointAuditLog[]
   
   @@index([email])
   @@index([apiKeyHash])
@@ -56,11 +57,18 @@ enum AuthProvider {
   LOCAL
   GOOGLE
   GITHUB
+  EMAIL_OTP
 }
 
 enum WorkspaceType {
   PERSONAL
   TEAM
+}
+
+enum EndpointAuditAction {
+  CREATED
+  UPDATED
+  DELETED
 }
 
 // ============================================
@@ -165,10 +173,52 @@ model Endpoint {
 
   // Logs
   requestLogs  RequestLog[]
+  auditLogs    EndpointAuditLog[]
   
   @@index([slug])
   @@index([userId])
   @@index([teamId])
+}
+
+model EndpointAuditLog {
+  id          String              @id @default(uuid())
+  action      EndpointAuditAction
+
+  endpointId  String?
+  endpoint    Endpoint?           @relation(fields: [endpointId], references: [id], onDelete: SetNull)
+  endpointSlug String?
+  endpointName String?
+
+  actorUserId String?
+  actorUser   User?               @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  workspaceType WorkspaceType
+  teamId      String?
+  ip          String?
+  userAgent   String?
+  details     Json?
+  createdAt   DateTime            @default(now())
+
+  @@index([endpointId])
+  @@index([endpointSlug])
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@index([workspaceType])
+  @@index([teamId])
+}
+
+// ============================================
+// OTP MODEL
+// ============================================
+model Otp {
+  id        String   @id @default(cuid())
+  email     String
+  hash      String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
 }
 
 // ============================================

@@ -1,5 +1,5 @@
 import { trace } from '@opentelemetry/api';
-import { FastifyPluginAsync } from 'fastify';
+import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.middleware.js';
@@ -9,8 +9,8 @@ import {
   cacheEndpointList,
   getCachedEndpointList,
   hashQueryParams,
-  invalidateUserEndpointCache,
-  invalidateEndpointCache
+  invalidateEndpointCache,
+  invalidateUserEndpointCache
 } from '../utils/endpoint.cache.js';
 import {
   createEndpointSchema,
@@ -20,17 +20,32 @@ import {
 
 const tracer = trace.getTracer('endpoints-api');
 
-const BASE_MOCK_DOMAIN = process.env.BASE_MOCK_DOMAIN || 'mockurl.com';
+type EndpointAuditAction = 'CREATED' | 'UPDATED' | 'DELETED';
+type EndpointWorkspaceType = 'PERSONAL' | 'TEAM';
+
+interface EndpointAuditLogInput {
+  action: EndpointAuditAction;
+  actorUserId: string;
+  endpointId?: string | null;
+  endpointSlug?: string | null;
+  endpointName?: string | null;
+  workspaceType: EndpointWorkspaceType;
+  teamId?: string | null;
+  details?: unknown;
+  request: FastifyRequest;
+}
 
 /**
  * Format endpoint for API response
  */
 function formatEndpointResponse(endpoint: { id: string; name: string; slug: string; rules: unknown; requestCount: number; createdAt: Date; teamId?: string | null }): EndpointResponse {
   const subdomain = endpoint.slug;
-  let url = `https://${subdomain}.${BASE_MOCK_DOMAIN}`;
+  const baseUrl = process.env.BASE_ENDPOINT_URL || `http://localhost:3000/e`;
+  let url = `${baseUrl}/${subdomain}`;
 
-  if (process.env.RENDER_EXTERNAL_URL && BASE_MOCK_DOMAIN === 'mockurl.com') {
-    url = `${process.env.RENDER_EXTERNAL_URL}/${subdomain}`;
+  // If using a custom mock domain with wildcard support (not current case but kept for logic)
+  if (process.env.BASE_MOCK_DOMAIN && !process.env.BASE_MOCK_DOMAIN.includes('onrender.com')) {
+    url = `https://${subdomain}.${process.env.BASE_MOCK_DOMAIN}`;
   }
 
   return {
@@ -45,6 +60,42 @@ function formatEndpointResponse(endpoint: { id: string; name: string; slug: stri
     workspaceType: endpoint.teamId ? 'TEAM' : 'PERSONAL',
     teamId: endpoint.teamId,
   };
+}
+
+function getUserAgent(request: FastifyRequest): string | null {
+  const userAgent = request.headers['user-agent'];
+  if (!userAgent) return null;
+  return Array.isArray(userAgent) ? userAgent[0] : userAgent;
+}
+
+function getRulesCount(rules: unknown): number {
+  return Array.isArray(rules) ? rules.length : 0;
+}
+
+async function writeEndpointAuditLog(input: EndpointAuditLogInput): Promise<void> {
+  try {
+    await prisma.endpointAuditLog.create({
+      data: {
+        action: input.action,
+        actorUserId: input.actorUserId,
+        endpointId: input.endpointId ?? null,
+        endpointSlug: input.endpointSlug ?? null,
+        endpointName: input.endpointName ?? null,
+        workspaceType: input.workspaceType,
+        teamId: input.teamId ?? null,
+        ip: input.request.ip ?? null,
+        userAgent: getUserAgent(input.request),
+        details: input.details as any,
+      },
+    });
+  } catch (error) {
+    logger.warn('Failed to write endpoint audit log', {
+      error,
+      action: input.action,
+      endpointId: input.endpointId ?? null,
+      actorUserId: input.actorUserId,
+    });
+  }
 }
 
 export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
@@ -122,6 +173,21 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
         await invalidateUserEndpointCache(user.id);
         await invalidateEndpointCache(endpoint.id, endpoint.slug).catch((err) => {
           logger.warn('Failed to invalidate endpoint cache after create', { err, endpointId: endpoint.id });
+        });
+        await writeEndpointAuditLog({
+          action: 'CREATED',
+          actorUserId: user.id,
+          endpointId: endpoint.id,
+          endpointSlug: endpoint.slug,
+          endpointName: endpoint.name,
+          workspaceType: isTeam ? 'TEAM' : 'PERSONAL',
+          teamId: endpoint.teamId,
+          request,
+          details: {
+            changedFields: ['name', 'slug', 'rules'],
+            rulesCount: getRulesCount(endpoint.rules),
+            hasSettings: endpoint.settings !== undefined && endpoint.settings !== null,
+          },
         });
 
         const endpointPayload = formatEndpointResponse(endpoint);
@@ -310,6 +376,31 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
         await invalidateEndpointCache(id, updated.slug).catch((err) => {
           logger.warn('Failed to invalidate endpoint cache after update', { err, endpointId: id });
         });
+        await writeEndpointAuditLog({
+          action: 'UPDATED',
+          actorUserId: user.id,
+          endpointId: updated.id,
+          endpointSlug: updated.slug,
+          endpointName: updated.name,
+          workspaceType: updated.teamId ? 'TEAM' : 'PERSONAL',
+          teamId: updated.teamId,
+          request,
+          details: {
+            changedFields: Object.keys(updateData),
+            before: {
+              name: existing.name,
+              slug: existing.slug,
+              rulesCount: getRulesCount(existing.rules),
+              hasSettings: existing.settings !== undefined && existing.settings !== null,
+            },
+            after: {
+              name: updated.name,
+              slug: updated.slug,
+              rulesCount: getRulesCount(updated.rules),
+              hasSettings: updated.settings !== undefined && updated.settings !== null,
+            },
+          },
+        });
 
         return reply.status(200).send({
           success: true,
@@ -330,6 +421,80 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
         span.end();
       }
     });
+  });
+
+  /**
+   * GET /api/v1/endpoints/audit
+   * Returns recent endpoint configuration changes in current workspace.
+   */
+  fastify.get('/audit', async (request, reply) => {
+    try {
+      const user = getAuthenticatedUser(request);
+      const isTeamWorkspace = user.currentWorkspaceType === 'TEAM';
+      const query = request.query as { limit?: string; endpointId?: string };
+      const requestedLimit = Number.parseInt(query.limit ?? '50', 10);
+      const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 200) : 50;
+
+      if (isTeamWorkspace && !user.currentTeamId) {
+        return reply.status(400).send({
+          success: false,
+          error: { code: 'TEAM_CONTEXT_REQUIRED', message: 'Team workspace is active but no team is selected.' },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const where: {
+        workspaceType: EndpointWorkspaceType;
+        teamId?: string;
+        actorUserId?: string;
+        endpointId?: string;
+      } = isTeamWorkspace
+        ? { workspaceType: 'TEAM', teamId: user.currentTeamId as string }
+        : { workspaceType: 'PERSONAL', actorUserId: user.id };
+
+      if (query.endpointId) {
+        where.endpointId = query.endpointId;
+      }
+
+      const auditLogs = await prisma.endpointAuditLog.findMany({
+        where,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          action: true,
+          endpointId: true,
+          endpointSlug: true,
+          endpointName: true,
+          workspaceType: true,
+          teamId: true,
+          ip: true,
+          userAgent: true,
+          details: true,
+          createdAt: true,
+          actorUser: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      return reply.status(200).send({
+        success: true,
+        auditLogs,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      logger.error('Failed to fetch endpoint audit logs', { error });
+      return reply.status(500).send({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch endpoint audit logs' },
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 
   /**
@@ -379,10 +544,17 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
             { teamId: user.currentTeamId }
           ]
         },
-        select: { slug: true },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          teamId: true,
+          rules: true,
+          settings: true,
+        },
       });
 
-      await prisma.endpoint.deleteMany({
+      const deleted = await prisma.endpoint.deleteMany({
         where: {
           id,
           OR: [
@@ -392,6 +564,14 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
         }
       });
 
+      if (deleted.count === 0) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Endpoint not found' },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       await invalidateUserEndpointCache(user.id);
       // Invalidate subdomain cache when endpoint is deleted
       if (endpoint?.slug) {
@@ -399,6 +579,21 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
           logger.warn('Failed to invalidate endpoint cache after delete', { err, endpointId: id });
         });
       }
+      await writeEndpointAuditLog({
+        action: 'DELETED',
+        actorUserId: user.id,
+        endpointId: endpoint?.id ?? id,
+        endpointSlug: endpoint?.slug ?? null,
+        endpointName: endpoint?.name ?? null,
+        workspaceType: user.currentWorkspaceType === 'TEAM' ? 'TEAM' : 'PERSONAL',
+        teamId: user.currentWorkspaceType === 'TEAM' ? user.currentTeamId : null,
+        request,
+        details: {
+          changedFields: ['deleted'],
+          rulesCount: getRulesCount(endpoint?.rules),
+          hadSettings: endpoint?.settings !== undefined && endpoint?.settings !== null,
+        },
+      });
       return { success: true };
     } catch (error) {
       return reply.status(500).send({ error: 'Failed to delete endpoint' });

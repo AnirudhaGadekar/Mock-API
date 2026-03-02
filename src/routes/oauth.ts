@@ -2,6 +2,7 @@ import axios from 'axios';
 import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/db.js';
+import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKey.js';
@@ -16,6 +17,7 @@ const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
 const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'http://localhost:3000/api/v1/oauth/github/callback';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const API_KEY_COOKIE = getApiKeyCookieName();
 
 /**
  * Helper to join a team via invite token
@@ -161,7 +163,10 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                 await handleTeamInvite(user.id, inviteToken);
             }
 
-            return reply.redirect(`${FRONTEND_URL}/auth/callback?apiKey=${apiKey}`);
+            if (apiKey) {
+                reply.setCookie(API_KEY_COOKIE, apiKey, getApiKeyCookieOptions());
+            }
+            return reply.redirect(`${FRONTEND_URL}/auth/callback`);
         } catch (error) {
             logger.error('Google OAuth failed', error);
             return reply.redirect(`${FRONTEND_URL}/auth/error?message=Google login failed`);
@@ -277,7 +282,10 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                 await handleTeamInvite(user.id, inviteToken);
             }
 
-            return reply.redirect(`${FRONTEND_URL}/auth/callback?apiKey=${apiKey}`);
+            if (apiKey) {
+                reply.setCookie(API_KEY_COOKIE, apiKey, getApiKeyCookieOptions());
+            }
+            return reply.redirect(`${FRONTEND_URL}/auth/callback`);
         } catch (error) {
             logger.error('GitHub OAuth failed', error);
             return reply.redirect(`${FRONTEND_URL}/auth/error?message=GitHub login failed`);
