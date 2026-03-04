@@ -1,72 +1,69 @@
-import { describe, expect, test } from 'vitest';
+import crypto from 'crypto';
+import { afterEach, describe, expect, test } from 'vitest';
+import { sendOtp, verifyOtp } from '../src/auth/otp.js';
+import { prisma } from '../src/lib/db.js';
 
-describe('🗄 Transaction Rollback Test', () => {
-
-  test('OTP validation logic preserves data integrity', () => {
-    // Test the logic that would be used in OTP verification
-    // This tests the business logic without requiring database connection
-    
-    const mockOtp = {
-      id: 'test-id',
-      email: 'test@example.com',
-      hash: 'test-hash',
-      attempts: 0,
-      expiresAt: new Date(Date.now() + 60000)
-    };
-
-    // Simulate invalid OTP attempt
-    const isValidOtp = false;
-    let shouldDelete = false;
-
-    if (!isValidOtp) {
-      // Invalid OTP should increment attempts, not delete
-      mockOtp.attempts += 1;
-      shouldDelete = false;
-    }
-
-    expect(mockOtp.attempts).toBe(1);
-    expect(shouldDelete).toBe(false);
+describe('OTP Data Integrity / Rollback Semantics', () => {
+  afterEach(async () => {
+    await prisma.otp.deleteMany({ where: { email: { contains: '@rollback.mock' } } });
   });
 
-  test('Expired OTP cleanup logic', () => {
-    const expiredOtp = {
-      id: 'expired-id',
-      email: 'expired@example.com',
-      hash: 'test-hash',
-      attempts: 0,
-      expiresAt: new Date(Date.now() - 1000) // Expired
-    };
+  test('invalid OTP increments attempts instead of deleting record', async () => {
+    const email = `invalid-${crypto.randomBytes(3).toString('hex')}@rollback.mock`;
 
-    const isExpired = new Date() > expiredOtp.expiresAt;
-    let shouldDelete = false;
+    const send = await sendOtp({ email });
+    expect(send.success).toBe(true);
 
-    if (isExpired) {
-      shouldDelete = true;
-    }
+    const before = await prisma.otp.findFirst({ where: { email }, orderBy: { createdAt: 'desc' } });
+    expect(before).toBeTruthy();
+    expect(before?.attempts).toBe(0);
 
-    expect(isExpired).toBe(true);
-    expect(shouldDelete).toBe(true);
+    const result = await verifyOtp({ email, otp: '000000' });
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Invalid OTP.');
+
+    const after = await prisma.otp.findFirst({ where: { email }, orderBy: { createdAt: 'desc' } });
+    expect(after).toBeTruthy();
+    expect(after?.attempts).toBe(1);
   });
 
-  test('Max attempts cleanup logic', () => {
-    const maxAttemptsOtp = {
-      id: 'max-attempts-id',
-      email: 'max@example.com',
-      hash: 'test-hash',
-      attempts: 5, // Max attempts reached
-      expiresAt: new Date(Date.now() + 60000)
-    };
+  test('expired OTP is deleted on verify attempt', async () => {
+    const email = `expired-${crypto.randomBytes(3).toString('hex')}@rollback.mock`;
 
-    const MAX_VERIFY_ATTEMPTS = 5;
-    const hasReachedMaxAttempts = maxAttemptsOtp.attempts >= MAX_VERIFY_ATTEMPTS;
-    let shouldDelete = false;
+    await prisma.otp.create({
+      data: {
+        email,
+        hash: 'expired-hash',
+        attempts: 0,
+        expiresAt: new Date(Date.now() - 1_000),
+      },
+    });
 
-    if (hasReachedMaxAttempts) {
-      shouldDelete = true;
-    }
+    const result = await verifyOtp({ email, otp: '123456' });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('expired');
 
-    expect(hasReachedMaxAttempts).toBe(true);
-    expect(shouldDelete).toBe(true);
+    const record = await prisma.otp.findFirst({ where: { email } });
+    expect(record).toBeNull();
   });
 
+  test('OTP at max attempts is deleted and locked out', async () => {
+    const email = `max-${crypto.randomBytes(3).toString('hex')}@rollback.mock`;
+
+    await prisma.otp.create({
+      data: {
+        email,
+        hash: 'max-hash',
+        attempts: 5,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const result = await verifyOtp({ email, otp: '123456' });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Too many failed attempts');
+
+    const record = await prisma.otp.findFirst({ where: { email } });
+    expect(record).toBeNull();
+  });
 });

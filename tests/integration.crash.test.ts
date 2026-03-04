@@ -1,40 +1,36 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { FastifyInstance } from 'fastify';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { buildApp } from '../src/index.js';
 
-describe('💥 Crash Detection Test', () => {
-  
-  let originalExit: typeof process.exit;
-  let exitMock: ReturnType<typeof vi.fn>;
+describe('Crash/Error Handling Integration', () => {
+  let app: FastifyInstance;
 
-  beforeEach(() => {
-    // Mock process.exit
-    originalExit = process.exit;
-    exitMock = vi.fn();
-    process.exit = exitMock as any;
+  beforeAll(async () => {
+    app = await buildApp();
+    app.get('/__boom', async () => {
+      throw new Error('boom-test-error');
+    });
+    await app.ready();
   });
 
-  afterEach(() => {
-    // Restore original process.exit
-    process.exit = originalExit;
+  afterAll(async () => {
+    await app.close();
   });
 
-  test('Error handlers are properly registered', () => {
-    // Check that the error event listeners are registered
-    const listeners = process.listeners('unhandledRejection');
-    const exceptionListeners = process.listeners('uncaughtException');
-    
-    expect(listeners.length).toBeGreaterThan(0);
-    expect(exceptionListeners.length).toBeGreaterThan(0);
+  test('returns structured 500 for unhandled route error', async () => {
+    const res = await app.inject({ method: 'GET', url: '/__boom' });
+    expect(res.statusCode).toBe(500);
+    const body = res.json();
+    expect(body.success).toBe(false);
+    expect(body.error?.code).toBe('INTERNAL_ERROR');
+    expect(body.timestamp).toBeTruthy();
   });
 
-  test('Process exit function is available', () => {
-    // Test that we can mock process.exit properly
-    expect(typeof process.exit).toBe('function');
+  test('returns structured 404 from not-found handler', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/definitely-not-a-route' });
+    expect(res.statusCode).toBe(404);
+    const body = res.json();
+    expect(body.success).toBe(false);
+    expect(body.error?.code).toBe('NOT_FOUND');
   });
-
-  test('Error handling infrastructure is in place', () => {
-    // Verify the server has error handling infrastructure
-    // This is a basic test to ensure the setup is correct
-    expect(true).toBe(true); // Placeholder - actual error handlers are in main server
-  });
-
 });

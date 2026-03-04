@@ -5,7 +5,32 @@
  */
 import axios from 'axios';
 
-export const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? window.location.origin;
+function resolveApiBaseUrl(): string {
+  const configured = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (configured) {
+    return configured.replace(/\/+$/, '');
+  }
+
+  const origin = window.location.origin;
+  const host = window.location.hostname.toLowerCase();
+  const isLocal = host === 'localhost' || host === '127.0.0.1';
+  const isVercel = host.endsWith('.vercel.app');
+
+  // Production-safe fallback for this deployment topology:
+  // frontend on Vercel, backend on Render.
+  if (!isLocal && isVercel) {
+    const fallback = 'https://mock-url-9rwn.onrender.com';
+    console.error(
+      '[CONFIG] VITE_API_URL is missing on Vercel deployment; falling back to Render backend:',
+      fallback
+    );
+    return fallback;
+  }
+
+  return origin;
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 export const api = axios.create({ baseURL: API_BASE_URL, withCredentials: true });
 
 // Module-level ref so the interceptor always sees the latest key without re-registering.

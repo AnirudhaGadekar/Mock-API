@@ -123,14 +123,22 @@ describe('Endpoints API - Authentication', () => {
   });
 
   test('should cache authenticated user', async () => {
-    // First request
-    const response1 = await makeAuthRequest('/api/v1/endpoints');
-    expect(response1.statusCode).toBe(200);
-
-    // Check cache - auth middleware now caches by hashed API key
+    // In parallel test runs, other files may flush Redis.
+    // Retry by re-hitting auth path until cache key is observed.
     const apiKeyHash = hashApiKey(testApiKey);
     const cacheKey = `auth:user:hash:${apiKeyHash}`;
-    const cached = await redis.get(cacheKey);
+    let cached: string | null = null;
+
+    for (let i = 0; i < 5; i++) {
+      const response = await makeAuthRequest('/api/v1/endpoints');
+      expect(response.statusCode).toBe(200);
+
+      cached = await redis.get(cacheKey);
+      if (cached) break;
+
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+
     expect(cached).toBeTruthy();
 
     const cachedUser = JSON.parse(cached!);

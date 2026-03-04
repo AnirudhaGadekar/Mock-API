@@ -13,6 +13,8 @@
     "start": "npm run prisma:deploy && node dist/index.js",
     "lint": "eslint src --ext .ts",
     "test": "vitest",
+    "test:all": "vitest run --reporter=verbose --pool=threads",
+    "test:critical": "vitest run --reporter=verbose --pool=threads tests/endpoints.test.ts tests/integration.auth-flow.test.ts tests/otp.test.ts tests/team-integration.test.ts tests/history-live-summary.test.ts tests/integration.production-mode.test.ts tests/health.test.ts tests/integration.cors.test.ts",
     "test:integration": "vitest run --reporter=verbose tests/integration.production-mode.test.ts tests/integration.rollback.test.ts tests/integration.crash.test.ts",
     "test:integration:live": "vitest run --reporter=verbose tests/integration.infrastructure.test.ts tests/integration.auth-flow.test.ts tests/integration.cors.test.ts",
     "test:stability": "vitest run tests/integration.rollback.test.ts tests/integration.crash.test.ts",

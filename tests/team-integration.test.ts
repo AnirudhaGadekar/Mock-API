@@ -1,101 +1,130 @@
 import crypto from 'crypto';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { FastifyInstance } from 'fastify';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { buildApp } from '../src/index.js';
 import { prisma } from '../src/lib/db.js';
+import { redis } from '../src/lib/redis.js';
 import { generateApiKey, hashApiKey } from '../src/utils/apiKey.js';
 
-describe('Team Integration Tests', () => {
-    let testUser: any;
-    let apiKey: string;
+describe('Team Route Integration Tests', () => {
+  let app: FastifyInstance;
+  let ownerApiKey: string;
+  let ownerId: string;
+  let memberApiKey: string;
+  let memberId: string;
 
-    beforeAll(async () => {
-        try {
-            // Setup a test user
-            apiKey = generateApiKey();
-            const apiKeyHash = hashApiKey(apiKey);
-            testUser = await prisma.user.create({
-                data: {
-                    email: `test-${crypto.randomBytes(4).toString('hex')}@example.com`,
-                    apiKeyHash,
-                    // authProvider: 'LOCAL', // Removing for type test
-                    name: 'Test User'
-                }
-            });
-            console.log('Test user created:', testUser.id);
-        } catch (err) {
-            console.error('FAILED beforeAll setup:', err);
-            throw err;
-        }
+  beforeAll(async () => {
+    app = await buildApp();
+    await app.ready();
+
+    ownerApiKey = generateApiKey();
+    const owner = await prisma.user.create({
+      data: {
+        email: `owner-${crypto.randomBytes(4).toString('hex')}@example.com`,
+        apiKeyHash: hashApiKey(ownerApiKey),
+        name: 'Owner',
+      },
+    });
+    ownerId = owner.id;
+
+    memberApiKey = generateApiKey();
+    const member = await prisma.user.create({
+      data: {
+        email: `member-${crypto.randomBytes(4).toString('hex')}@example.com`,
+        apiKeyHash: hashApiKey(memberApiKey),
+        name: 'Member',
+      },
+    });
+    memberId = member.id;
+  });
+
+  beforeEach(async () => {
+    await redis.flushdb();
+    await prisma.teamInvite.deleteMany({ where: { createdById: ownerId } });
+    await prisma.teamMember.deleteMany({ where: { OR: [{ userId: ownerId }, { userId: memberId }] } });
+    await prisma.team.deleteMany({ where: { ownerId } });
+  });
+
+  afterAll(async () => {
+    await prisma.teamInvite.deleteMany({ where: { createdById: ownerId } });
+    await prisma.teamMember.deleteMany({ where: { OR: [{ userId: ownerId }, { userId: memberId }] } });
+    await prisma.team.deleteMany({ where: { ownerId } });
+    await prisma.user.deleteMany({ where: { id: { in: [ownerId, memberId] } } });
+
+    await app.close();
+    await prisma.$disconnect();
+    await redis.quit();
+  });
+
+  it('creates team and owner membership via API', async () => {
+    const slug = `eng-${crypto.randomBytes(4).toString('hex')}`;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/teams',
+      headers: { 'x-api-key': ownerApiKey },
+      payload: { name: 'Engineering Team', slug },
     });
 
-    it('should allow creating a team', async () => {
-        const teamName = 'Engineering Team';
-        const slug = `eng-${crypto.randomBytes(4).toString('hex')}`;
+    expect(res.statusCode).toBe(200);
+    const team = res.json();
+    expect(team.slug).toBe(slug);
 
-        const team = await prisma.team.create({
-            data: {
-                name: teamName,
-                slug,
-                ownerId: testUser.id,
-                members: {
-                    create: {
-                        userId: testUser.id,
-                        role: 'OWNER'
-                    }
-                }
-            },
-            include: {
-                members: true
-            }
-        });
-
-        expect(team.name).toBe(teamName);
-        expect(team.ownerId).toBe(testUser.id);
-        expect(team.members).toHaveLength(1);
-        expect(team.members[0].userId).toBe(testUser.id);
-        expect(team.members[0].role).toBe('OWNER');
+    const membership = await prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: ownerId, teamId: team.id } },
     });
 
-    it('should fail to create team with duplicate slug', async () => {
-        const uniqueSlug = `shared-slug-${crypto.randomBytes(4).toString('hex')}`;
-        await prisma.team.create({
-            data: {
-                name: 'Team 1',
-                slug: uniqueSlug,
-                ownerId: testUser.id
-            }
-        });
+    expect(membership).toBeTruthy();
+    expect(membership?.role).toBe('OWNER');
+  });
 
-        // Prisma throws on unique constraint violation (P2002)
-        await expect(prisma.team.create({
-            data: {
-                name: 'Team 2',
-                slug: uniqueSlug,
-                ownerId: testUser.id
-            }
-        })).rejects.toThrow(/P2002/);
+  it('rejects workspace switch to team for non-member user', async () => {
+    const team = await prisma.team.create({
+      data: {
+        name: 'Private Team',
+        slug: `private-${crypto.randomBytes(4).toString('hex')}`,
+        ownerId,
+      },
+    });
+    await prisma.teamMember.create({
+      data: { teamId: team.id, userId: ownerId, role: 'OWNER' },
     });
 
-    it('should handle team invitations', async () => {
-        const team = await prisma.team.create({
-            data: {
-                name: 'Invite Team',
-                slug: `invite-${crypto.randomBytes(4).toString('hex')}`,
-                ownerId: testUser.id
-            }
-        });
-
-        const token = crypto.randomBytes(32).toString('hex');
-        const invite = await prisma.teamInvite.create({
-            data: {
-                token,
-                email: 'invitee@example.com',
-                teamId: team.id,
-                createdById: testUser.id,
-                expiresAt: new Date(Date.now() + 86400000) // 1 day
-            }
-        });
-
-        expect(invite.token).toBe(token);
-        expect(invite.teamId).toBe(team.id);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/workspace/switch',
+      headers: { 'x-api-key': memberApiKey },
+      payload: { type: 'team', teamId: team.id },
     });
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('allows workspace switch for valid team member', async () => {
+    const team = await prisma.team.create({
+      data: {
+        name: 'Shared Team',
+        slug: `shared-${crypto.randomBytes(4).toString('hex')}`,
+        ownerId,
+      },
+    });
+    await prisma.teamMember.createMany({
+      data: [
+        { teamId: team.id, userId: ownerId, role: 'OWNER' },
+        { teamId: team.id, userId: memberId, role: 'MEMBER' },
+      ],
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/workspace/switch',
+      headers: { 'x-api-key': memberApiKey },
+      payload: { type: 'team', teamId: team.id },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.workspace.type).toBe('team');
+    expect(body.workspace.teamId).toBe(team.id);
+  });
 });

@@ -39,7 +39,9 @@ function getDefaultApiBaseUrl(): string {
 
 function getDefaultFrontendUrl(): string {
     if (isDeployedEnvironment()) {
-        return process.env.RENDER_EXTERNAL_URL || 'https://mock-url-9rwn.onrender.com';
+        // In production we host frontend on Vercel.
+        // Keep this as fallback when FRONTEND_URL is missing to avoid OAuth callback dead-ends.
+        return 'https://mock-url-frontend.vercel.app';
     }
     return 'http://localhost:5173';
 }
@@ -59,7 +61,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || getDefaultFrontendUrl();
 
 const isDeployed = isDeployedEnvironment();
 if (isDeployed && !process.env.FRONTEND_URL) {
-    logger.warn('FRONTEND_URL not set in production. OAuth redirects may fail.');
+    logger.warn('FRONTEND_URL not set in production. Falling back to https://mock-url-frontend.vercel.app.');
 }
 if (isDeployed && (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET)) {
     logger.error('CONFIG ERROR: Missing Google OAuth credentials in deployed environment.');
