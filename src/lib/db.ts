@@ -21,11 +21,20 @@ declare global {
 export const prisma =
   global.prisma ||
   new PrismaClient({
-    log: [
+    log: process.env.NODE_ENV === 'development' ? [
       {
         emit: 'event',
         level: 'query',
       },
+      {
+        emit: 'event',
+        level: 'error',
+      },
+      {
+        emit: 'event',
+        level: 'warn',
+      },
+    ] : [
       {
         emit: 'event',
         level: 'error',
@@ -39,6 +48,11 @@ export const prisma =
       db: {
         url: process.env.DATABASE_URL,
       },
+    },
+    // Production optimizations
+    transactionOptions: {
+      timeout: 10000,
+      isolationLevel: 'ReadCommitted',
     },
   });
 

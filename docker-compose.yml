@@ -35,7 +35,7 @@ services:
       SERVER_LIFETIME: 3600
       SERVER_IDLE_TIMEOUT: 600
     ports:
-      - "6432:5432"
+      - "16432:5432"
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,7 +47,7 @@ services:
     container_name: MockUrl-redis
     command: redis-server --appendonly yes
     ports:
-      - "6379:6379"
+      - "16379:6379"
     volumes:
       - redis_data:/data
     healthcheck:

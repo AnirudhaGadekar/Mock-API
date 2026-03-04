@@ -1,13 +1,13 @@
 import { TeamRole } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/db.js';
-// import { emailService } from './email.service.js'; // TODO: Implement Email Service
+// import { emailService } from './email.service.js'; // Implement Email Service
 import { ApiError } from '../lib/errors.js';
 
 // Mock Email Service for now
 const emailService = {
-    sendTeamInvitation: async (email: string, teamName: string, inviterName: string, token: string) => {
-        console.log(`[Email Mock] Sending invite to ${email} for team ${teamName} from ${inviterName}. Token: ${token}`);
+    sendTeamInvitation: async (_email: string, _teamName: string, _inviterName: string, _token: string) => {
+        // Mock email service - no logging in production
     }
 };
 

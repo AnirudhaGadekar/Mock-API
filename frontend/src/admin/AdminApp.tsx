@@ -25,7 +25,6 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000';
-const LS_ADMIN_KEY = 'mockurl_admin_secret';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface Overview {
@@ -117,7 +116,7 @@ function fmtJson(val: unknown): string {
 // ─── Component ──────────────────────────────────────────────────────────────
 export const AdminApp: React.FC = () => {
     // Auth state
-    const [adminSecret, setAdminSecret] = useState<string>(() => localStorage.getItem(LS_ADMIN_KEY) ?? '');
+    const [adminSecret, setAdminSecret] = useState<string>('');
     const [authenticated, setAuthenticated] = useState(false);
     const [loginInput, setLoginInput] = useState('');
     const [loginError, setLoginError] = useState('');
@@ -172,7 +171,6 @@ export const AdminApp: React.FC = () => {
                 });
                 if (resp.data.success) {
                     setAdminSecret(secret);
-                    localStorage.setItem(LS_ADMIN_KEY, secret);
                     setAuthenticated(true);
                     setOverview(resp.data.overview);
                     return true;
@@ -185,18 +183,6 @@ export const AdminApp: React.FC = () => {
         [],
     );
 
-    // Auto-login on mount
-    useEffect(() => {
-        if (adminSecret) {
-            tryLogin(adminSecret).then((ok) => {
-                if (!ok) {
-                    localStorage.removeItem(LS_ADMIN_KEY);
-                    setAdminSecret('');
-                }
-            });
-        }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
     async function handleLogin(e: React.FormEvent) {
         e.preventDefault();
         if (!loginInput.trim()) return;
@@ -208,7 +194,6 @@ export const AdminApp: React.FC = () => {
     }
 
     function handleLogout() {
-        localStorage.removeItem(LS_ADMIN_KEY);
         setAdminSecret('');
         setAuthenticated(false);
         setOverview(null);

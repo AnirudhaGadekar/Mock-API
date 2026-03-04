@@ -131,15 +131,38 @@ export function ChaosPanel({ endpointId }: ChaosPanelProps) {
                                 />
                             </div>
                         </div>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full text-xs h-7"
-                            onClick={() => handleUpdate({ delay: undefined })}
-                            disabled={!chaosConfig?.delay}
-                        >
-                            Clear Rule
-                        </Button>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-medium text-muted-foreground uppercase">Jitter (ms)</label>
+                            <Input
+                                type="number"
+                                className="h-8"
+                                defaultValue={chaosConfig?.jitter?.ms || 0}
+                                onBlur={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if (!isNaN(val)) handleUpdate({ jitter: { ms: val } });
+                                }}
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="flex-1 text-[10px] h-7"
+                                onClick={() => handleUpdate({ delay: undefined })}
+                                disabled={!chaosConfig?.delay}
+                            >
+                                Clear Delay
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="flex-1 text-[10px] h-7"
+                                onClick={() => handleUpdate({ jitter: undefined })}
+                                disabled={!chaosConfig?.jitter}
+                            >
+                                Clear Jitter
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
 
@@ -185,6 +208,17 @@ export function ChaosPanel({ endpointId }: ChaosPanelProps) {
                                     }}
                                 />
                             </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-medium text-muted-foreground uppercase">Custom Error Body</label>
+                            <Input
+                                className="h-8 text-[10px]"
+                                defaultValue={chaosConfig?.errorInject?.body || ""}
+                                placeholder='{"error": "Failed"}'
+                                onBlur={(e) => {
+                                    handleUpdate({ errorInject: { ...chaosConfig?.errorInject, probability: chaosConfig?.errorInject?.probability || 0.1, status: chaosConfig?.errorInject?.status || 500, body: e.target.value } });
+                                }}
+                            />
                         </div>
                         <Button
                             variant="ghost"

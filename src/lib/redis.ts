@@ -29,6 +29,10 @@ const getRedisClient = () => {
     enableReadyCheck: true,
     enableOfflineQueue: true,
     lazyConnect: false,
+    // Production optimizations
+    connectTimeout: 10000,
+    commandTimeout: 5000,
+    retryDelayOnFailover: 100,
   };
 
   if (process.env.REDIS_URL) {
@@ -40,6 +44,7 @@ const getRedisClient = () => {
     });
   }
 
+  logger.info(`Redis: Attempting connection to ${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || '6379'}`);
   return new Redis({
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379', 10),

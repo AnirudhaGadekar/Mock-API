@@ -1,5 +1,6 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import jwt from 'jsonwebtoken';
 import { applyChaos } from '../engine/chaos.js';
 import { renderBody, type TemplateContext } from '../engine/templating.js';
 import { broadcastRequest } from '../engine/websocket.js';
@@ -9,7 +10,15 @@ import { redis } from '../lib/redis.js';
 import { setState } from '../lib/state.js';
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
 import { requestLoggerPostHook } from '../middleware/request-logger.middleware.js';
-import type { Endpoint, EndpointSettings, MatchedRule, Rule, RuleCondition, RuleResponse } from '../types/mock.types.js';
+import type {
+  Endpoint,
+  EndpointSettings,
+  HeaderRewritingRule,
+  MatchedRule,
+  Rule,
+  RuleCondition,
+  RuleResponse
+} from '../types/mock.types.js';
 import {
   bufferRequestCount,
   cacheSubdomainMapping,
@@ -66,19 +75,28 @@ function extractSubdomainFromHostname(hostname: string, domains: string[]): stri
  */
 function extractSubdomain(request: FastifyRequest): string | null {
   const hostname = request.hostname;
-
+  const path = request.url.split('?')[0];
   const allowedDomains = getAllowedMockDomains();
 
-  // Subdomain routing (production)
+  // Subdomain routing (preferred if configured with wildcard)
   if (hostname && hostnameMatchesAllowedMockDomain(hostname, allowedDomains)) {
     const sub = extractSubdomainFromHostname(hostname, allowedDomains);
     if (sub) return sub;
   }
 
-  // Path-based routing (development): /my-endpoint/... → subdomain = my-endpoint
-  const pathParts = request.url.split('?')[0].split('/').filter(Boolean);
+  // Path-based routing with /e/ prefix (e.g., /e/my-endpoint/...)
+  const pathParts = path.split('/').filter(Boolean);
+  if (pathParts.length >= 2 && pathParts[0] === 'e') {
+    return pathParts[1];
+  }
+
+  // Fallback path-based routing without prefix (e.g., /my-endpoint/...)
   if (pathParts.length > 0 && pathParts[0].match(/^[a-z0-9-]+$/)) {
-    return pathParts[0];
+    // Only use if not a reserved system path
+    const reserved = ['api', 'health', 'metrics', 'auth', 'console', 'invite'];
+    if (!reserved.includes(pathParts[0])) {
+      return pathParts[0];
+    }
   }
 
   return null;
@@ -179,64 +197,50 @@ function getPathname(request: FastifyRequest): string {
  */
 function getPathForRuleMatching(pathname: string, subdomain: string | null): string {
   if (!subdomain) return pathname;
-  const prefix = '/' + subdomain;
-  if (pathname === prefix || pathname.startsWith(prefix + '/')) {
-    return pathname.slice(prefix.length) || '/';
+
+  const pathParts = pathname.split('/').filter(Boolean);
+
+  // Handle /e/[subdomain]/...
+  if (pathParts.length >= 2 && pathParts[0] === 'e' && pathParts[1] === subdomain) {
+    return '/' + pathParts.slice(2).join('/');
   }
+
+  // Handle /[subdomain]/... (legacy/fallback)
+  if (pathParts.length >= 1 && pathParts[0] === subdomain) {
+    return '/' + pathParts.slice(1).join('/');
+  }
+
   return pathname;
 }
 
 // Types are now imported from '../types/mock.types.js'
 
-// Regex Cache to prevent ReDoS / Re-compilation. Stores both regex and param names for correct extraction.
-const MAX_REGEX_CACHE_SIZE = 1000; // Limit cache size to prevent memory leaks
-interface PathMatchCacheEntry {
-  regex: RegExp;
-  paramNames: string[]; // Order matches capture groups in regex
-}
-const pathMatchCache = new Map<string, PathMatchCacheEntry>();
+import { match as matchPath } from 'path-to-regexp';
 
-function escapeRegExpLiteral(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+// Regex Cache to prevent ReDoS / Re-compilation.
+const MAX_REGEX_CACHE_SIZE = 1000;
+const pathMatchCache = new Map<string, any>();
 
 /**
  * Check if request path matches rule path (supports :param placeholders).
- * Param names are cached with the regex so extraction order is always correct;
- * handles duplicate param names by taking the last capture for that position.
+ * Uses path-to-regexp for standardization.
  */
 function pathMatches(rulePath: string, pathname: string): { match: boolean; params: Record<string, string> } {
-  let entry = pathMatchCache.get(rulePath);
+  let matcher = pathMatchCache.get(rulePath);
 
-  if (!entry) {
-    const paramNames: string[] = [];
-    const tokens = rulePath.split('/').map((segment) => {
-      if (segment.startsWith(':') && segment.length > 1) {
-        paramNames.push(segment.slice(1));
-        return '([^/]+)';
-      }
-      return escapeRegExpLiteral(segment);
-    });
-    const pattern = tokens.join('/');
-    const regex = new RegExp(`^${pattern}$`);
-    entry = { regex, paramNames };
+  if (!matcher) {
+    matcher = matchPath(rulePath, { decode: decodeURIComponent });
     if (pathMatchCache.size >= MAX_REGEX_CACHE_SIZE) {
       const firstKey = pathMatchCache.keys().next().value;
       if (firstKey) pathMatchCache.delete(firstKey);
     }
-    pathMatchCache.set(rulePath, entry);
+    pathMatchCache.set(rulePath, matcher);
   }
 
-  const m = pathname.match(entry.regex);
-  if (!m) return { match: false, params: {} };
+  const result = matcher(pathname);
+  if (!result) return { match: false, params: {} };
 
-  const params: Record<string, string> = {};
-  entry.paramNames.forEach((name, i) => {
-    const value = m[i + 1];
-    if (value !== undefined) params[name] = value;
-  });
-
-  return { match: true, params };
+  return { match: true, params: result.params as Record<string, string> };
 }
 
 /**
@@ -273,6 +277,26 @@ function matchesCondition(condition: RuleCondition | undefined, request: Fastify
     if (!bodyStr.includes(condition.bodyContains)) return false;
   }
 
+  if (condition.jwtValidation) {
+    const { header = 'authorization', secret, issuer, audience, required = true } = condition.jwtValidation;
+    const authHeader = headers[header.toLowerCase()];
+
+    if (!authHeader && required) return false;
+
+    if (authHeader) {
+      const token = Array.isArray(authHeader)
+        ? authHeader[0].replace(/^Bearer\s+/i, '')
+        : authHeader.replace(/^Bearer\s+/i, '');
+
+      try {
+        jwt.verify(token, secret, { issuer, audience });
+      } catch (err) {
+        logger.debug(`JWT Validation failed for mock endpoint: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -291,7 +315,7 @@ async function findMatchingRule(
   endpointId: string
 ): Promise<MatchedRule | null> {
   const arr = Array.isArray(rules) ? rules : [];
-  
+
   // First pass: Find all rules with matching path/method (regardless of conditions)
   const pathMethodRules: Array<{ rule: Rule; params: Record<string, string>; index: number }> = [];
   for (let i = 0; i < arr.length; i++) {
@@ -306,7 +330,7 @@ async function findMatchingRule(
 
   // Check if any rule has sequence enabled
   const hasSequence = pathMethodRules.some(r => r.rule.sequence === true);
-  
+
   if (hasSequence) {
     // Use sequence logic: cycle through all path/method matching rules
     const sequenceCount = pathMethodRules.length;
@@ -318,12 +342,12 @@ async function findMatchingRule(
         : `i${pathMethodRules[0].index}`;
     const sequenceIndex = await getNextSequenceIndex(endpointId, ruleGroupKey, sequenceCount);
     const selected = pathMethodRules[sequenceIndex];
-    
+
     // Check if selected rule matches conditions
     if (matchesCondition(selected.rule.condition, request)) {
       return { rule: selected.rule, params: selected.params, sequenceIndex };
     }
-    
+
     // If selected rule doesn't match conditions, try to find next matching rule in sequence
     // This handles cases where some sequence rules have conditions and others don't
     for (let offset = 1; offset < sequenceCount; offset++) {
@@ -333,7 +357,7 @@ async function findMatchingRule(
         return { rule: nextRule.rule, params: nextRule.params, sequenceIndex: nextIndex };
       }
     }
-    
+
     // No sequence rule matches conditions, fall through to non-sequence matching
   }
 
@@ -365,20 +389,51 @@ function interpolate(
     bodyStr = '[Circular or Invalid JSON]'; // Fallback
   }
 
-  out = out.replace(/\{\{JSON\.stringify\(req\.body\)\}\}/g, bodyStr);
-  out = out.replace(/\{\{req\.body\}\}/g, bodyStr);
+  out = out.replace(/\{\{JSON\\.stringify\(req\\.body\)\}\}/g, bodyStr);
+  out = out.replace(/\{\{req\\.body\}\}/g, bodyStr);
   for (const [key, val] of Object.entries(pathParams)) {
-    out = out.replace(new RegExp(`\\{\\{req\.params\\.${key}\\}\\}`, 'g'), val);
+    out = out.replace(new RegExp(`\\{\\{req\\.params\\.${key}\\}\\}`, 'g'), val);
   }
   if (body && typeof body === 'object') {
     for (const [key, val] of Object.entries(body)) {
       // Avoid circular here too if possible, but simplistic check is hard. 
       // Assuming body is JSON-safe from Fastify.
       const v = typeof val === 'object' ? JSON.stringify(val) : String(val);
-      out = out.replace(new RegExp(`\\{\\{req\.body\\.${key}\\}\\}`, 'g'), v);
+      out = out.replace(new RegExp(`\\{\\{req\\.body\\.${key}\\}\\}`, 'g'), v);
     }
   }
   return out;
+}
+
+/**
+ * Apply header rewriting rules (SET, APPEND, DELETE) to a headers object.
+ */
+async function applyHeaderRewriting(
+  headers: Record<string, string>,
+  rules: HeaderRewritingRule[] | undefined,
+  ctx: TemplateContext
+): Promise<Record<string, string>> {
+  if (!rules || !Array.isArray(rules)) return headers;
+
+  const result = { ...headers };
+  for (const rule of rules) {
+    const key = rule.key.toLowerCase();
+    const value = rule.value ? await renderBody(rule.value, ctx) : '';
+    const strValue = String(value);
+
+    switch (rule.op) {
+      case 'SET':
+        result[key] = strValue;
+        break;
+      case 'APPEND':
+        result[key] = result[key] ? `${result[key]}, ${strValue}` : strValue;
+        break;
+      case 'DELETE':
+        delete result[key];
+        break;
+    }
+  }
+  return result;
 }
 
 /**
@@ -391,14 +446,14 @@ async function applyInterpolation(
   request: FastifyRequest,
   pathParams: Record<string, string>
 ): Promise<RuleResponse> {
-  const headers: Record<string, string> = {};
+  let headers: Record<string, string> = {};
   if (response.headers) {
     for (const [k, v] of Object.entries(response.headers)) {
       headers[k] = typeof v === 'string' ? interpolate(v, request, pathParams) : String(v);
     }
   }
 
-        const endpoint = (request as FastifyRequest & { endpoint?: Endpoint }).endpoint;
+  const endpoint = (request as FastifyRequest & { endpoint?: Endpoint }).endpoint;
   const templateCtx: TemplateContext = {
     req: {
       method: request.method,
@@ -413,6 +468,17 @@ async function applyInterpolation(
     },
     endpointId: endpoint?.id,
   };
+
+  // Apply rule-level header rewriting
+  if (response.headerRewriting) {
+    headers = await applyHeaderRewriting(headers, response.headerRewriting, templateCtx);
+  }
+
+  // Apply global endpoint header rewriting if applicable
+  const settings = endpoint?.settings as EndpointSettings | undefined;
+  if (settings?.globalHeaderRewriting) {
+    headers = await applyHeaderRewriting(headers, settings.globalHeaderRewriting, templateCtx);
+  }
 
   let body = response.body;
 
@@ -432,32 +498,28 @@ async function applyInterpolation(
  * Trigger webhook (async, non-blocking)
  */
 async function triggerWebhook(url: string, request: FastifyRequest, response: RuleResponse): Promise<void> {
-  try {
-    const safeUrl = await assertSafeWebhookUrl(url);
-    const payload = {
-      timestamp: new Date().toISOString(),
-      endpointId: request.endpoint?.id,
-      method: request.method,
-      path: request.url,
-      query: request.query,
-      headers: request.headers,
-      body: request.body,
-      response: {
-        status: response.status,
-        headers: response.headers,
-        body: response.body,
-      },
-    };
-    await fetch(safeUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(5000),
-      redirect: 'error',
-    });
-  } catch (err) {
-    throw err;
-  }
+  const safeUrl = await assertSafeWebhookUrl(url);
+  const payload = {
+    timestamp: new Date().toISOString(),
+    endpointId: request.endpoint?.id,
+    method: request.method,
+    path: request.url,
+    query: request.query,
+    headers: request.headers,
+    body: request.body,
+    response: {
+      status: response.status,
+      headers: response.headers,
+      body: response.body,
+    },
+  };
+  await fetch(safeUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(5000),
+    redirect: 'error',
+  });
 }
 
 /**
@@ -484,6 +546,11 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
   fastify.addHook('preHandler', async (request, reply) => {
     return tracer.startActiveSpan('mock-router-prehandler', async (span) => {
       try {
+        // Skip API routes completely - let them be handled by their respective routers
+        if (request.url.startsWith('/api/')) {
+          return;
+        }
+        
         // Extract subdomain from hostname or URL
         const subdomain = extractSubdomain(request);
 
@@ -562,10 +629,22 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
   // Log all mock responses after they are sent
   fastify.addHook('onSend', requestLoggerPostHook);
 
+  // Mock router handles all non-API routes
   fastify.route({
     method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'],
-    url: '*',
+    url: '/*',
     handler: async (request, reply) => {
+      // Skip API routes - let them be handled by their respective routers
+      if (request.url.startsWith('/api/')) {
+        return reply.code(404).send({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: `Route ${request.method} ${request.url} not found`,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
       return tracer.startActiveSpan('mock-request-handler', async (span) => {
         const startTime = Date.now();
 
@@ -580,7 +659,9 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
           span.setAttribute('request.method', request.method);
           span.setAttribute('request.path', request.url);
 
+          // Determine the path for rule matching
           const pathname = request._pathForRules ?? getPathname(request);
+
           const matched = await findMatchingRule(endpoint.rules, request.method, pathname, request, endpoint.id);
 
           reply.header('X-Mock-Active', 'true');
@@ -681,83 +762,139 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
 
           // Proxy / Fallback Logic
           const settings = endpoint.settings as EndpointSettings | undefined;
-          if (settings?.targetUrl) {
+          const upstreams = settings?.upstreams || (settings?.targetUrl ? [settings.targetUrl] : []);
+
+          if (upstreams.length > 0) {
             try {
-              let path = request.url;
-              // Use normalized path (stripping subdomain prefix if using path-based routing)
-              if (request._pathForRules) {
-                path = request._pathForRules;
-                const query = request.url.split('?')[1];
-                if (query) path += '?' + query;
-              }
+              let proxyPath = request._pathForRules || request.url.split('?')[0];
+              const query = request.url.split('?')[1];
+              const pathWithQuery = query ? `${proxyPath}?${query}` : proxyPath;
 
-              const targetUrl = settings.targetUrl.replace(/\/$/, '') + path;
+              let currentBody: any = request.body;
+              let currentHeaders: Record<string, string> = Object.fromEntries(
+                Object.entries(request.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : String(v)])
+              );
 
-              // Filter headers
-              const forwardHeaders = new Headers();
-              for (const [k, v] of Object.entries(request.headers)) {
-                if (!['host', 'connection', 'content-length'].includes(k.toLowerCase())) {
-                  forwardHeaders.set(k, Array.isArray(v) ? v.join(',') : String(v));
-                }
-              }
+              // Remove hop-by-hop headers
+              const hopHeaders = ['host', 'connection', 'content-length', 'transfer-encoding', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'upgrade'];
+              for (const h of hopHeaders) delete currentHeaders[h];
 
-              const proxyRes = await fetch(targetUrl, {
-                method: request.method,
-                headers: forwardHeaders,
-                body: ['GET', 'HEAD'].includes(request.method) ? undefined : JSON.stringify(request.body),
-                redirect: 'follow',
-              });
+              // Inject trace ID
+              const traceId = crypto.randomUUID();
+              currentHeaders['x-mock-trace-id'] = traceId;
 
-              // Read response body
-              const proxyBodyText = await proxyRes.text();
-              let proxyBody: unknown = proxyBodyText;
-              try { proxyBody = JSON.parse(proxyBodyText); } catch { /* keep as string */ }
+              let finalRes: Response | null = null;
+              let lastStatus = 502;
+              let lastBody: any = null;
 
-              const latency = Date.now() - startTime;
-              span.setAttribute('proxy.target', targetUrl);
-              span.setAttribute('proxy.status', proxyRes.status);
+              // Upstream Chaining Logic
+              for (const upstream of upstreams) {
+                const targetUrl = upstream.replace(/\/$/, '') + pathWithQuery;
 
-              // Broadcast proxy response
-              try {
-                broadcastRequest({
-                  type: 'request',
-                  id: request.id,
-                  endpointId: endpoint.id,
-                  endpointName: endpoint.name,
-                  timestamp: new Date().toISOString(),
+                const proxyRes = await fetch(targetUrl, {
                   method: request.method,
-                  path: path, // Use normalized path
-                  query: request.query as Record<string, unknown>,
-                  headers: request.headers as Record<string, string>,
-                  body: request.body,
-                  ip: request.ip,
-                  userAgent: (request.headers['user-agent'] as string) ?? undefined,
-                  responseStatus: proxyRes.status,
-                  responseBody: proxyBody,
-                  latencyMs: latency,
-                  chaosApplied: ['proxy'],
+                  headers: currentHeaders,
+                  body: ['GET', 'HEAD'].includes(request.method) ? undefined : JSON.stringify(currentBody),
+                  redirect: 'follow',
                 });
-              } catch (broadcastErr) {
-                logger.debug('WebSocket broadcast failed for proxy response', { err: broadcastErr, endpointId: endpoint.id });
+
+                const proxyBodyText = await proxyRes.text();
+                let proxyBody: unknown = proxyBodyText;
+                try { proxyBody = JSON.parse(proxyBodyText); } catch { /* keep as string */ }
+
+                lastStatus = proxyRes.status;
+                lastBody = proxyBody;
+                finalRes = proxyRes;
+
+                // For chaining, we use the output of the first as input for the next if we wanted a TRUE chain.
+                // But usually "chaining" in proxy terms means trying next if one fails, or passing through multiple middlewares.
+                // The prompt says "Middleware Upstreams—forwarding requests through a chain of servers".
+                // This implies the response of N-1 is the request to N.
+                if (proxyRes.ok) {
+                  currentBody = proxyBody;
+                  // Merge headers for next hop? Or just replace?
+                  // Usually you'd want to keep some context.
+                  currentHeaders['x-mock-chain-hop'] = upstream;
+                } else {
+                  // If an upstream fails in the chain, we might want to stop? 
+                  // Or treat it as the final result.
+                  break;
+                }
               }
 
-              // Forward response headers
-              proxyRes.headers.forEach((v, k) => {
-                if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(k.toLowerCase())) {
-                  reply.header(k, v);
+              if (finalRes) {
+                const latency = Date.now() - startTime;
+                span.setAttribute('proxy.chain_length', upstreams.length);
+                span.setAttribute('proxy.status', lastStatus);
+
+                // Broadcast
+                try {
+                  broadcastRequest({
+                    type: 'request',
+                    id: request.id,
+                    endpointId: endpoint.id,
+                    endpointName: endpoint.name,
+                    timestamp: new Date().toISOString(),
+                    method: request.method,
+                    path: proxyPath,
+                    query: request.query as Record<string, unknown>,
+                    headers: request.headers as Record<string, string>,
+                    body: request.body,
+                    ip: request.ip,
+                    userAgent: (request.headers['user-agent'] as string) ?? undefined,
+                    responseStatus: lastStatus,
+                    responseBody: lastBody,
+                    latencyMs: latency,
+                    chaosApplied: ['proxy'],
+                  });
+                } catch (err) {
+                  logger.debug('Broadcast failed', { err });
                 }
-              });
 
-              return reply.status(proxyRes.status).send(proxyBody);
+                // Forward final response headers
+                finalRes.headers.forEach((v, k) => {
+                  if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(k.toLowerCase())) {
+                    reply.header(k, v);
+                  }
+                });
 
+                // APPLY GLOBAL HEADER REWRITING (Proxy pathway)
+                if (settings?.globalHeaderRewriting) {
+                  const rwCtx: TemplateContext = {
+                    req: {
+                      method: request.method,
+                      path: proxyPath,
+                      body: request.body,
+                      headers: Object.fromEntries(Object.entries(request.headers).map(([k, v]) => [k, String(v)])),
+                      query: request.query as Record<string, string>,
+                      params: {}
+                    },
+                    endpointId: endpoint.id
+                  };
+
+                  // Fastify doesn't make it easy to list set headers easily via reply.getHeaders() is available in some versions
+                  // or we can just apply our logic to a shadow representation.
+                  // Since we already set them above, let's just use a clean slate for the 'global' ones.
+                  // Actually, it's safer to just apply the rewrites to the reply directly if we had an 'applyToReply' helper.
+                  // Let's just re-apply specifically for global.
+                  const proxyHeaders: Record<string, string> = {};
+                  finalRes.headers.forEach((v, k) => { proxyHeaders[k] = v; });
+
+                  const rewritten = await applyHeaderRewriting(proxyHeaders, settings.globalHeaderRewriting as any[], rwCtx);
+                  for (const [k, v] of Object.entries(rewritten)) {
+                    reply.header(k, v);
+                  }
+                }
+
+                reply.header('x-mock-trace-id', traceId);
+
+                return reply.status(lastStatus).send(lastBody);
+              }
             } catch (err) {
-              logger.error('Proxy request failed', { err, target: settings.targetUrl });
-              // Fallthrough to default response on proxy error? 
-              // Or return 502? 
-              // Let's return 502 to alert user proxy failed.
+              logger.error('Proxy chain failed', { err, upstreams });
               return reply.status(502).send({
                 error: 'Bad Gateway',
-                message: 'Failed to proxy request to target URL',
+                message: 'Failed to proxy request through upstream chain',
                 details: (err as Error).message
               });
             }

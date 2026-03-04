@@ -56,22 +56,23 @@ describe('Team Integration Tests', () => {
     });
 
     it('should fail to create team with duplicate slug', async () => {
-        const slug = 'shared-slug';
+        const uniqueSlug = `shared-slug-${crypto.randomBytes(4).toString('hex')}`;
         await prisma.team.create({
             data: {
                 name: 'Team 1',
-                slug,
+                slug: uniqueSlug,
                 ownerId: testUser.id
             }
         });
 
+        // Prisma throws on unique constraint violation (P2002)
         await expect(prisma.team.create({
             data: {
                 name: 'Team 2',
-                slug,
+                slug: uniqueSlug,
                 ownerId: testUser.id
             }
-        })).rejects.toThrow();
+        })).rejects.toThrow(/P2002/);
     });
 
     it('should handle team invitations', async () => {
@@ -87,6 +88,7 @@ describe('Team Integration Tests', () => {
         const invite = await prisma.teamInvite.create({
             data: {
                 token,
+                email: 'invitee@example.com',
                 teamId: team.id,
                 createdById: testUser.id,
                 expiresAt: new Date(Date.now() + 86400000) // 1 day

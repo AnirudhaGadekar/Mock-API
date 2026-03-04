@@ -2,17 +2,14 @@
  * api.ts – MockUrl Console API client.
  *
  * MockUrl-style: auto-creates an anonymous session on first visit.
- * The API key is stored in localStorage and injected automatically.
  */
 import axios from 'axios';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? `http://${window.location.hostname}:3000`;
-const LS_KEY = 'mockurl_api_key';
-
-export const api = axios.create({ baseURL: API_BASE });
+export const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 
 // Module-level ref so the interceptor always sees the latest key without re-registering.
-let _apiKey = localStorage.getItem(LS_KEY) ?? '';
+let _apiKey = '';
 
 export function getApiKey(): string {
   return _apiKey;
@@ -20,11 +17,6 @@ export function getApiKey(): string {
 
 export function setApiKeyRef(key: string) {
   _apiKey = key;
-  if (key) {
-    localStorage.setItem(LS_KEY, key);
-  } else {
-    localStorage.removeItem(LS_KEY);
-  }
 }
 
 // Attach the X-API-Key header on every outgoing request.
@@ -43,27 +35,7 @@ api.interceptors.request.use((config) => {
  * Returns the API key (existing or newly created).
  */
 export async function initSession(): Promise<string> {
-  // 1. Check if we already have a stored key
-  const existingKey = localStorage.getItem(LS_KEY);
-
-  if (existingKey) {
-    // Validate it
-    try {
-      const res = await axios.get(`${API_BASE}/api/v1/session/me`, {
-        headers: { 'X-API-Key': existingKey },
-      });
-      if (res.data.success) {
-        setApiKeyRef(existingKey);
-        return existingKey;
-      }
-    } catch {
-      // Key is invalid — clear it and create a new session
-      localStorage.removeItem(LS_KEY);
-    }
-  }
-
-  // 2. No valid key — create a new anonymous session
-  const res = await axios.post(`${API_BASE}/api/v1/session`);
+  const res = await axios.post(`${API_BASE}/api/v1/session`, undefined, { withCredentials: true });
 
   if (res.data.success && res.data.session?.apiKey) {
     const newKey = res.data.session.apiKey as string;

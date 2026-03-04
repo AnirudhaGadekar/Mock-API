@@ -288,7 +288,7 @@ async function buildApp() {
   await app.register(teamRoutes, { prefix: '/api/v1/teams' });
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(otpRoutes, { prefix: '/api/v1/auth' });
-    await app.register(oauthRoutes, { prefix: '/api/v1/oauth' });
+  await app.register(oauthRoutes, { prefix: '/api/v1/oauth' });
   await app.register(inviteRoutes, { prefix: '/api/v1/invites' });
   await app.register(workspaceRoutes, { prefix: '/api/v1/workspace' });
   await app.register(tunnelProxyPlugin);
@@ -363,20 +363,24 @@ async function start() {
 
     process.on('uncaughtException', (err: unknown) => {
       logger.error('Uncaught Exception', err as Error);
-      process.exit(1);
+      if (process.env.NODE_ENV !== 'test') process.exit(1);
     });
 
     process.on('unhandledRejection', (reason: unknown) => {
       logger.error('Unhandled Rejection', reason as Error);
-      process.exit(1);
+      if (process.env.NODE_ENV !== 'test') process.exit(1);
     });
   } catch (err: unknown) {
     logger.error('Startup failed', err as Error);
-    process.exit(1);
+    if (process.env.NODE_ENV !== 'test') process.exit(1);
   }
 }
 
-start();
+// Only start if this is the main module
+if (process.argv[1] && (process.argv[1].endsWith('index.ts') || process.argv[1].endsWith('index.js') || process.argv[1].includes('tsx'))) {
+  start();
+}
+
 
 export { buildApp, start };
 

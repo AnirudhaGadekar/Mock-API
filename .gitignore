@@ -51,13 +51,16 @@ tmp/
 
 # Documentation and Diagnostics
 md/
-verify-teams.ts
-debug-prisma.ts
 *.log
+
+# Debug / one-off scripts (keep ignored even if re-created)
+debug-*.ts
 clear-chaos.ts
-debug-endpoints.ts
-test-features.cjs
+verify-teams.ts
 verify_features.js
+test-features.cjs
+smoke.ps1
 
 # Secrets
 RENDER_SECRETS.md
+*.secret.json

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { api } from "@/lib/api";
 import { Globe, RefreshCw, Terminal, Trash2 } from "lucide-react";
 import { useEffect, useState } from 'react';
 
@@ -24,17 +25,11 @@ export default function TunnelDashboard() {
     const fetchTunnels = async () => {
         setLoading(true);
         try {
-            // Assuming auth token is handled by interceptor or cookie
-            const res = await fetch('/api/v1/tunnel', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}` // Adjust based on actual auth
-                }
-            });
-            const data = await res.json();
-            if (data.success) {
-                setTunnels(data.tunnels);
+            const res = await api.get('/api/v1/tunnel');
+            if (res.data.success) {
+                setTunnels(res.data.tunnels);
             } else {
-                setError(data.error?.message || 'Failed to fetch tunnels');
+                setError(res.data.error?.message || 'Failed to fetch tunnels');
             }
         } catch (err) {
             setError('Network error');
@@ -46,12 +41,7 @@ export default function TunnelDashboard() {
     const deleteTunnel = async (id: string) => {
         if (!confirm('Are you sure you want to stop this tunnel?')) return;
         try {
-            await fetch(`/api/v1/tunnel/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            });
+            await api.delete(`/api/v1/tunnel/${id}`);
             fetchTunnels();
         } catch (err) {
             alert('Failed to delete tunnel');

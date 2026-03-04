@@ -4,6 +4,7 @@ import { setApiKeyRef } from '../lib/api';
 
 // API URL from environment — must match api.ts pattern
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? `http://${window.location.hostname}:3000`;
+axios.defaults.withCredentials = true;
 
 interface User {
     id: string;
@@ -30,13 +31,15 @@ interface AuthContextType {
     showAuthModal: (mode?: 'login' | 'signup') => void;
     hideAuthModal: () => void;
     authModalState: { open: boolean; mode: 'login' | 'signup' };
+    sendOtp: (email: string) => Promise<void>;
+    verifyOtp: (email: string, otp: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [apiKey, setApiKey] = useState<string | null>(localStorage.getItem('mockurl_api_key'));
+    const [apiKey, setApiKey] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [authModalState, setAuthModalState] = useState<{ open: boolean; mode: 'login' | 'signup' }>({
         open: false,
@@ -52,21 +55,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // ──── BRIDGE: sync apiKey with api.ts interceptor ────
     const syncApiKey = (key: string | null) => {
         setApiKey(key);
-        if (key) {
-            localStorage.setItem('mockurl_api_key', key);
-            setApiKeyRef(key);
-        } else {
-            localStorage.removeItem('mockurl_api_key');
-            setApiKeyRef('');
-        }
+        setApiKeyRef(key ?? '');
     };
 
     // Switch workspace
     const switchWorkspace = async (type: 'PERSONAL' | 'TEAM', teamId?: string) => {
         try {
-            await axios.post(`${API_URL}/api/v1/workspace/switch`, { type: type.toLowerCase(), teamId }, {
-                headers: { 'x-api-key': apiKey }
-            });
+            await axios.post(`${API_URL}/api/v1/workspace/switch`, { type: type.toLowerCase(), teamId });
             await refreshUser();
         } catch (err) {
             console.error('Failed to switch workspace', err);
@@ -78,29 +73,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         const initAuth = async () => {
             try {
-                const storedKey = localStorage.getItem('mockurl_api_key');
-                if (storedKey) {
-                    // Sync the key to api.ts immediately
-                    setApiKeyRef(storedKey);
-                    try {
-                        // Validate existing key via the new auth/me endpoint
-                        const res = await axios.get(`${API_URL}/api/v1/auth/me`, {
-                            headers: { 'x-api-key': storedKey }
-                        });
-                        const userData = res.data;
-                        setUser({
-                            ...userData,
-                            isAnonymous: userData.authProvider === 'ANONYMOUS' || userData.email?.endsWith('@mockurl.local')
-                        });
-                        setApiKey(storedKey);
-                    } catch (err) {
-                        console.error('Failed to restore session', err);
-                        localStorage.removeItem('mockurl_api_key');
-                        setApiKeyRef('');
-                        setApiKey(null);
-                        await createAnonymousSession();
-                    }
-                } else {
+                try {
+                    const res = await axios.get(`${API_URL}/api/v1/auth/me`);
+                    const userData = res.data;
+                    setUser({
+                        ...userData,
+                        isAnonymous: userData.authProvider === 'ANONYMOUS' || userData.email?.endsWith('@mockurl.local')
+                    });
+                    setApiKey(null);
+                    setApiKeyRef('');
+                } catch {
                     await createAnonymousSession();
                 }
             } catch (err) {
@@ -163,11 +145,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const logout = async () => {
-        if (!apiKey) return;
         try {
-            await axios.post(`${API_URL}/api/v1/auth/logout`, {}, {
-                headers: { 'x-api-key': apiKey }
-            });
+            await axios.post(`${API_URL}/api/v1/auth/logout`);
         } catch (err) {
             console.error('Logout failed on server', err);
         } finally {
@@ -177,12 +156,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    const sendOtp = async (email: string): Promise<void> => {
+        await axios.post(`${API_URL}/api/v1/auth/send-otp`, { email });
+    };
+
+    const verifyOtp = async (email: string, otp: string): Promise<void> => {
+        const res = await axios.post(`${API_URL}/api/v1/auth/verify-otp`, { email, otp });
+        const { apiKey: newKey, user: loggedInUser } = res.data;
+        syncApiKey(newKey);
+        setUser({ ...loggedInUser, isAnonymous: false });
+        hideAuthModal();
+    };
+
     const refreshUser = async () => {
-        if (!apiKey) return;
         try {
-            const res = await axios.get(`${API_URL}/api/v1/auth/me`, {
-                headers: { 'x-api-key': apiKey }
-            });
+            const res = await axios.get(`${API_URL}/api/v1/auth/me`);
             const userData = res.data;
             setUser({
                 ...userData,
@@ -206,7 +194,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             switchWorkspace,
             showAuthModal,
             hideAuthModal,
-            authModalState
+            authModalState,
+            sendOtp,
+            verifyOtp,
         }}>
             {children}
         </AuthContext.Provider>

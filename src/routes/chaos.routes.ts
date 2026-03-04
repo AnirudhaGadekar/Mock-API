@@ -80,6 +80,23 @@ export const chaosRoutes: FastifyPluginAsync = async (fastify) => {
                     error: { code: 'BAD_REQUEST', message: 'timeout.probability must be 0-1' },
                 });
             }
+            if (body.timeout.durationMs !== undefined) {
+                if (typeof body.timeout.durationMs !== 'number' || body.timeout.durationMs < 0 || body.timeout.durationMs > 30000) {
+                    return reply.status(400).send({
+                        success: false,
+                        error: { code: 'BAD_REQUEST', message: 'timeout.durationMs must be 0-30000' },
+                    });
+                }
+            }
+        }
+
+        if (body.jitter) {
+            if (typeof body.jitter.ms !== 'number' || body.jitter.ms < 0 || body.jitter.ms > 5000) {
+                return reply.status(400).send({
+                    success: false,
+                    error: { code: 'BAD_REQUEST', message: 'jitter.ms must be 0-5000' },
+                });
+            }
         }
 
         if (body.errorInject) {

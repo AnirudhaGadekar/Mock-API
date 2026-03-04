@@ -160,7 +160,7 @@ export default function SettingsPage() {
                         </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        This key is stored in your browser's localStorage. {isAnonymous ? "Sign up to secure it." : ""}
+                        This key is stored in a secure cookie for requests. {isAnonymous ? "Sign up to secure it." : ""}
                     </p>
                 </CardContent>
             </Card>

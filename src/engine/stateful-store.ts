@@ -3,17 +3,20 @@
  *
  * This is the MockUrl differentiator: persistent stateful mocking.
  * Data persists across requests and supports rich querying.
- *
+ /**
  * Operations:
- *   push(endpointId, collection, item)
- *   get(endpointId, path)            — JSONPath-like: "movies.0.title"
- *   set(endpointId, path, value)
- *   list(endpointId, collection, opts)  — filter, sort, limit, offset
- *   remove(endpointId, path)
- *   count(endpointId, collection)
- *   clear(endpointId)
+ *   push(scopeId, collection, item)
+ *   get(scopeId, path)            — JSONPath-like: "movies.0.title"
+ *   set(scopeId, path, value)
+ *   list(scopeId, collection, opts)  — filter, sort, limit, offset
+ *   remove(scopeId, path)
+ *   count(scopeId, collection)
+ *   clear(scopeId)
  *
- * Backed by Redis for persistence. Falls back to in-memory Map.
+ * Scopes:
+ * - endpoint:{id}
+ * - workspace:{id}
+ * - session:{id}
  */
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
@@ -99,26 +102,29 @@ export function deepDelete(obj: Record<string, unknown>, path: string): boolean 
 
 // ─── Redis persistence ──────────────────────────────────────────────────────
 
-function storeKey(endpointId: string): string {
-    return STORE_PREFIX + endpointId;
+function storeKey(scopeId: string): string {
+    // If scopeId already has a prefix, use it. Otherwise default to endpoint scope.
+    if (scopeId.includes(':')) {
+        return STORE_PREFIX + scopeId;
+    }
+    return STORE_PREFIX + 'endpoint:' + scopeId;
 }
 
 /**
  * Atomic store operations using Redis WATCH/MULTI/EXEC pattern
- * This prevents race conditions when multiple requests modify the same store concurrently
  */
 async function atomicStoreOperation<T>(
-    endpointId: string,
+    scopeId: string,
     operation: (store: Record<string, unknown>) => { newStore: Record<string, unknown>; result: T }
 ): Promise<T> {
-    const key = storeKey(endpointId);
+    const key = storeKey(scopeId);
     const maxRetries = 5;
-    
+
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
             // Watch the key for changes
             await redis.watch(key);
-            
+
             // Load current store
             const raw = await redis.get(key);
             let store: Record<string, unknown> = {};
@@ -129,15 +135,15 @@ async function atomicStoreOperation<T>(
                     store = {};
                 }
             }
-            
+
             // Perform operation
             const { newStore, result } = operation(store);
-            
+
             // Execute transaction
             const multi = redis.multi();
             multi.setex(key, STORE_TTL, JSON.stringify(newStore));
             const execResult = await multi.exec();
-            
+
             // If execResult is null, the key was modified (watch failed), retry
             if (execResult === null) {
                 if (attempt < maxRetries - 1) {
@@ -146,7 +152,7 @@ async function atomicStoreOperation<T>(
                 }
                 throw new Error('Store operation failed after max retries due to concurrent modifications');
             }
-            
+
             return result;
         } catch (err) {
             if (attempt === maxRetries - 1) {
@@ -155,29 +161,29 @@ async function atomicStoreOperation<T>(
             await new Promise(resolve => setTimeout(resolve, 10 * (attempt + 1)));
         }
     }
-    
+
     throw new Error('Store operation failed after max retries');
 }
 
-async function loadStore(endpointId: string): Promise<Record<string, unknown>> {
+async function loadStore(scopeId: string): Promise<Record<string, unknown>> {
     try {
-        const key = storeKey(endpointId);
+        const key = storeKey(scopeId);
         const raw = await redis.get(key);
         if (raw) {
             return JSON.parse(raw);
         }
     } catch (err) {
-        logger.error(`Store load error for ${endpointId}: ${(err as Error).message}`);
+        logger.error(`Store load error for ${scopeId}: ${(err as Error).message}`);
     }
     return {};
 }
 
-async function saveStore(endpointId: string, data: Record<string, unknown>): Promise<void> {
+async function saveStore(scopeId: string, data: Record<string, unknown>): Promise<void> {
     try {
-        const key = storeKey(endpointId);
+        const key = storeKey(scopeId);
         await redis.setex(key, STORE_TTL, JSON.stringify(data));
     } catch (err) {
-        logger.error(`Store save error for ${endpointId}: ${(err as Error).message}`);
+        logger.error(`Store save error for ${scopeId}: ${(err as Error).message}`);
     }
 }
 
@@ -267,9 +273,9 @@ export const statefulStore = {
      * Push an item onto an array collection. Creates the array if it doesn't exist.
      * Uses atomic Redis transaction to prevent race conditions.
      */
-    async push(endpointId: string, collection: string, item: unknown): Promise<{ index: number; item: unknown }> {
+    async push(scopeId: string, collection: string, item: unknown): Promise<{ index: number; item: unknown }> {
         try {
-            return await atomicStoreOperation(endpointId, (store) => {
+            return await atomicStoreOperation(scopeId, (store) => {
                 if (!Array.isArray(store[collection])) {
                     store[collection] = [];
                 }
@@ -278,15 +284,15 @@ export const statefulStore = {
                 return { newStore: store, result: { index: arr.length - 1, item } };
             });
         } catch (err) {
-            logger.error(`Store push error for ${endpointId}: ${(err as Error).message}`);
+            logger.error(`Store push error for ${scopeId}: ${(err as Error).message}`);
             // Fallback to non-atomic operation
-            const store = await loadStore(endpointId);
+            const store = await loadStore(scopeId);
             if (!Array.isArray(store[collection])) {
                 store[collection] = [];
             }
             const arr = store[collection] as unknown[];
             arr.push(item);
-            await saveStore(endpointId, store);
+            await saveStore(scopeId, store);
             return { index: arr.length - 1, item };
         }
     },
@@ -294,8 +300,8 @@ export const statefulStore = {
     /**
      * Get a value at a path. Supports dot-notation: "movies.0.title"
      */
-    async get(endpointId: string, path: string): Promise<unknown> {
-        const store = await loadStore(endpointId);
+    async get(scopeId: string, path: string): Promise<unknown> {
+        const store = await loadStore(scopeId);
         return deepGet(store, path);
     },
 
@@ -303,26 +309,26 @@ export const statefulStore = {
      * Set a value at a path. Creates intermediate objects/arrays.
      * Uses atomic Redis transaction to prevent race conditions.
      */
-    async set(endpointId: string, path: string, value: unknown): Promise<void> {
+    async set(scopeId: string, path: string, value: unknown): Promise<void> {
         try {
-            await atomicStoreOperation(endpointId, (store) => {
+            await atomicStoreOperation(scopeId, (store) => {
                 deepSet(store, path, value);
                 return { newStore: store, result: undefined };
             });
         } catch (err) {
-            logger.error(`Store set error for ${endpointId}: ${(err as Error).message}`);
+            logger.error(`Store set error for ${scopeId}: ${(err as Error).message}`);
             // Fallback to non-atomic operation
-            const store = await loadStore(endpointId);
+            const store = await loadStore(scopeId);
             deepSet(store, path, value);
-            await saveStore(endpointId, store);
+            await saveStore(scopeId, store);
         }
     },
 
     /**
      * List items in a collection with optional filter, sort, limit, offset.
      */
-    async list(endpointId: string, collection: string, opts: ListOptions = {}): Promise<{ items: unknown[]; total: number }> {
-        const store = await loadStore(endpointId);
+    async list(scopeId: string, collection: string, opts: ListOptions = {}): Promise<{ items: unknown[]; total: number }> {
+        const store = await loadStore(scopeId);
         const data = store[collection];
         if (!Array.isArray(data)) return { items: [], total: 0 };
 
@@ -369,8 +375,8 @@ export const statefulStore = {
     /**
      * Count items in a collection, optionally with a filter.
      */
-    async count(endpointId: string, collection: string, filter?: string): Promise<number> {
-        const store = await loadStore(endpointId);
+    async count(scopeId: string, collection: string, filter?: string): Promise<number> {
+        const store = await loadStore(scopeId);
         const data = store[collection];
         if (!Array.isArray(data)) return 0;
 
@@ -389,18 +395,18 @@ export const statefulStore = {
      * Remove a value at a path.
      * Uses atomic Redis transaction to prevent race conditions.
      */
-    async remove(endpointId: string, path: string): Promise<boolean> {
+    async remove(scopeId: string, path: string): Promise<boolean> {
         try {
-            return await atomicStoreOperation(endpointId, (store) => {
+            return await atomicStoreOperation(scopeId, (store) => {
                 const deleted = deepDelete(store, path);
                 return { newStore: store, result: deleted };
             });
         } catch (err) {
-            logger.error(`Store remove error for ${endpointId}: ${(err as Error).message}`);
+            logger.error(`Store remove error for ${scopeId}: ${(err as Error).message}`);
             // Fallback to non-atomic operation
-            const store = await loadStore(endpointId);
+            const store = await loadStore(scopeId);
             const deleted = deepDelete(store, path);
-            if (deleted) await saveStore(endpointId, store);
+            if (deleted) await saveStore(scopeId, store);
             return deleted;
         }
     },
@@ -408,16 +414,16 @@ export const statefulStore = {
     /**
      * Get the entire store for an endpoint.
      */
-    async getAll(endpointId: string): Promise<Record<string, unknown>> {
-        return loadStore(endpointId);
+    async getAll(scopeId: string): Promise<Record<string, unknown>> {
+        return loadStore(scopeId);
     },
 
     /**
      * Clear the entire store for an endpoint.
      */
-    async clear(endpointId: string): Promise<void> {
+    async clear(scopeId: string): Promise<void> {
         try {
-            await redis.del(storeKey(endpointId));
+            await redis.del(storeKey(scopeId));
         } catch (err) {
             logger.error(`Store clear error: ${(err as Error).message}`);
         }

@@ -9,7 +9,14 @@ export interface RuleResponse {
   status: number;
   body?: unknown;
   headers?: Record<string, string>;
+  headerRewriting?: HeaderRewritingRule[]; // Rule-specific rewriting
   delay?: number; // Delay in milliseconds (0-30000)
+}
+
+export interface HeaderRewritingRule {
+  key: string;
+  value?: string; // If null, delete the header. Supports templating.
+  op: 'SET' | 'APPEND' | 'DELETE';
 }
 
 /**
@@ -19,6 +26,13 @@ export interface RuleCondition {
   queryParams?: Record<string, string>;
   headers?: Record<string, string>;
   bodyContains?: string;
+  jwtValidation?: {
+    header?: string; // e.g. "Authorization"
+    secret: string;
+    issuer?: string;
+    audience?: string;
+    required?: boolean; // If false, only validate if header is present
+  };
 }
 
 /**
@@ -38,7 +52,9 @@ export interface Rule {
  */
 export interface EndpointSettings {
   webhookUrl?: string; // URL to call when endpoint receives a request
-  targetUrl?: string; // Fallback URL to proxy requests to if no rule matches
+  targetUrl?: string; // Single fallback URL (legacy)
+  upstreams?: string[]; // Chain of servers to proxy through
+  globalHeaderRewriting?: HeaderRewritingRule[]; // Workspace-level rewriting
 }
 
 /**

@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-    console.log('🔒 Enabling Row Level Security (RLS) on all tables...');
+    // console.log removed on all tables...');
 
     const tables = [
         'users',
@@ -18,13 +18,13 @@ async function main() {
     for (const table of tables) {
         try {
             await prisma.$executeRawUnsafe(`ALTER TABLE "${table}" ENABLE ROW LEVEL SECURITY;`);
-            console.log(`✅ RLS enabled for table: ${table}`);
+            // console.log removed
         } catch (error) {
             console.error(`❌ Failed to enable RLS for ${table}:`, error);
         }
     }
 
-    console.log('✨ Security hardening complete!');
+    // console.log removed
 }
 
 main()

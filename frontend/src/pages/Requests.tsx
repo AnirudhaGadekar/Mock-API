@@ -11,8 +11,11 @@ import {
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { fetchEndpoints, type Endpoint } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Activity, Clock, Trash2, Wifi, WifiOff } from "lucide-react";
+import axios from "axios";
+import { Activity, Clock, RefreshCcw, Trash2, Wand2, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 // Helper to colorize HTTP methods
 const getMethodColor = (method: string) => {
@@ -39,6 +42,59 @@ export default function RequestsPage() {
     const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(null);
     const { messages, status, clearMessages } = useWebSocket(selectedEndpointId);
     const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+    const [isReplaying, setIsReplaying] = useState(false);
+    const navigate = useNavigate();
+
+    const handleReplay = async () => {
+        if (!selectedRequest || !selectedEndpointId) return;
+
+        const endpoint = endpoints.find(e => e.id === selectedEndpointId);
+        if (!endpoint) return;
+
+        setIsReplaying(true);
+        const toastId = toast.loading("Replaying request...");
+
+        try {
+            const url = `${endpoint.url}${selectedRequest.path}`;
+            const headers = { ...selectedRequest.headers };
+            // Remove some headers that might interfere
+            delete headers['host'];
+            delete headers['content-length'];
+            delete headers['connection'];
+
+            await axios({
+                method: selectedRequest.method,
+                url,
+                headers,
+                data: selectedRequest.body,
+                timeout: 10000
+            });
+            toast.success("Request replayed!", { id: toastId });
+        } catch (err: any) {
+            console.error("Replay failed:", err);
+            toast.error(`Replay failed: ${err.message}`, { id: toastId });
+        } finally {
+            setIsReplaying(false);
+        }
+    };
+
+    const handleMagicMock = () => {
+        if (!selectedRequest || !selectedEndpointId) return;
+
+        // Pass request data via state to the config page
+        navigate(`/endpoints/${selectedEndpointId}`, {
+            state: {
+                initialRule: {
+                    path: selectedRequest.path,
+                    method: selectedRequest.method,
+                    response: {
+                        status: selectedRequest.responseStatus || 200,
+                        body: selectedRequest.responseBody || ""
+                    }
+                }
+            }
+        });
+    };
 
     useEffect(() => {
         fetchEndpoints().then(data => {
@@ -168,9 +224,30 @@ export default function RequestsPage() {
                                         </span>
                                         <span className="font-mono text-sm">{selectedRequest.path}</span>
                                     </div>
-                                    <Badge variant="outline" className={cn("font-mono", getStatusColor(selectedRequest.responseStatus))}>
-                                        Status: {selectedRequest.responseStatus}
-                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 gap-1.5"
+                                            onClick={handleReplay}
+                                            disabled={isReplaying}
+                                        >
+                                            <RefreshCcw className={cn("h-3.5 w-3.5", isReplaying && "animate-spin")} />
+                                            Replay
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 gap-1.5"
+                                            onClick={handleMagicMock}
+                                        >
+                                            <Wand2 className="h-3.5 w-3.5" />
+                                            Magic Mock
+                                        </Button>
+                                        <Badge variant="outline" className={cn("font-mono h-8", getStatusColor(selectedRequest.responseStatus))}>
+                                            Status: {selectedRequest.responseStatus}
+                                        </Badge>
+                                    </div>
                                 </div>
                                 <div className="text-xs text-muted-foreground flex gap-4 font-mono">
                                     <span>ID: {selectedRequest.id?.slice(0, 8)}...</span>

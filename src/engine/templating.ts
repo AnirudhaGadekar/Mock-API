@@ -20,6 +20,7 @@
  */
 import { faker } from '@faker-js/faker';
 import crypto from 'crypto';
+import { add as addDate, format as formatDate, parseISO } from 'date-fns';
 import Handlebars from 'handlebars';
 import { statefulStore } from './stateful-store.js';
 
@@ -124,6 +125,59 @@ Handlebars.registerHelper('if_eq', function (this: unknown, a: unknown, b: unkno
     return a == b ? options.fn(this) : options.inverse(this);
 });
 
+// {{dateAdd base offset unit format}}
+// base: 'now' or ISO string
+// offset: number
+// unit: 'days', 'hours', 'minutes', 'seconds', 'months', 'years'
+// format: optional date-fns format string
+Handlebars.registerHelper('dateAdd', (base: unknown, offset: unknown, unit: unknown, formatStr: unknown) => {
+    let date = base === 'now' ? new Date() : parseISO(String(base));
+    if (isNaN(date.getTime())) date = new Date();
+
+    const amount = Number(offset) || 0;
+    const u = String(unit).toLowerCase();
+
+    const duration: Record<string, number> = {};
+    if (u.startsWith('day')) duration.days = amount;
+    else if (u.startsWith('hour')) duration.hours = amount;
+    else if (u.startsWith('minute')) duration.minutes = amount;
+    else if (u.startsWith('second')) duration.seconds = amount;
+    else if (u.startsWith('month')) duration.months = amount;
+    else if (u.startsWith('year')) duration.years = amount;
+
+    const newDate = addDate(date, duration);
+    const fmt = typeof formatStr === 'string' ? formatStr : "yyyy-MM-dd'T'HH:mm:ss.SSSxxx";
+
+    try {
+        return formatDate(newDate, fmt);
+    } catch {
+        return newDate.toISOString();
+    }
+});
+
+// {{#switch value}} {{#case "a"}}...{{/case}} {{#default}}...{{/default}} {{/switch}}
+Handlebars.registerHelper('switch', function (this: any, value: any, options: any) {
+    this._switch_value_ = value;
+    this._switch_break_ = false;
+    const res = options.fn(this);
+    delete this._switch_value_;
+    delete this._switch_break_;
+    return res;
+});
+
+Handlebars.registerHelper('case', function (this: any, value: any, options: any) {
+    if (value === this._switch_value_ && !this._switch_break_) {
+        this._switch_break_ = true;
+        return options.fn(this);
+    }
+});
+
+Handlebars.registerHelper('default', function (this: any, options: any) {
+    if (!this._switch_break_) {
+        return options.fn(this);
+    }
+});
+
 // {{json value}} → JSON.stringify
 Handlebars.registerHelper('json', (value: unknown) => {
     return new Handlebars.SafeString(JSON.stringify(value, null, 2));
@@ -198,15 +252,25 @@ async function preProcess(template: string, ctx: TemplateContext): Promise<strin
         return typeof val === 'object' ? JSON.stringify(val) : String(val);
     });
 
-    // Resolve {{state.xxx}} patterns — requires async store access
-    const stateRegex = /\{\{state\.([^}]+)\}\}/g;
-    const stateMatches = [...result.matchAll(stateRegex)];
-    for (const match of stateMatches) {
-        const path = match[1];
-        if (ctx.endpointId) {
-            const val = await statefulStore.get(ctx.endpointId, path);
-            const strVal = val == null ? '' : typeof val === 'object' ? JSON.stringify(val) : String(val);
-            result = result.replace(match[0], strVal);
+    // Resolve {{state.xxx}}, {{workspace.xxx}}, {{session.xxx}} patterns
+    const scopes = ['state', 'workspace', 'session'];
+    for (const scope of scopes) {
+        const regex = new RegExp(`\\{\\{${scope}\\.([^}]+)\\}\\}`, 'g');
+        const matches = [...result.matchAll(regex)];
+
+        for (const match of matches) {
+            const path = match[1];
+            let scopeId: string | undefined;
+
+            if (scope === 'state') scopeId = ctx.endpointId;
+            else if (scope === 'workspace') scopeId = ctx.endpointId ? `workspace:${ctx.endpointId}` : undefined; // Fallback or logic needed
+            else if (scope === 'session') scopeId = ctx.req.headers?.['x-mock-session'];
+
+            if (scopeId) {
+                const val = await statefulStore.get(scopeId, path);
+                const strVal = val == null ? '' : typeof val === 'object' ? JSON.stringify(val) : String(val);
+                result = result.replace(match[0], strVal);
+            }
         }
     }
 

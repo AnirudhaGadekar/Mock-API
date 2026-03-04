@@ -2,6 +2,7 @@
 import { TeamSwitcher } from "@/components/TeamSwitcher";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 import {
     Activity,
@@ -11,8 +12,10 @@ import {
     LogIn,
     LogOut,
     Menu,
+    Moon,
     Network,
     Settings,
+    Sun,
     X,
     Zap
 } from "lucide-react";
@@ -23,6 +26,7 @@ export function DashboardLayout() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const location = useLocation();
     const { user, isAnonymous, showAuthModal, logout, loading } = useAuth();
+    const { theme, toggleTheme } = useTheme();
 
     // Determine page title based on path
     const getPageTitle = (pathname: string) => {
@@ -205,6 +209,15 @@ export function DashboardLayout() {
                                 Save your work — Sign Up
                             </button>
                         )}
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={toggleTheme}
+                            className="text-muted-foreground mr-2"
+                            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                        >
+                            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                        </Button>
                         <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 px-3 py-1.5 rounded-full border border-border/50">
                             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                             System Operational

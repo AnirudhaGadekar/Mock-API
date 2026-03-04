@@ -22,7 +22,7 @@ program
     .action(async (options: any) => {
         // Determine the server URL
         // If running in dev/local, default to ws://localhost:10000
-        // In prod, it should default to wss://api.mockurl.com/tunnel-ws
+        // In prod, it should default to wss://mock-url-9rwn.onrender.com/tunnel-ws
         const serverUrl = options.server || 'ws://localhost:10000/tunnel-ws';
 
         console.log(chalk.blue(`Targeting server: ${serverUrl}`));

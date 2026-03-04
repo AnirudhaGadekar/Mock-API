@@ -155,13 +155,89 @@ export default function Chaos() {
                                 />
                             </div>
                         </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground uppercase">Jitter (ms)</label>
+                            <Input
+                                type="number"
+                                defaultValue={chaosConfig?.jitter?.ms || 0}
+                                onBlur={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if (!isNaN(val)) handleUpdate({ jitter: { ms: val } });
+                                }}
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                className="flex-1 text-xs"
+                                onClick={() => handleUpdate({ delay: undefined })}
+                                disabled={!chaosConfig?.delay}
+                            >
+                                Clear Delay
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="flex-1 text-xs"
+                                onClick={() => handleUpdate({ jitter: undefined })}
+                                disabled={!chaosConfig?.jitter}
+                            >
+                                Clear Jitter
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Connection Timeout */}
+                <Card className="border-border hover:border-yellow-500/50 transition-colors group">
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <div className="bg-yellow-500/20 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                                <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                            </div>
+                            <Badge variant={chaosConfig?.timeout ? "default" : "secondary"}>
+                                {chaosConfig?.timeout ? "Active" : "Inactive"}
+                            </Badge>
+                        </div>
+                        <CardTitle className="mt-4">Connection Timeout</CardTitle>
+                        <CardDescription>
+                            Simulate connection drops or unresponsive servers by timing out requests.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-muted-foreground uppercase">Probability (0-1)</label>
+                                <Input
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    max="1"
+                                    defaultValue={chaosConfig?.timeout?.probability || 0}
+                                    onBlur={(e) => {
+                                        const val = parseFloat(e.target.value);
+                                        if (!isNaN(val)) handleUpdate({ timeout: { ...chaosConfig?.timeout, probability: val } });
+                                    }}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-muted-foreground uppercase">Wait Time (ms)</label>
+                                <Input
+                                    type="number"
+                                    defaultValue={chaosConfig?.timeout?.durationMs || 30000}
+                                    onBlur={(e) => {
+                                        const val = parseInt(e.target.value);
+                                        if (!isNaN(val)) handleUpdate({ timeout: { ...chaosConfig?.timeout, probability: chaosConfig?.timeout?.probability || 0.1, durationMs: val } });
+                                    }}
+                                />
+                            </div>
+                        </div>
                         <Button
                             variant="outline"
                             className="w-full text-xs"
-                            onClick={() => handleUpdate({ delay: undefined })}
-                            disabled={!chaosConfig?.delay}
+                            onClick={() => handleUpdate({ timeout: undefined })}
+                            disabled={!chaosConfig?.timeout}
                         >
-                            Clear Latency Rule
+                            Clear Timeout Rule
                         </Button>
                     </CardContent>
                 </Card>
@@ -209,6 +285,16 @@ export default function Chaos() {
                                     }}
                                 />
                             </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground uppercase">Custom Error Body (JSON or Text)</label>
+                            <Input
+                                defaultValue={chaosConfig?.errorInject?.body || ""}
+                                placeholder='{"error": "Internal Server Error"}'
+                                onBlur={(e) => {
+                                    handleUpdate({ errorInject: { ...chaosConfig?.errorInject, probability: chaosConfig?.errorInject?.probability || 0.1, status: chaosConfig?.errorInject?.status || 500, body: e.target.value } });
+                                }}
+                            />
                         </div>
                         <Button
                             variant="outline"

@@ -1,5 +1,6 @@
 import { AIRuleGenerator } from "@/components/AIRuleGenerator";
 import { ChaosPanel } from "@/components/ChaosPanel";
+import { HeaderRewritingList } from "@/components/HeaderRewritingList";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { KeyValueList } from "@/components/KeyValueList";
 import { TemplateHelper } from "@/components/TemplateHelper";
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { UpstreamList } from "@/components/UpstreamList";
 import {
     deleteEndpoint,
     fetchEndpoint,
@@ -45,7 +47,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 interface Rule {
     path: string;
@@ -54,12 +56,20 @@ interface Rule {
         status: number;
         body: any;
         headers?: Record<string, string>;
+        headerRewriting?: any[];
         delay?: number;
     };
     condition?: {
         queryParams?: Record<string, string>;
         headers?: Record<string, string>;
         bodyContains?: string;
+        jwtValidation?: {
+            header?: string;
+            secret: string;
+            issuer?: string;
+            audience?: string;
+            required?: boolean;
+        };
     };
 }
 
@@ -72,9 +82,26 @@ export default function EndpointConfigPage() {
     const [saving, setSaving] = useState(false);
     const [showAI, setShowAI] = useState(false);
 
+    const location = useLocation();
+
     useEffect(() => {
         if (id) loadEndpoint();
     }, [id]);
+
+    useEffect(() => {
+        if (location.state?.initialRule) {
+            const rule = location.state.initialRule as Rule;
+            // Check if rule already exists to avoid duplicate on refresh/re-render
+            setRules(prev => {
+                const exists = prev.some(r => r.path === rule.path && r.method === rule.method);
+                if (exists) return prev;
+                return [rule, ...prev];
+            });
+            toast.success("Magic Mock: Rule added! Review and save.");
+            // Clear state so it doesn't re-add on navigation back
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state]);
 
     const loadEndpoint = async () => {
         try {
@@ -333,6 +360,76 @@ export default function EndpointConfigPage() {
                                                 onChange={(e) => updateCondition(idx, { bodyContains: e.target.value })}
                                             />
                                         </div>
+
+                                        <div className="border-t pt-3 mt-1">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                                                    <Zap className="h-3 w-3 text-yellow-500" /> JWT Validation Mock
+                                                </Label>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 px-2 text-[10px]"
+                                                    onClick={() => {
+                                                        const current = rule.condition?.jwtValidation;
+                                                        updateCondition(idx, {
+                                                            jwtValidation: current ? undefined : { secret: "", required: true }
+                                                        });
+                                                    }}
+                                                >
+                                                    {rule.condition?.jwtValidation ? "Disable JWT Validation" : "Enable JWT Validation"}
+                                                </Button>
+                                            </div>
+
+                                            {rule.condition?.jwtValidation && (
+                                                <div className="grid grid-cols-2 gap-3 bg-primary/5 p-3 rounded border border-primary/10">
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-[10px]">Secret Key (Required)</Label>
+                                                        <Input
+                                                            className="h-7 text-xs font-mono"
+                                                            placeholder="your-jwt-secret"
+                                                            value={rule.condition.jwtValidation.secret}
+                                                            onChange={(e) => updateCondition(idx, {
+                                                                jwtValidation: { ...rule.condition!.jwtValidation!, secret: e.target.value }
+                                                            })}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-[10px]">Header (Default: Authorization)</Label>
+                                                        <Input
+                                                            className="h-7 text-xs font-mono"
+                                                            placeholder="Authorization"
+                                                            value={rule.condition.jwtValidation.header || ''}
+                                                            onChange={(e) => updateCondition(idx, {
+                                                                jwtValidation: { ...rule.condition!.jwtValidation!, header: e.target.value }
+                                                            })}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-[10px]">Expected Issuer (Optional)</Label>
+                                                        <Input
+                                                            className="h-7 text-xs font-mono"
+                                                            placeholder="https://auth.com"
+                                                            value={rule.condition.jwtValidation.issuer || ''}
+                                                            onChange={(e) => updateCondition(idx, {
+                                                                jwtValidation: { ...rule.condition!.jwtValidation!, issuer: e.target.value }
+                                                            })}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-[10px]">Expected Audience (Optional)</Label>
+                                                        <Input
+                                                            className="h-7 text-xs font-mono"
+                                                            placeholder="my-app-id"
+                                                            value={rule.condition.jwtValidation.audience || ''}
+                                                            onChange={(e) => updateCondition(idx, {
+                                                                jwtValidation: { ...rule.condition!.jwtValidation!, audience: e.target.value }
+                                                            })}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="h-px bg-border" />
@@ -375,6 +472,18 @@ export default function EndpointConfigPage() {
                                                     valuePlaceholder="application/json"
                                                     addButtonText="Add Response Header"
                                                 />
+                                            </div>
+                                            <div className="space-y-2 border-t pt-4">
+                                                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                                                    <RefreshCw className="h-3 w-3" /> Header Rewriting Rules
+                                                </Label>
+                                                <HeaderRewritingList
+                                                    rules={rule.response.headerRewriting || []}
+                                                    onChange={(rules) => updateResponse(idx, { headerRewriting: rules })}
+                                                />
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Manipulate headers before sending. Supports templates like {"{{req.path}}"}.
+                                                </p>
                                             </div>
                                         </div>
                                         <div className="space-y-4">
@@ -436,6 +545,36 @@ export default function EndpointConfigPage() {
                                 </div>
                                 <p className="text-xs text-muted-foreground">
                                     Requests that don't match any mock rule will be forwarded to this URL.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2 pt-4 border-t">
+                                <Label>Upstream Chain (Daisy-Chaining)</Label>
+                                <UpstreamList
+                                    upstreams={endpoint.settings?.upstreams || []}
+                                    onChange={(upstreams) => setEndpoint({
+                                        ...endpoint,
+                                        settings: { ...endpoint.settings, upstreams }
+                                    })}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Chain multiple proxy servers. The last one will forward to the Final Target URL.
+                                    Injects `X-Mock-Trace-ID` for tracking.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2 pt-4 border-t">
+                                <Label>Global Header Rewriting</Label>
+                                <HeaderRewritingList
+                                    rules={endpoint.settings?.globalHeaderRewriting || []}
+                                    onChange={(rules) => setEndpoint({
+                                        ...endpoint,
+                                        settings: { ...endpoint.settings, globalHeaderRewriting: rules }
+                                    })}
+                                    addButtonText="Add Global Rewrite Rule"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Applied to ALL responses (mocks and proxies).
                                 </p>
                             </div>
 
