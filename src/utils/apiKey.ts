@@ -1,17 +1,20 @@
 import crypto from 'crypto';
 
-const API_KEY_SECRET = process.env.API_KEY_SECRET;
-
-if (!API_KEY_SECRET && process.env.NODE_ENV === 'production') {
-    throw new Error('❌ SECURITY ERROR: API_KEY_SECRET must be set in production to prevent session invalidation on restart.');
+// Helper function to get the API key secret with validation
+function getApiKeySecret(): string {
+    const API_KEY_SECRET = process.env.API_KEY_SECRET;
+    
+    if (!API_KEY_SECRET && process.env.NODE_ENV === 'production') {
+        throw new Error('❌ SECURITY ERROR: API_KEY_SECRET must be set in production to prevent session invalidation on restart.');
+    }
+    
+    if (!API_KEY_SECRET) {
+        console.warn('[WARN] API_KEY_SECRET is not set. Using a random fallback. Set this env var for stable API key hashing!');
+    }
+    
+    // Always have a usable secret — random fallback if env var is missing (non-prod only)
+    return API_KEY_SECRET || crypto.randomBytes(32).toString('hex');
 }
-
-if (!API_KEY_SECRET) {
-    console.warn('[WARN] API_KEY_SECRET is not set. Using a random fallback. Set this env var for stable API key hashing!');
-}
-
-// Always have a usable secret — random fallback if env var is missing (non-prod only)
-const EFFECTIVE_SECRET = API_KEY_SECRET || crypto.randomBytes(32).toString('hex');
 
 /**
  * Generate a new API key with prefix
@@ -27,7 +30,7 @@ export function generateApiKey(): string {
  */
 export function hashApiKey(apiKey: string): string {
     return crypto
-        .createHmac('sha256', EFFECTIVE_SECRET)
+        .createHmac('sha256', getApiKeySecret())
         .update(apiKey)
         .digest('hex');
 }
