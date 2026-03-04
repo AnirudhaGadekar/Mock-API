@@ -6,16 +6,16 @@ import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.mid
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
 import type { EndpointResponse } from '../types/mock.types.js';
 import {
-  cacheEndpointList,
-  getCachedEndpointList,
-  hashQueryParams,
-  invalidateEndpointCache,
-  invalidateUserEndpointCache
+    cacheEndpointList,
+    getCachedEndpointList,
+    hashQueryParams,
+    invalidateEndpointCache,
+    invalidateUserEndpointCache
 } from '../utils/endpoint.cache.js';
 import {
-  createEndpointSchema,
-  DEFAULT_MOCK_RULES,
-  listEndpointsQuerySchema
+    createEndpointSchema,
+    DEFAULT_MOCK_RULES,
+    listEndpointsQuerySchema
 } from '../validators/endpoint.validator.js';
 
 const tracer = trace.getTracer('endpoints-api');
@@ -38,9 +38,25 @@ interface EndpointAuditLogInput {
 /**
  * Format endpoint for API response
  */
-function formatEndpointResponse(endpoint: { id: string; name: string; slug: string; rules: unknown; requestCount: number; createdAt: Date; teamId?: string | null }): EndpointResponse {
+function formatEndpointResponse(endpoint: { id: string; name: string; slug: string; rules: unknown; requestCount: number; createdAt: Date; teamId?: string | null }, request?: FastifyRequest): EndpointResponse {
   const subdomain = endpoint.slug;
-  const baseUrl = process.env.BASE_ENDPOINT_URL || `http://localhost:3000/e`;
+  
+  // Auto-detect base URL from request or environment
+  let baseUrl = process.env.BASE_ENDPOINT_URL;
+  if (!baseUrl) {
+    if (request && request.headers.host) {
+      // Use the request host to build the URL dynamically
+      const protocol = request.headers['x-forwarded-proto'] || 'https';
+      baseUrl = `${protocol}://${request.headers.host}/e`;
+    } else if (process.env.NODE_ENV === 'production') {
+      // Fallback for production when no request available
+      baseUrl = `https://mock-url-9rwn.onrender.com/e`;
+    } else {
+      // Development fallback
+      baseUrl = `http://localhost:3000/e`;
+    }
+  }
+  
   let url = `${baseUrl}/${subdomain}`;
 
   // If using a custom mock domain with wildcard support (not current case but kept for logic)
@@ -190,7 +206,7 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
           },
         });
 
-        const endpointPayload = formatEndpointResponse(endpoint);
+        const endpointPayload = formatEndpointResponse(endpoint, request);
         logger.info('Endpoint created', { userId: user.id, endpointId: endpoint.id, name, workspace: isTeam ? 'TEAM' : 'PERSONAL' });
 
         return reply.status(201).send({
@@ -250,7 +266,7 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
         const hasMore = endpoints.length > limit;
         const resultEndpoints = hasMore ? endpoints.slice(0, limit) : endpoints;
         const nextCursor = hasMore ? resultEndpoints[resultEndpoints.length - 1].id : null;
-        const formattedEndpoints = resultEndpoints.map((ep) => formatEndpointResponse(ep));
+        const formattedEndpoints = resultEndpoints.map((ep) => formatEndpointResponse(ep, request));
 
         const responseData = {
           endpoints: formattedEndpoints,
@@ -404,7 +420,7 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
 
         return reply.status(200).send({
           success: true,
-          endpoint: formatEndpointResponse(updated),
+          endpoint: formatEndpointResponse(updated, request),
           timestamp: new Date().toISOString(),
         });
       } catch (error: unknown) {
@@ -519,7 +535,7 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
 
       return {
         success: true,
-        endpoint: formatEndpointResponse(endpoint),
+        endpoint: formatEndpointResponse(endpoint, request),
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
