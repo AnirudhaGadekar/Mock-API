@@ -35,28 +35,65 @@ interface EndpointAuditLogInput {
   request: FastifyRequest;
 }
 
+function getFirstHeaderValue(value: string | string[] | undefined): string | undefined {
+  if (!value) return undefined;
+  const raw = Array.isArray(value) ? value[0] : value;
+  const first = raw.split(',')[0]?.trim();
+  return first || undefined;
+}
+
+function isLocalhostHost(hostOrUrl: string | undefined): boolean {
+  if (!hostOrUrl) return false;
+
+  let candidate = hostOrUrl.trim();
+  if (!candidate) return false;
+
+  if (!candidate.includes('://')) {
+    candidate = `http://${candidate}`;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
+function normalizeEndpointBaseUrl(base: string): string {
+  const trimmed = base.trim().replace(/\/+$/, '');
+  return trimmed.endsWith('/e') ? trimmed : `${trimmed}/e`;
+}
+
 /**
  * Format endpoint for API response
  */
 function formatEndpointResponse(endpoint: { id: string; name: string; slug: string; rules: unknown; requestCount: number; createdAt: Date; teamId?: string | null }, request?: FastifyRequest): EndpointResponse {
   const subdomain = endpoint.slug;
-  
-  // Auto-detect base URL from request or environment
-  let baseUrl = process.env.BASE_ENDPOINT_URL;
-  if (!baseUrl) {
-    if (request && request.headers.host) {
-      // Use the request host to build the URL dynamically
-      const protocol = request.headers['x-forwarded-proto'] || 'https';
-      baseUrl = `${protocol}://${request.headers.host}/e`;
-    } else if (process.env.NODE_ENV === 'production') {
-      // Fallback for production when no request available
-      baseUrl = `https://mock-url-9rwn.onrender.com/e`;
-    } else {
-      // Development fallback
-      baseUrl = `http://localhost:3000/e`;
-    }
+  const isProduction = process.env.NODE_ENV === 'production';
+  const configuredBase = process.env.BASE_ENDPOINT_URL?.trim();
+  const renderExternalUrl = process.env.RENDER_EXTERNAL_URL?.trim();
+  const forwardedHost = request ? getFirstHeaderValue(request.headers['x-forwarded-host'] as string | string[] | undefined) : undefined;
+  const requestHost = request ? getFirstHeaderValue(request.headers.host) : undefined;
+  const effectiveHost = forwardedHost || requestHost;
+  const forwardedProto = request ? getFirstHeaderValue(request.headers['x-forwarded-proto'] as string | string[] | undefined) : undefined;
+  const protocol = forwardedProto || (isProduction ? 'https' : 'http');
+
+  // Auto-detect base URL from env/proxy headers with production safety guards.
+  let baseUrl: string;
+  if (configuredBase && !(isProduction && isLocalhostHost(configuredBase))) {
+    baseUrl = normalizeEndpointBaseUrl(configuredBase);
+  } else if (effectiveHost && !(isProduction && isLocalhostHost(effectiveHost))) {
+    baseUrl = normalizeEndpointBaseUrl(`${protocol}://${effectiveHost}`);
+  } else if (renderExternalUrl && !(isProduction && isLocalhostHost(renderExternalUrl))) {
+    baseUrl = normalizeEndpointBaseUrl(renderExternalUrl);
+  } else if (isProduction) {
+    baseUrl = 'https://mock-url-9rwn.onrender.com/e';
+  } else {
+    baseUrl = 'http://localhost:3000/e';
   }
-  
+
   let url = `${baseUrl}/${subdomain}`;
 
   // If using a custom mock domain with wildcard support (not current case but kept for logic)
