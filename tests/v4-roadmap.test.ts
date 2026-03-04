@@ -70,7 +70,7 @@ function makeAuthRequest(path: string, method: string = 'GET', body?: any) {
     });
 }
 
-describe.skip('Roadmap V4 - Advanced Chaos Validation', () => {
+describe('Roadmap V4 - Advanced Chaos Validation', () => {
     test('should allow setting timeout and jitter', async () => {
         // 1. Create endpoint
         const createRes = await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'chaos-v4' });
@@ -115,7 +115,7 @@ describe.skip('Roadmap V4 - Advanced Chaos Validation', () => {
     });
 });
 
-describe.skip('Roadmap V4 - JWT Validation Mock', () => {
+describe('Roadmap V4 - JWT Validation Mock', () => {
     const JWT_SECRET = 'test-secret-123';
     const validToken = jwt.sign({ sub: 'user123' }, JWT_SECRET, { issuer: 'mockurl', audience: 'app' });
     const invalidToken = jwt.sign({ sub: 'user123' }, 'wrong-secret');
@@ -191,10 +191,10 @@ describe.skip('Roadmap V4 - JWT Validation Mock', () => {
             }
         });
 
-        // Should fall back to default rule (or 404/default mock behavior)
-        // Default endpoint has a 200 OK rule for /* usually, check what happens
-        // Actually our rule should NOT be matched.
-        expect(response.statusCode).not.toBe(200); // Or it might hit the default rule
+        // Should fall back to default rule (Mock endpoint active)
+        expect(response.statusCode).toBe(200);
+        expect(response.json().message).toBe('Mock endpoint active');
+        expect(response.json().message).not.toBe('Authorized');
     });
 
     test('should fail to match rule when JWT is missing and required', async () => {
@@ -227,6 +227,7 @@ describe.skip('Roadmap V4 - JWT Validation Mock', () => {
             }
         });
 
-        expect(response.statusCode).not.toBe(200);
+        expect(response.statusCode).toBe(200);
+        expect(response.json().message).toBe('Mock endpoint active');
     });
 });

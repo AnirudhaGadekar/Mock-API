@@ -33,6 +33,15 @@ export const mockRuleSchema = z.object({
       queryParams: z.record(z.string(), z.string()).optional(),
       headers: z.record(z.string(), z.string()).optional(),
       bodyContains: z.string().optional(),
+      jwtValidation: z
+        .object({
+          header: z.string().optional(),
+          secret: z.string().min(1, 'JWT secret is required'),
+          issuer: z.string().optional(),
+          audience: z.string().optional(),
+          required: z.boolean().optional(),
+        })
+        .optional(),
     })
     .optional(),
   sequence: z.boolean().optional(), // If true, cycle through multiple matching rules

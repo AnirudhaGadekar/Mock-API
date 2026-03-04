@@ -17,6 +17,7 @@ process.env.TEST_BASE_URL = `http://localhost:${dynamicPort}`; // Force fetch cl
 process.env.OTP_SECRET = process.env.OTP_SECRET || 'test-otp-secret-key';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-must-be-32-chars-long';
 process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
+process.env.BASE_MOCK_DOMAIN = 'mockurl.com';
 process.env.LOG_LEVEL = 'error'; // Reduce noise in tests
 
 import { beforeAll } from 'vitest';
