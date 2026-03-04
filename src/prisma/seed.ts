@@ -8,6 +8,20 @@ function generateApiKey(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+function getSeedEndpointBaseUrl(): string {
+  const configuredBase = process.env.BASE_ENDPOINT_URL?.trim();
+  if (configuredBase) {
+    return configuredBase.replace(/\/+$/, '');
+  }
+
+  if (process.env.NODE_ENV === 'production' || process.env.RENDER === 'true' || process.env.RENDER_EXTERNAL_URL) {
+    const deployedBase = process.env.RENDER_EXTERNAL_URL || 'https://mock-url-9rwn.onrender.com';
+    return `${deployedBase.replace(/\/+$/, '')}/e`;
+  }
+
+  return 'http://localhost:3000/e';
+}
+
 async function main() {
   console.log('🌱 Starting database seed...');
 
@@ -52,7 +66,7 @@ async function main() {
   });
 
   console.log(`✅ Created sample endpoint: ${endpoint1.name}`);
-  console.log(`   Access at: ${process.env.BASE_ENDPOINT_URL || 'http://localhost:3000/e'}/${endpoint1.name}`);
+  console.log(`   Access at: ${getSeedEndpointBaseUrl()}/${endpoint1.name}`);
 
   console.log('\n🎉 Seed completed successfully!');
 }

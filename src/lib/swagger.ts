@@ -4,10 +4,30 @@ import swaggerUi from '@fastify/swagger-ui';
 import { FastifyInstance } from 'fastify';
 import { jsonSchemaTransform } from 'fastify-type-provider-zod';
 
+function getSwaggerServerUrl(): string {
+    const endpointBase = process.env.BASE_ENDPOINT_URL?.trim();
+    if (endpointBase) {
+        try {
+            return new URL(endpointBase).origin;
+        } catch {
+            // Fall through to other candidates if BASE_ENDPOINT_URL is malformed
+        }
+    }
+
+    if (process.env.RENDER_EXTERNAL_URL) {
+        return process.env.RENDER_EXTERNAL_URL;
+    }
+
+    return 'http://localhost:3000';
+}
+
 /**
  * Configure Swagger/OpenAPI documentation
  */
 export async function registerSwagger(app: FastifyInstance) {
+    const serverUrl = getSwaggerServerUrl();
+    const isLocalServer = serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1');
+
     await app.register(swagger, {
         openapi: {
             info: {
@@ -17,8 +37,8 @@ export async function registerSwagger(app: FastifyInstance) {
             },
             servers: [
                 {
-                    url: 'http://localhost:3000',
-                    description: 'Local Development Server',
+                    url: serverUrl,
+                    description: isLocalServer ? 'Local Development Server' : 'Deployed Server',
                 },
             ],
             components: {

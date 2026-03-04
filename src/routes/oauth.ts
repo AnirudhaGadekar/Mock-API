@@ -7,16 +7,40 @@ import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKey.js';
 
+function isDeployedEnvironment(): boolean {
+    return (
+        process.env.NODE_ENV === 'production' ||
+        process.env.RENDER === 'true' ||
+        Boolean(process.env.RENDER_EXTERNAL_URL)
+    );
+}
+
+function getDefaultApiBaseUrl(): string {
+    if (isDeployedEnvironment()) {
+        return process.env.RENDER_EXTERNAL_URL || 'https://mock-url-9rwn.onrender.com';
+    }
+    return 'http://localhost:3000';
+}
+
+function getDefaultFrontendUrl(): string {
+    if (isDeployedEnvironment()) {
+        return process.env.RENDER_EXTERNAL_URL || 'https://mock-url-9rwn.onrender.com';
+    }
+    return 'http://localhost:5173';
+}
+
+const DEFAULT_API_BASE_URL = getDefaultApiBaseUrl();
+
 // OAuth credentials from env
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/v1/oauth/google/callback';
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `${DEFAULT_API_BASE_URL}/api/v1/oauth/google/callback`;
 
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
-const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'http://localhost:3000/api/v1/oauth/github/callback';
+const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || `${DEFAULT_API_BASE_URL}/api/v1/oauth/github/callback`;
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const FRONTEND_URL = process.env.FRONTEND_URL || getDefaultFrontendUrl();
 const API_KEY_COOKIE = getApiKeyCookieName();
 
 /**

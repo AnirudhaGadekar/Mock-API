@@ -36,6 +36,32 @@ import { tunnelRoutes } from './routes/tunnel.routes.js';
 import { userRoutes } from './routes/user.routes.js';
 import { workspaceRoutes } from './routes/workspace.js';
 
+function isDeployedEnvironment(): boolean {
+  return (
+    process.env.NODE_ENV === 'production' ||
+    process.env.RENDER === 'true' ||
+    Boolean(process.env.RENDER_EXTERNAL_URL)
+  );
+}
+
+function isLocalhostLikeHost(hostOrUrl: string | undefined): boolean {
+  if (!hostOrUrl) return false;
+
+  let candidate = hostOrUrl.trim();
+  if (!candidate) return false;
+  if (!candidate.includes('://')) {
+    candidate = `http://${candidate}`;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.localhost');
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Validate environment variables at startup (fail fast).
  * This prevents insecure defaults in production.
@@ -62,6 +88,7 @@ function validateEnvironment() {
 
   let authMode = process.env.AUTH_MODE?.trim().toLowerCase();
   const isProd = process.env.NODE_ENV === 'production';
+  const isDeployed = isDeployedEnvironment();
 
   if (isProd && !authMode) {
     authMode = 'otp';
@@ -85,6 +112,16 @@ function validateEnvironment() {
     if (!process.env.BASE_MOCK_DOMAIN) {
       logger.warn('⚠️  Production: BASE_MOCK_DOMAIN not set, using default');
     }
+  }
+
+  const baseEndpointUrl = process.env.BASE_ENDPOINT_URL?.trim();
+  if (isDeployed && baseEndpointUrl && isLocalhostLikeHost(baseEndpointUrl)) {
+    logger.error('CONFIG ERROR: BASE_ENDPOINT_URL is localhost in a deployed environment. Use your public domain (for example, https://mock-url-9rwn.onrender.com/e).', {
+      BASE_ENDPOINT_URL: baseEndpointUrl,
+      NODE_ENV: process.env.NODE_ENV,
+      RENDER: process.env.RENDER,
+      RENDER_EXTERNAL_URL: process.env.RENDER_EXTERNAL_URL,
+    });
   }
 
   const required = [
