@@ -13,6 +13,7 @@
  */
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../lib/db.js';
+import { collectDiagnosticsReport, isDiagnosticModeEnabled } from '../lib/diagnostics.js';
 import { logger } from '../lib/logger.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
@@ -282,4 +283,102 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  if (isDiagnosticModeEnabled()) {
+    fastify.get('/diagnostics', async (_request, reply) => {
+      try {
+        const report = await collectDiagnosticsReport();
+        return reply.send({
+          success: true,
+          report,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        logger.error('Admin diagnostics failed', { error });
+        return reply.status(500).send({
+          success: false,
+          error: { code: 'INTERNAL', message: 'Failed to generate diagnostics report' },
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+    fastify.get<{ Params: { slugOrId: string } }>('/diagnostics/endpoint/:slugOrId', async (request, reply) => {
+      try {
+        const slugOrId = request.params.slugOrId;
+        const endpoint = await prisma.endpoint.findFirst({
+          where: {
+            OR: [{ id: slugOrId }, { slug: slugOrId }],
+          },
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            userId: true,
+            teamId: true,
+            requestCount: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        if (!endpoint) {
+          return reply.status(404).send({
+            success: false,
+            error: {
+              code: 'ENDPOINT_NOT_FOUND',
+              message: `No endpoint found for "${slugOrId}"`,
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        const [totalLogs, recentLogs, latestLog] = await Promise.all([
+          prisma.requestLog.count({ where: { endpointId: endpoint.id } }),
+          prisma.requestLog.count({
+            where: {
+              endpointId: endpoint.id,
+              createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
+            },
+          }),
+          prisma.requestLog.findFirst({
+            where: { endpointId: endpoint.id },
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              method: true,
+              path: true,
+              responseStatus: true,
+              durationMs: true,
+              createdAt: true,
+              ip: true,
+            },
+          }),
+        ]);
+
+        const consistency = totalLogs >= endpoint.requestCount
+          ? 'request_logs_consistent_or_ahead'
+          : 'request_count_ahead_of_logs_possible_buffered_counter';
+
+        return reply.send({
+          success: true,
+          endpoint,
+          logs: {
+            total: totalLogs,
+            last10Minutes: recentLogs,
+            latest: latestLog,
+          },
+          consistency,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        logger.error('Endpoint diagnostics failed', { error, slugOrId: request.params.slugOrId });
+        return reply.status(500).send({
+          success: false,
+          error: { code: 'INTERNAL', message: 'Failed to inspect endpoint diagnostics' },
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+  }
 };

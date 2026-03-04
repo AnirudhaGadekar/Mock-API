@@ -10,6 +10,7 @@ import fastify from 'fastify';
 import { websocketPlugin } from './engine/websocket.js';
 import { startCronJobs } from './lib/cron.js';
 import { checkDatabaseHealth, disconnectDatabase } from './lib/db.js';
+import { isDiagnosticModeEnabled, logStartupDiagnostics } from './lib/diagnostics.js';
 import { logger } from './lib/logger.js';
 import { metricsRegistry } from './lib/metrics.js';
 import { checkRedisHealth, disconnectRedis } from './lib/redis.js';
@@ -225,6 +226,18 @@ async function buildApp() {
   });
 
   // Health checks
+  app.get('/', async function (_request, reply) {
+    return reply.status(200).send({
+      success: true,
+      service: 'MockUrl API',
+      status: 'ok',
+      docs: '/api/docs',
+      health: '/health',
+      frontend: process.env.FRONTEND_URL || null,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   app.get('/healthz', async function (_request, reply) {
     return reply.send({ status: 'ok', uptime: process.uptime() });
   });
@@ -377,6 +390,9 @@ async function buildApp() {
 async function start() {
   try {
     validateEnvironment(); // ✅ Critical: validate env before starting anything
+    if (isDiagnosticModeEnabled()) {
+      await logStartupDiagnostics();
+    }
 
     await initTracing();
     const app = await buildApp();

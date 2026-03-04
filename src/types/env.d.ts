@@ -35,8 +35,12 @@ declare global {
       BASE_ENDPOINT_URL: string;
       BASE_MOCK_DOMAIN?: string;
       FRONTEND_URL?: string;
+      GOOGLE_REDIRECT_URI?: string;
+      GITHUB_REDIRECT_URI?: string;
       RENDER?: string;
       RENDER_EXTERNAL_URL?: string;
+      ADMIN_SECRET?: string;
+      DIAGNOSTIC_MODE?: 'true' | 'false';
     }
   }
 }
