@@ -7,6 +7,7 @@ import {
     deleteEndpoint,
     fetchEndpoints,
     fetchHistory,
+    fetchLiveSummary,
     type Endpoint,
     type HistoryItem,
 } from "@/lib/api";
@@ -62,6 +63,15 @@ export default function Dashboard() {
     const [historyFilter, setHistoryFilter] = useState("");
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [historyTotal, setHistoryTotal] = useState(0);
+    const [liveSummary, setLiveSummary] = useState<{
+        isActive: boolean;
+        requestCount1m: number;
+        requestCount5m: number;
+        errorCount5m: number;
+        errorRate5m: number;
+        lastSeenAt: string | null;
+        websocketSubscribers: number;
+    } | null>(null);
 
     // Polling
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -111,23 +121,35 @@ export default function Dashboard() {
         []
     );
 
+    const loadLiveSummary = useCallback(async (epId: string) => {
+        try {
+            const summary = await fetchLiveSummary(epId);
+            setLiveSummary(summary);
+        } catch {
+            // silent: non-blocking dashboard extra
+        }
+    }, []);
+
     useEffect(() => {
         if (!selectedId) {
             setHistory([]);
+            setLiveSummary(null);
             return;
         }
         loadHistory(selectedId, historyFilter);
+        loadLiveSummary(selectedId);
 
         // Poll every 5s
         if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = setInterval(() => {
             loadHistory(selectedId, historyFilter);
+            loadLiveSummary(selectedId);
         }, 5000);
 
         return () => {
             if (pollRef.current) clearInterval(pollRef.current);
         };
-    }, [selectedId, historyFilter, loadHistory]);
+    }, [selectedId, historyFilter, loadHistory, loadLiveSummary]);
 
     // ─── Create endpoint ─────────────────────────────────────────────────────
     const handleCreate = async () => {
@@ -401,6 +423,38 @@ export default function Dashboard() {
                                         </Button>
                                     </div>
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="shrink-0">
+                            <CardContent className="p-4">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div className="rounded-md border bg-secondary/40 p-3">
+                                        <p className="text-[11px] text-muted-foreground">Live Status</p>
+                                        <p className={cn("text-sm font-semibold", liveSummary?.isActive ? "text-emerald-500" : "text-muted-foreground")}>
+                                            {liveSummary?.isActive ? "Receiving traffic" : "Idle"}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-md border bg-secondary/40 p-3">
+                                        <p className="text-[11px] text-muted-foreground">Requests (1m / 5m)</p>
+                                        <p className="text-sm font-semibold">
+                                            {(liveSummary?.requestCount1m ?? 0)} / {(liveSummary?.requestCount5m ?? 0)}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-md border bg-secondary/40 p-3">
+                                        <p className="text-[11px] text-muted-foreground">Error Rate (5m)</p>
+                                        <p className={cn("text-sm font-semibold", (liveSummary?.errorRate5m ?? 0) >= 5 ? "text-red-500" : "text-emerald-500")}>
+                                            {(liveSummary?.errorRate5m ?? 0).toFixed(2)}%
+                                        </p>
+                                    </div>
+                                    <div className="rounded-md border bg-secondary/40 p-3">
+                                        <p className="text-[11px] text-muted-foreground">Live Viewers (WS)</p>
+                                        <p className="text-sm font-semibold">{liveSummary?.websocketSubscribers ?? 0}</p>
+                                    </div>
+                                </div>
+                                <p className="mt-3 text-[11px] text-muted-foreground">
+                                    Last seen: {liveSummary?.lastSeenAt ? new Date(liveSummary.lastSeenAt).toLocaleString() : "No requests yet"}
+                                </p>
                             </CardContent>
                         </Card>
 

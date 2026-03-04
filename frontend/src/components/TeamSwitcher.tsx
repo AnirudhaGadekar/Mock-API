@@ -33,6 +33,17 @@ import { cn } from "@/lib/utils";
 import { useTeamStore } from "@/store/teamStore";
 import { toast } from "react-hot-toast";
 
+function slugifyTeamName(name: string): string {
+    const base = name
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40);
+    const suffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    return `${base || 'team'}-${suffix}`;
+}
+
 export function TeamSwitcher({ className }: { className?: string }) {
     const [open, setOpen] = useState(false);
     const [showNewTeamDialog, setShowNewTeamDialog] = useState(false);
@@ -52,16 +63,15 @@ export function TeamSwitcher({ className }: { className?: string }) {
 
         setIsCreating(true);
         try {
-            // Simple slug generation
-            const slug = newTeamName.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Math.floor(Math.random() * 1000);
+            const slug = slugifyTeamName(newTeamName);
             const team = await createTeam(newTeamName, slug);
             await refreshTeams();
-            selectTeam(team.id);
+            await selectTeam(team.id);
             setShowNewTeamDialog(false);
             setNewTeamName("");
             toast.success("Team created!");
-        } catch (error) {
-            toast.error("Failed to create team");
+        } catch (error: any) {
+            toast.error(error?.response?.data?.error || "Failed to create team");
         } finally {
             setIsCreating(false);
         }
@@ -91,7 +101,9 @@ export function TeamSwitcher({ className }: { className?: string }) {
                             <CommandGroup heading="Personal">
                                 <CommandItem
                                     onSelect={() => {
-                                        selectTeam(null);
+                                        void selectTeam(null).catch(() => {
+                                            toast.error("Failed to switch workspace");
+                                        });
                                         setOpen(false);
                                     }}
                                     className="text-sm"
@@ -109,7 +121,9 @@ export function TeamSwitcher({ className }: { className?: string }) {
                                     <CommandItem
                                         key={team.id}
                                         onSelect={() => {
-                                            selectTeam(team.id);
+                                            void selectTeam(team.id).catch(() => {
+                                                toast.error("Failed to switch workspace");
+                                            });
                                             setOpen(false);
                                         }}
                                         className="text-sm"

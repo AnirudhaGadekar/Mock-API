@@ -26,11 +26,17 @@ declare global {
       
       RATE_LIMIT_MAX: string;
       RATE_LIMIT_WINDOW: string;
+      REQUEST_LOG_RETENTION_DAYS?: string;
+      ENDPOINT_INACTIVITY_DAYS?: string;
       
       CORS_ORIGIN: string;
       
       API_VERSION: string;
       BASE_ENDPOINT_URL: string;
+      BASE_MOCK_DOMAIN?: string;
+      FRONTEND_URL?: string;
+      RENDER?: string;
+      RENDER_EXTERNAL_URL?: string;
     }
   }
 }

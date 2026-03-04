@@ -277,7 +277,7 @@ describe('OTP auth module', () => {
 
       expect(getApiKeyCookieName()).toBe('mockurl_api_key');
       expect(options.httpOnly).toBe(true);
-      expect(options.sameSite).toBe('none');
+      expect(options.sameSite).toBe('lax');
       expect(options.path).toBe('/');
       expect(options.maxAge).toBe(3600);
     });

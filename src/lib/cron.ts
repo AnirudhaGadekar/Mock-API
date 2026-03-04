@@ -5,16 +5,16 @@ import { flushRequestCounts } from '../utils/endpoint.cache.js';
 import { prisma } from './db.js';
 import { logger } from './logger.js';
 
-const RETENTION_DAYS = 1; // User requested 1 day for minimal DB load
-const ENDPOINT_INACTIVITY_DAYS = 1; // Aggressive cleanup for free tier/live demo
+const REQUEST_LOG_RETENTION_DAYS = Math.max(1, Number(process.env.REQUEST_LOG_RETENTION_DAYS ?? 10));
+const ENDPOINT_INACTIVITY_DAYS = Math.max(0, Number(process.env.ENDPOINT_INACTIVITY_DAYS ?? 0)); // 0 disables endpoint auto-delete
 const FLUSH_INTERVAL_MS = 10000; // 10 seconds
 
 /**
- * Delete request logs older than retention period (1 day)
+ * Delete request logs older than retention period.
  */
 export async function cleanupOldLogs(): Promise<void> {
   const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - RETENTION_DAYS);
+  cutoffDate.setDate(cutoffDate.getDate() - REQUEST_LOG_RETENTION_DAYS);
 
   try {
     const result = await prisma.requestLog.deleteMany({
@@ -32,9 +32,13 @@ export async function cleanupOldLogs(): Promise<void> {
 }
 
 /**
- * Delete inactive endpoints (older than 1 day with no activity)
+ * Delete inactive endpoints when ENDPOINT_INACTIVITY_DAYS > 0.
  */
 export async function cleanupInactiveEndpoints(): Promise<void> {
+  if (ENDPOINT_INACTIVITY_DAYS <= 0) {
+    return;
+  }
+
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - ENDPOINT_INACTIVITY_DAYS);
 
@@ -82,7 +86,9 @@ export function startCronJobs(): void {
 
   logger.info('Cron jobs started', {
     nextCleanup: new Date(Date.now() + initialDelay),
-    flushIntervalMs: FLUSH_INTERVAL_MS
+    flushIntervalMs: FLUSH_INTERVAL_MS,
+    requestLogRetentionDays: REQUEST_LOG_RETENTION_DAYS,
+    endpointInactivityDays: ENDPOINT_INACTIVITY_DAYS,
   });
 }
 

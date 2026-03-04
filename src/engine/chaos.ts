@@ -109,6 +109,23 @@ function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function setChaosHeaders(reply: FastifyReply, result: ChaosResult): void {
+    const applied = result.applied.length > 0 ? result.applied.join(',') : 'none';
+    reply.header('X-Mock-Chaos-Applied', applied);
+    if (result.delayed !== undefined) {
+        reply.header('X-Mock-Chaos-Delay-Ms', String(result.delayed));
+    }
+    if (result.rateLimited) {
+        reply.header('X-Mock-Chaos-RateLimited', 'true');
+    }
+    if (result.timedOut) {
+        reply.header('X-Mock-Chaos-Timeout', 'true');
+    }
+    if (result.errorInjected) {
+        reply.header('X-Mock-Chaos-ErrorInjected', 'true');
+    }
+}
+
 /**
  * Apply chaos effects before sending a mock response.
  * Returns a ChaosResult describing what happened.
@@ -135,6 +152,7 @@ export async function applyChaos(
             result.rateLimited = true;
 
             if (reply) {
+                setChaosHeaders(reply, result);
                 reply.status(429).send({
                     error: 'Too Many Requests',
                     message: `Rate limit exceeded: ${config.rateLimit.rpm} requests per minute`,
@@ -154,6 +172,7 @@ export async function applyChaos(
         if (reply) {
             // Simulate timeout by waiting and then sending 504
             await sleep(Math.min(duration, 30_000));
+            setChaosHeaders(reply, result);
             reply.status(504).send({
                 error: 'Gateway Timeout',
                 message: 'Simulated timeout (chaos engineering)',
@@ -185,6 +204,7 @@ export async function applyChaos(
         result.injectedBody = config.errorInject.body;
 
         if (reply) {
+            setChaosHeaders(reply, result);
             reply.status(config.errorInject.status).send(
                 config.errorInject.body ?? {
                     error: 'Simulated Error',

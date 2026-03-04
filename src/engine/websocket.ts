@@ -52,6 +52,16 @@ export function getConnectedClients(): number {
     return clients.size;
 }
 
+export function getEndpointSubscriberCount(endpointId: string): number {
+    let count = 0;
+    for (const filter of clients.values()) {
+        if (!filter || filter === endpointId) {
+            count += 1;
+        }
+    }
+    return count;
+}
+
 /**
  * Broadcast a request event to all connected clients.
  * Call this from the mock router after processing each request.

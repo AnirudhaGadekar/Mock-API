@@ -1,6 +1,14 @@
 -- CreateEnum
 CREATE TYPE "EndpointAuditAction" AS ENUM ('CREATED', 'UPDATED', 'DELETED');
 
+-- Ensure enum exists in shadow/fresh databases before table creation.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'WorkspaceType') THEN
+        CREATE TYPE "WorkspaceType" AS ENUM ('PERSONAL', 'TEAM');
+    END IF;
+END $$;
+
 -- CreateTable
 CREATE TABLE "EndpointAuditLog" (
     "id" TEXT NOT NULL,
@@ -37,8 +45,24 @@ CREATE INDEX "EndpointAuditLog_workspaceType_idx" ON "EndpointAuditLog"("workspa
 -- CreateIndex
 CREATE INDEX "EndpointAuditLog_teamId_idx" ON "EndpointAuditLog"("teamId");
 
--- AddForeignKey
-ALTER TABLE "EndpointAuditLog" ADD CONSTRAINT "EndpointAuditLog_endpointId_fkey" FOREIGN KEY ("endpointId") REFERENCES "Endpoint"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- AddForeignKey (defensive for mixed legacy/current migration histories)
+DO $$
+BEGIN
+    BEGIN
+        ALTER TABLE "EndpointAuditLog"
+            ADD CONSTRAINT "EndpointAuditLog_endpointId_fkey"
+            FOREIGN KEY ("endpointId") REFERENCES "Endpoint"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    EXCEPTION
+        WHEN duplicate_object OR undefined_table OR undefined_object OR datatype_mismatch THEN
+            NULL;
+    END;
 
--- AddForeignKey
-ALTER TABLE "EndpointAuditLog" ADD CONSTRAINT "EndpointAuditLog_actorUserId_fkey" FOREIGN KEY ("actorUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    BEGIN
+        ALTER TABLE "EndpointAuditLog"
+            ADD CONSTRAINT "EndpointAuditLog_actorUserId_fkey"
+            FOREIGN KEY ("actorUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    EXCEPTION
+        WHEN duplicate_object OR undefined_table OR undefined_object OR datatype_mismatch THEN
+            NULL;
+    END;
+END $$;

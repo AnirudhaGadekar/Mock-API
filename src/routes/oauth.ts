@@ -1,8 +1,8 @@
 import axios from 'axios';
 import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
-import { prisma } from '../lib/db.js';
 import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
+import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKey.js';
@@ -15,6 +15,21 @@ function isDeployedEnvironment(): boolean {
     );
 }
 
+function isLocalhostLike(hostOrUrl: string | undefined): boolean {
+    if (!hostOrUrl) return false;
+    let candidate = hostOrUrl.trim();
+    if (!candidate) return false;
+    if (!candidate.includes('://')) {
+        candidate = `http://${candidate}`;
+    }
+    try {
+        const parsed = new URL(candidate);
+        const host = parsed.hostname.toLowerCase();
+        return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.localhost');
+    } catch {
+        return false;
+    }
+}
 function getDefaultApiBaseUrl(): string {
     if (isDeployedEnvironment()) {
         return process.env.RENDER_EXTERNAL_URL || 'https://mock-url-9rwn.onrender.com';
@@ -41,7 +56,43 @@ const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
 const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || `${DEFAULT_API_BASE_URL}/api/v1/oauth/github/callback`;
 
 const FRONTEND_URL = process.env.FRONTEND_URL || getDefaultFrontendUrl();
+
+const isDeployed = isDeployedEnvironment();
+if (isDeployed && !process.env.FRONTEND_URL) {
+    logger.warn('FRONTEND_URL not set in production. OAuth redirects may fail.');
+}
+if (isDeployed && (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET)) {
+    logger.error('CONFIG ERROR: Missing Google OAuth credentials in deployed environment.');
+}
+if (isDeployed && (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET)) {
+    logger.error('CONFIG ERROR: Missing GitHub OAuth credentials in deployed environment.');
+}
+if (isDeployed && isLocalhostLike(GOOGLE_REDIRECT_URI)) {
+    logger.error('CONFIG ERROR: GOOGLE_REDIRECT_URI points to localhost in deployed environment.', { GOOGLE_REDIRECT_URI });
+}
+if (isDeployed && isLocalhostLike(GITHUB_REDIRECT_URI)) {
+    logger.error('CONFIG ERROR: GITHUB_REDIRECT_URI points to localhost in deployed environment.', { GITHUB_REDIRECT_URI });
+}
+if (isDeployed && isLocalhostLike(FRONTEND_URL)) {
+    logger.error('CONFIG ERROR: FRONTEND_URL points to localhost in deployed environment.', { FRONTEND_URL });
+}
 const API_KEY_COOKIE = getApiKeyCookieName();
+
+function getDisplayNameFromGoogleUser(googleUser: any): string {
+    if (googleUser?.name && typeof googleUser.name === 'string') {
+        return googleUser.name;
+    }
+    const given = typeof googleUser?.given_name === 'string' ? googleUser.given_name : '';
+    const family = typeof googleUser?.family_name === 'string' ? googleUser.family_name : '';
+    const combined = `${given} ${family}`.trim();
+    if (combined) {
+        return combined;
+    }
+    if (typeof googleUser?.email === 'string' && googleUser.email.includes('@')) {
+        return googleUser.email.split('@')[0];
+    }
+    return 'Google User';
+}
 
 /**
  * Helper to join a team via invite token
@@ -130,6 +181,11 @@ export async function oauthRoutes(fastify: FastifyInstance) {
             });
 
             const googleUser = userRes.data;
+            if (!googleUser?.email) {
+                logger.error('Google OAuth response missing email');
+                return reply.redirect(`${FRONTEND_URL}/auth/error?message=Google account has no email`);
+            }
+            const displayName = getDisplayNameFromGoogleUser(googleUser);
             let user = await prisma.user.findUnique({ where: { email: googleUser.email } });
             let apiKey;
 
@@ -141,7 +197,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                     data: {
                         googleId: googleUser.id,
                         picture: googleUser.picture,
-                        name: googleUser.name,
+                        name: displayName,
                         apiKeyHash,
                         authProvider: 'GOOGLE'
                     }
@@ -157,7 +213,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                             data: {
                                 email: googleUser.email,
                                 googleId: googleUser.id,
-                                name: googleUser.name,
+                                name: displayName,
                                 picture: googleUser.picture,
                                 authProvider: 'GOOGLE',
                                 emailVerified: googleUser.verified_email
@@ -173,7 +229,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                         data: {
                             email: googleUser.email,
                             googleId: googleUser.id,
-                            name: googleUser.name,
+                            name: displayName,
                             picture: googleUser.picture,
                             authProvider: 'GOOGLE',
                             apiKeyHash,
@@ -248,6 +304,10 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                 const primary = emailsRes.data.find((e: any) => e.primary);
                 email = primary?.email;
             }
+            if (!email) {
+                logger.error('GitHub OAuth response missing email');
+                return reply.redirect(`${FRONTEND_URL}/auth/error?message=GitHub account has no public email`);
+            }
 
             let user = await prisma.user.findUnique({ where: { email } });
             let apiKey;
@@ -316,3 +376,4 @@ export async function oauthRoutes(fastify: FastifyInstance) {
         }
     });
 }
+

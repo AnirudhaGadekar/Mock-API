@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { fileURLToPath } from 'url';
 
 import fastifyCookie from '@fastify/cookie';
 import cors from '@fastify/cors';
@@ -413,8 +414,17 @@ async function start() {
   }
 }
 
-// Only start if this is the main module
-if (process.argv[1] && (process.argv[1].endsWith('index.ts') || process.argv[1].endsWith('index.js') || process.argv[1].includes('tsx'))) {
+// Only start when executed as the actual entrypoint module.
+function isMainModule(): boolean {
+  if (!process.argv[1]) return false;
+  try {
+    return fileURLToPath(import.meta.url) === process.argv[1];
+  } catch {
+    return false;
+  }
+}
+
+if (isMainModule()) {
   start();
 }
 

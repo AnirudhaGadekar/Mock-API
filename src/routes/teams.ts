@@ -5,6 +5,46 @@ import { logger } from '../lib/logger.js';
 import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.middleware.js';
 
 export async function teamRoutes(fastify: FastifyInstance) {
+    async function createInvite(teamId: string, userId: string, email: string, role: string) {
+        const member = await prisma.teamMember.findUnique({
+            where: { userId_teamId: { userId, teamId } }
+        });
+
+        if (!member || !['OWNER', 'ADMIN'].includes(member.role)) {
+            return { status: 403, body: { error: 'Only owners and admins can create invites' } };
+        }
+
+        if (!email || typeof email !== 'string') {
+            return { status: 400, body: { error: 'Invite email is required' } };
+        }
+
+        const inviteRole: 'ADMIN' | 'MEMBER' | 'VIEWER' =
+            typeof role === 'string' && ['ADMIN', 'MEMBER', 'VIEWER'].includes(role)
+                ? (role as 'ADMIN' | 'MEMBER' | 'VIEWER')
+                : 'MEMBER';
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+
+        const invite = await prisma.teamInvite.create({
+            data: {
+                token,
+                teamId,
+                email,
+                role: inviteRole,
+                createdById: userId,
+                expiresAt
+            }
+        });
+
+        return {
+            status: 200,
+            body: {
+                token: invite.token,
+                inviteUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join/${invite.token}`
+            }
+        };
+    }
 
     // ============================================
     // CREATE TEAM
@@ -12,11 +52,19 @@ export async function teamRoutes(fastify: FastifyInstance) {
     fastify.post('/', {
         preHandler: [authenticateApiKey]
     }, async (request: any, reply) => {
-        const { name, slug } = request.body;
+        const { name, slug } = request.body ?? {};
         const user = getAuthenticatedUser(request);
+        const normalizedName = typeof name === 'string' ? name.trim() : '';
+        const normalizedSlug = typeof slug === 'string' ? slug.trim().toLowerCase() : '';
 
-        if (!name || !slug) {
+        if (!normalizedName || !normalizedSlug) {
             return reply.code(400).send({ error: 'Name and slug are required' });
+        }
+        if (normalizedName.length < 2 || normalizedName.length > 80) {
+            return reply.code(400).send({ error: 'Team name must be 2-80 characters long' });
+        }
+        if (!/^[a-z0-9-]{3,50}$/.test(normalizedSlug)) {
+            return reply.code(400).send({ error: 'Slug must be 3-50 chars, lowercase letters, numbers, and hyphens only' });
         }
 
         try {
@@ -24,8 +72,8 @@ export async function teamRoutes(fastify: FastifyInstance) {
                 // Create the team
                 const newTeam = await tx.team.create({
                     data: {
-                        name,
-                        slug,
+                        name: normalizedName,
+                        slug: normalizedSlug,
                         ownerId: user.id
                     }
                 });
@@ -59,19 +107,21 @@ export async function teamRoutes(fastify: FastifyInstance) {
         preHandler: [authenticateApiKey]
     }, async (request: any, _reply) => {
         const user = getAuthenticatedUser(request);
-
-        const teams = await prisma.team.findMany({
-            where: {
-                members: {
-                    some: { userId: user.id }
-                }
-            },
+        const memberships = await prisma.teamMember.findMany({
+            where: { userId: user.id },
             include: {
-                _count: { select: { members: true, endpoints: true } }
+                team: {
+                    include: {
+                        _count: { select: { members: true, endpoints: true } }
+                    }
+                }
             }
         });
 
-        return teams;
+        return memberships.map((m) => ({
+            ...m.team,
+            role: m.role,
+        }));
     });
 
     // ============================================
@@ -95,11 +145,31 @@ export async function teamRoutes(fastify: FastifyInstance) {
             where: { id: teamId },
             include: {
                 members: { include: { user: { select: { id: true, email: true, name: true, picture: true } } } },
+                invites: {
+                    where: {
+                        acceptedAt: null,
+                        expiresAt: { gt: new Date() },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        email: true,
+                        role: true,
+                        createdAt: true,
+                        expiresAt: true,
+                        usedCount: true,
+                    },
+                },
                 _count: { select: { endpoints: true } }
             }
         });
-
-        return team;
+        if (!team) {
+            return reply.code(404).send({ error: 'Team not found' });
+        }
+        return {
+            ...team,
+            invitations: team.invites,
+        };
     });
 
     // ============================================
@@ -109,35 +179,60 @@ export async function teamRoutes(fastify: FastifyInstance) {
         preHandler: [authenticateApiKey]
     }, async (request: any, reply) => {
         const { teamId } = request.params;
+        const { email, role } = request.body ?? {};
+        const user = getAuthenticatedUser(request);
+        const result = await createInvite(teamId, user.id, email, role);
+        return reply.code(result.status).send(result.body);
+    });
+
+    // Backward-compatible alias used by current frontend
+    fastify.post('/:teamId/invite', {
+        preHandler: [authenticateApiKey]
+    }, async (request: any, reply) => {
+        const { teamId } = request.params;
+        const { email, role } = request.body ?? {};
+        const user = getAuthenticatedUser(request);
+        const result = await createInvite(teamId, user.id, email, role);
+        return reply.code(result.status).send(result.body);
+    });
+
+    // Update member role
+    fastify.patch('/:teamId/members/:userId', {
+        preHandler: [authenticateApiKey]
+    }, async (request: any, reply) => {
+        const { teamId, userId: targetUserId } = request.params;
+        const { role } = request.body ?? {};
         const user = getAuthenticatedUser(request);
 
-        // Check if user is OWNER or ADMIN
-        const member = await prisma.teamMember.findUnique({
+        if (!['ADMIN', 'MEMBER', 'VIEWER'].includes(role)) {
+            return reply.code(400).send({ error: 'Invalid role' });
+        }
+
+        const actorMember = await prisma.teamMember.findUnique({
             where: { userId_teamId: { userId: user.id, teamId } }
         });
 
-        if (!member || !['OWNER', 'ADMIN'].includes(member.role)) {
-            return reply.code(403).send({ error: 'Only owners and admins can create invites' });
+        if (!actorMember || !['OWNER', 'ADMIN'].includes(actorMember.role)) {
+            return reply.code(403).send({ error: 'Forbidden' });
         }
 
-        const token = crypto.randomBytes(32).toString('hex');
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
-
-        const invite = await prisma.teamInvite.create({
-            data: {
-                token,
-                teamId,
-                email: 'invited@mockurl.local', // Placeholder or add to request body
-                createdById: user.id,
-                expiresAt
-            }
+        const targetMember = await prisma.teamMember.findUnique({
+            where: { userId_teamId: { userId: targetUserId, teamId } }
         });
 
-        return {
-            token: invite.token,
-            inviteUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join/${invite.token}`
-        };
+        if (!targetMember) {
+            return reply.code(404).send({ error: 'Member not found' });
+        }
+        if (targetMember.role === 'OWNER') {
+            return reply.code(400).send({ error: 'Cannot change owner role' });
+        }
+
+        await prisma.teamMember.update({
+            where: { id: targetMember.id },
+            data: { role }
+        });
+
+        return { success: true };
     });
 
     // ============================================

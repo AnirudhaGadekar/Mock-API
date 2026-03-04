@@ -189,7 +189,13 @@ export async function authRoutes(fastify: FastifyInstance) {
         if (apiKey) {
             await invalidateUserCache(apiKey as string);
         }
-        _reply.clearCookie(API_KEY_COOKIE, { path: '/' });
+        const cookieOptions = getApiKeyCookieOptions();
+        _reply.clearCookie(API_KEY_COOKIE, {
+            path: cookieOptions.path,
+            domain: cookieOptions.domain,
+            secure: cookieOptions.secure,
+            sameSite: cookieOptions.sameSite,
+        });
         logger.info('User logged out', { userId: request.user.id });
         return { success: true };
     });

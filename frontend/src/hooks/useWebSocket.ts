@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
+import { API_BASE_URL } from "@/lib/api";
 
 export const useWebSocket = (endpointId: string | null) => {
     const ws = useRef<WebSocket | null>(null);
@@ -17,7 +18,7 @@ export const useWebSocket = (endpointId: string | null) => {
         }
 
         // Use 'wss' if 'https', else 'ws'
-        const baseUrl = (import.meta.env.VITE_API_URL || "http://localhost:3000");
+        const baseUrl = API_BASE_URL;
         const wsScheme = baseUrl.startsWith('https') ? 'wss' : 'ws';
         const wsUrl = baseUrl.replace(/^https?/, wsScheme) + `/api/ws?endpointId=${endpointId}`;
 

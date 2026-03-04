@@ -1,9 +1,9 @@
 import axios from 'axios';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { setApiKeyRef } from '../lib/api';
+import { API_BASE_URL, setApiKeyRef } from '../lib/api';
 
 // API URL from environment — must match api.ts pattern
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? `http://${window.location.hostname}:3000`;
+const API_URL = API_BASE_URL;
 axios.defaults.withCredentials = true;
 
 interface User {
@@ -26,7 +26,7 @@ interface AuthContextType {
     login: (email: string, password: string) => Promise<void>;
     signup: (email: string, password: string, name?: string) => Promise<void>;
     logout: () => Promise<void>;
-    refreshUser: () => Promise<void>;
+    refreshUser: (options?: { throwOnError?: boolean; retries?: number; retryDelayMs?: number }) => Promise<User | null>;
     switchWorkspace: (type: 'PERSONAL' | 'TEAM', teamId?: string) => Promise<void>;
     showAuthModal: (mode?: 'login' | 'signup') => void;
     hideAuthModal: () => void;
@@ -168,17 +168,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hideAuthModal();
     };
 
-    const refreshUser = async () => {
-        try {
-            const res = await axios.get(`${API_URL}/api/v1/auth/me`);
-            const userData = res.data;
-            setUser({
-                ...userData,
-                isAnonymous: userData.authProvider === 'ANONYMOUS' || userData.email?.endsWith('@mockurl.local')
-            });
-        } catch (err) {
-            console.error('Failed to refresh user', err);
+    const refreshUser = async (options?: { throwOnError?: boolean; retries?: number; retryDelayMs?: number }) => {
+        const retries = Math.max(0, options?.retries ?? 0);
+        const retryDelayMs = Math.max(100, options?.retryDelayMs ?? 350);
+
+        for (let attempt = 0; attempt <= retries; attempt += 1) {
+            try {
+                const res = await axios.get(`${API_URL}/api/v1/auth/me`);
+                const userData = res.data;
+                const normalized = {
+                    ...userData,
+                    isAnonymous: userData.authProvider === 'ANONYMOUS' || userData.email?.endsWith('@mockurl.local')
+                } as User;
+                setUser(normalized);
+                return normalized;
+            } catch (err) {
+                const isLast = attempt === retries;
+                if (isLast) {
+                    console.error('Failed to refresh user', err);
+                    if (options?.throwOnError) {
+                        throw err;
+                    }
+                    return null;
+                }
+                await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+            }
         }
+
+        return null;
     };
 
     return (

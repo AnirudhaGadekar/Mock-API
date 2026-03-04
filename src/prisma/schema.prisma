@@ -200,6 +200,7 @@ model EndpointAuditLog {
   createdAt   DateTime            @default(now())
 
   @@index([endpointId])
+  @@index([endpointId, createdAt])
   @@index([endpointSlug])
   @@index([actorUserId])
   @@index([createdAt])
@@ -248,5 +249,7 @@ model RequestLog {
   user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([endpointId])
+  @@index([endpointId, createdAt])
   @@index([createdAt])
+  @@index([userId])
 }

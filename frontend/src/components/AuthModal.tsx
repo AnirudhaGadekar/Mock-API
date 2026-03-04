@@ -1,5 +1,6 @@
 import { Github, Loader2, Mail, Shield, User, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { API_BASE_URL } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 
 type Tab = 'login' | 'signup' | 'otp';
@@ -118,7 +119,7 @@ export const AuthModal: React.FC = () => {
 
     // ── OAuth ─────────────────────────────────────────────────────────────
     const handleOAuth = (provider: 'google' | 'github') => {
-        const oauthUrl = new URL(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/v1/oauth/${provider}`);
+        const oauthUrl = new URL(`${API_BASE_URL}/api/v1/oauth/${provider}`);
         if (apiKey) oauthUrl.searchParams.append('conversionToken', apiKey);
         window.location.href = oauthUrl.toString();
     };

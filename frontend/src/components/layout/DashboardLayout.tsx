@@ -6,6 +6,8 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 import {
     Activity,
+    Bot,
+    BookOpen,
     Database,
     Globe,
     LayoutDashboard,
@@ -34,6 +36,8 @@ export function DashboardLayout() {
         if (pathname.startsWith("/requests")) return "Live Traffic";
         if (pathname.startsWith("/endpoints")) return "Endpoints";
         if (pathname.startsWith("/chaos")) return "Chaos Engineering";
+        if (pathname.startsWith("/ai")) return "AI Rule Studio";
+        if (pathname.startsWith("/api-explorer")) return "API Explorer";
         if (pathname.startsWith("/state")) return "State Store";
         if (pathname.startsWith("/tunnels")) return "Local Tunnels";
         if (pathname.startsWith("/settings")) return "Settings";
@@ -107,8 +111,14 @@ export function DashboardLayout() {
                     <NavItem to="/chaos" icon={Zap} onClick={() => setMobileMenuOpen(false)}>
                         Chaos Rules
                     </NavItem>
+                    <NavItem to="/ai" icon={Bot} onClick={() => setMobileMenuOpen(false)}>
+                        AI Studio
+                    </NavItem>
                     <NavItem to="/state" icon={Database} onClick={() => setMobileMenuOpen(false)}>
                         State Store
+                    </NavItem>
+                    <NavItem to="/api-explorer" icon={BookOpen} onClick={() => setMobileMenuOpen(false)}>
+                        API Explorer
                     </NavItem>
                     <NavItem to="/settings" icon={Settings} onClick={() => setMobileMenuOpen(false)}>
                         Settings

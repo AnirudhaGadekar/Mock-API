@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Team } from '../lib/api';
-import { fetchUserTeams } from '../lib/api';
+import { fetchCurrentWorkspace, fetchUserTeams, switchWorkspace } from '../lib/api';
 
 interface TeamState {
     teams: Team[];
@@ -11,7 +11,7 @@ interface TeamState {
 
     // Actions
     refreshTeams: () => Promise<void>;
-    selectTeam: (teamId: string | null) => void;
+    selectTeam: (teamId: string | null) => Promise<void>;
     getCurrentTeam: () => Team | undefined;
     getCurrentRole: () => string | undefined;
 }
@@ -26,8 +26,15 @@ export const useTeamStore = create<TeamState>()(
             refreshTeams: async () => {
                 set({ isLoading: true });
                 try {
-                    const teams = await fetchUserTeams();
-                    set({ teams, isLoading: false });
+                    const [teams, workspace] = await Promise.all([
+                        fetchUserTeams(),
+                        fetchCurrentWorkspace().catch(() => ({ type: 'personal' as const, teamId: null }))
+                    ]);
+                    set({
+                        teams,
+                        currentTeamId: workspace.type === 'team' ? workspace.teamId : null,
+                        isLoading: false
+                    });
 
                     // If current team is no longer valid, reset
                     const { currentTeamId } = get();
@@ -40,8 +47,16 @@ export const useTeamStore = create<TeamState>()(
                 }
             },
 
-            selectTeam: (teamId) => {
-                set({ currentTeamId: teamId });
+            selectTeam: async (teamId) => {
+                const previous = get().currentTeamId;
+                try {
+                    await switchWorkspace(teamId ? 'team' : 'personal', teamId ?? undefined);
+                    set({ currentTeamId: teamId });
+                } catch (error) {
+                    console.error('Failed to switch workspace', error);
+                    set({ currentTeamId: previous });
+                    throw error;
+                }
             },
 
             getCurrentTeam: () => {

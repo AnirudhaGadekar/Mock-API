@@ -2,11 +2,13 @@ import { trace } from '@opentelemetry/api';
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
+import { redis } from '../lib/redis.js';
 import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.middleware.js';
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
 import type { EndpointResponse } from '../types/mock.types.js';
 import {
     cacheEndpointList,
+    getEndpointRequestCountKey,
     getCachedEndpointList,
     hashQueryParams,
     invalidateEndpointCache,
@@ -126,6 +128,26 @@ function getUserAgent(request: FastifyRequest): string | null {
 
 function getRulesCount(rules: unknown): number {
   return Array.isArray(rules) ? rules.length : 0;
+}
+
+async function mergeBufferedRequestCounts<T extends { id: string; requestCount: number }>(endpoints: T[]): Promise<T[]> {
+  if (endpoints.length === 0) {
+    return endpoints;
+  }
+
+  const keys = endpoints.map((ep) => getEndpointRequestCountKey(ep.id));
+  const buffered = await redis.mget(...keys);
+
+  return endpoints.map((ep, index) => {
+    const pending = Number.parseInt(buffered[index] || '0', 10);
+    if (!Number.isFinite(pending) || pending <= 0) {
+      return ep;
+    }
+    return {
+      ...ep,
+      requestCount: (ep.requestCount ?? 0) + pending,
+    };
+  });
 }
 
 async function writeEndpointAuditLog(input: EndpointAuditLogInput): Promise<void> {
@@ -305,8 +327,9 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
         const totalCount = await prisma.endpoint.count({ where });
         const hasMore = endpoints.length > limit;
         const resultEndpoints = hasMore ? endpoints.slice(0, limit) : endpoints;
+        const endpointsWithPendingCounts = await mergeBufferedRequestCounts(resultEndpoints);
         const nextCursor = hasMore ? resultEndpoints[resultEndpoints.length - 1].id : null;
-        const formattedEndpoints = resultEndpoints.map((ep) => formatEndpointResponse(ep, request));
+        const formattedEndpoints = endpointsWithPendingCounts.map((ep) => formatEndpointResponse(ep, request));
 
         const responseData = {
           endpoints: formattedEndpoints,
@@ -572,10 +595,11 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
       });
 
       if (!endpoint) return reply.status(404).send({ error: 'Endpoint not found' });
+      const [endpointWithPendingCount] = await mergeBufferedRequestCounts([endpoint]);
 
       return {
         success: true,
-        endpoint: formatEndpointResponse(endpoint, request),
+        endpoint: formatEndpointResponse(endpointWithPendingCount, request),
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -638,7 +662,7 @@ export const endpointsRoutes: FastifyPluginAsync = async (fastify, _opts) => {
       await writeEndpointAuditLog({
         action: 'DELETED',
         actorUserId: user.id,
-        endpointId: endpoint?.id ?? id,
+        endpointId: null,
         endpointSlug: endpoint?.slug ?? null,
         endpointName: endpoint?.name ?? null,
         workspaceType: user.currentWorkspaceType === 'TEAM' ? 'TEAM' : 'PERSONAL',

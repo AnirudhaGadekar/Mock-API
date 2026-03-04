@@ -13,9 +13,18 @@ import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.mid
 export const chaosRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.addHook('preHandler', authenticateApiKey);
 
-    async function assertEndpointOwned(endpointId: string, userId: string) {
+    async function assertEndpointAccessible(endpointId: string, user: any) {
+        const where =
+            user.currentWorkspaceType === 'TEAM'
+                ? (user.currentTeamId ? { id: endpointId, teamId: user.currentTeamId } : null)
+                : { id: endpointId, userId: user.id };
+
+        if (!where) {
+            return false;
+        }
+
         const endpoint = await prisma.endpoint.findFirst({
-            where: { id: endpointId, userId },
+            where,
             select: { id: true },
         });
         return !!endpoint;
@@ -24,7 +33,7 @@ export const chaosRoutes: FastifyPluginAsync = async (fastify) => {
     // Get chaos config
     fastify.get<{ Params: { endpointId: string } }>('/:endpointId', async (request, reply) => {
         const user = getAuthenticatedUser(request);
-        const owned = await assertEndpointOwned(request.params.endpointId, user.id);
+        const owned = await assertEndpointAccessible(request.params.endpointId, user);
         if (!owned) {
             return reply.status(404).send({
                 success: false,
@@ -48,7 +57,7 @@ export const chaosRoutes: FastifyPluginAsync = async (fastify) => {
         const body = request.body ?? {};
 
         const user = getAuthenticatedUser(request);
-        const owned = await assertEndpointOwned(request.params.endpointId, user.id);
+        const owned = await assertEndpointAccessible(request.params.endpointId, user);
         if (!owned) {
             return reply.status(404).send({
                 success: false,
@@ -134,7 +143,7 @@ export const chaosRoutes: FastifyPluginAsync = async (fastify) => {
     // Clear chaos config
     fastify.delete<{ Params: { endpointId: string } }>('/:endpointId', async (request, reply) => {
         const user = getAuthenticatedUser(request);
-        const owned = await assertEndpointOwned(request.params.endpointId, user.id);
+        const owned = await assertEndpointAccessible(request.params.endpointId, user);
         if (!owned) {
             return reply.status(404).send({
                 success: false,

@@ -4,6 +4,8 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import AuthCallback from "@/pages/AuthCallback";
 import AuthError from "@/pages/AuthError";
+import AIStudio from "@/pages/AIStudio";
+import ApiExplorer from "@/pages/ApiExplorer";
 import Chaos from "@/pages/Chaos";
 import Dashboard from "@/pages/Dashboard";
 import EndpointConfig from "@/pages/EndpointConfig";
@@ -42,6 +44,8 @@ export default function App() {
                         <Route path="endpoints" element={<Endpoints />} />
                         <Route path="requests" element={<Requests />} />
                         <Route path="chaos" element={<Chaos />} />
+                        <Route path="ai" element={<AIStudio />} />
+                        <Route path="api-explorer" element={<ApiExplorer />} />
                         <Route path="state" element={<StateStore />} />
                         <Route path="tunnels" element={<TunnelDashboard />} />
                         <Route path="team/settings" element={<TeamSettings />} />

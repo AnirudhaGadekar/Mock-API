@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { API_BASE_URL } from "@/lib/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Activity, ArrowRight, Ban, Clock, Ghost, Pause, Play } from "lucide-react";
@@ -47,7 +48,7 @@ export function InspectorPanel({ endpointId }: InspectorPanelProps) {
     }, [endpointId]);
 
     const connect = () => {
-        const baseUrl = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
+        const baseUrl = API_BASE_URL;
         const wsUrl = baseUrl.replace(/^http/, 'ws') + `/api/ws?endpointId=${endpointId}`;
 
         const ws = new WebSocket(wsUrl);

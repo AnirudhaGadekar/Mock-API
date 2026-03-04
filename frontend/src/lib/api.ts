@@ -5,8 +5,8 @@
  */
 import axios from 'axios';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? `http://${window.location.hostname}:3000`;
-export const api = axios.create({ baseURL: API_BASE, withCredentials: true });
+export const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? window.location.origin;
+export const api = axios.create({ baseURL: API_BASE_URL, withCredentials: true });
 
 // Module-level ref so the interceptor always sees the latest key without re-registering.
 let _apiKey = '';
@@ -35,7 +35,7 @@ api.interceptors.request.use((config) => {
  * Returns the API key (existing or newly created).
  */
 export async function initSession(): Promise<string> {
-  const res = await axios.post(`${API_BASE}/api/v1/session`, undefined, { withCredentials: true });
+  const res = await axios.post(`${API_BASE_URL}/api/v1/session`, undefined, { withCredentials: true });
 
   if (res.data.success && res.data.session?.apiKey) {
     const newKey = res.data.session.apiKey as string;
@@ -96,6 +96,20 @@ export interface HistoryResponse {
   timestamp: string;
 }
 
+export interface LiveSummaryResponse {
+  success: boolean;
+  summary: {
+    isActive: boolean;
+    requestCount1m: number;
+    requestCount5m: number;
+    errorCount5m: number;
+    errorRate5m: number;
+    lastSeenAt: string | null;
+    websocketSubscribers: number;
+  };
+  timestamp: string;
+}
+
 export interface ChaosConfig {
   enabled: boolean;
   delay?: { min: number; max: number };
@@ -144,6 +158,11 @@ export async function fetchHistory(
     params: { limit: 50, ...params },
   });
   return res.data;
+}
+
+export async function fetchLiveSummary(endpointId: string): Promise<LiveSummaryResponse['summary']> {
+  const res = await api.get<LiveSummaryResponse>(`/api/v1/history/${endpointId}/live-summary`);
+  return res.data.summary;
 }
 
 
@@ -235,7 +254,7 @@ export async function fetchTeam(teamId: string): Promise<Team> {
 }
 
 export async function inviteMember(teamId: string, email: string, role: string): Promise<any> {
-  const res = await api.post(`/api/v1/teams/${teamId}/invite`, { email, role });
+  const res = await api.post(`/api/v1/teams/${teamId}/invites`, { email, role });
   return res.data;
 }
 
@@ -251,4 +270,13 @@ export async function shareEndpoint(endpointId: string, teamId: string): Promise
   // We need to update the endpoint with teamId
   // This might require a new endpoint or updating the existing updateEndpoint to support teamId
   await api.patch(`/api/v1/endpoints/${endpointId}`, { teamId, isShared: true });
+}
+
+export async function switchWorkspace(type: 'personal' | 'team', teamId?: string): Promise<void> {
+  await api.post('/api/v1/workspace/switch', { type, teamId });
+}
+
+export async function fetchCurrentWorkspace(): Promise<{ type: 'personal' | 'team'; teamId: string | null }> {
+  const res = await api.get<{ type: 'personal' | 'team'; teamId: string | null }>('/api/v1/workspace/current');
+  return res.data;
 }

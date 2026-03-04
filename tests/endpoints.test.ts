@@ -10,6 +10,10 @@ let app: FastifyInstance;
 let testApiKey: string;
 let testUserId: string;
 
+function uniqueName(prefix: string): string {
+  return `${prefix}-${crypto.randomBytes(3).toString('hex')}`;
+}
+
 /**
  * Setup test environment
  */
@@ -136,8 +140,9 @@ describe('Endpoints API - Authentication', () => {
 
 describe('Endpoints API - Create Endpoint', () => {
   test('should create endpoint with valid data', async () => {
+    const name = uniqueName('test-endpoint');
     const response = await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
-      name: 'test-endpoint-123',
+      name,
       description: 'Test endpoint for unit tests',
     });
 
@@ -146,9 +151,9 @@ describe('Endpoints API - Create Endpoint', () => {
 
     expect(body.success).toBe(true);
     expect(body.endpoint).toBeDefined();
-    expect(body.endpoint.name).toBe('test-endpoint-123');
-    expect(body.endpoint.subdomain).toBe('test-endpoint-123');
-    expect(body.endpoint.dashboardUrl).toBe('/console/test-endpoint-123');
+    expect(body.endpoint.name).toBe(name);
+    expect(body.endpoint.subdomain).toBe(name);
+    expect(body.endpoint.dashboardUrl).toBe(`/console/${name}`);
     expect(body.endpoint.reqCount).toBe(0);
     expect(body.endpoint.url).toBeTruthy(); // URL format depends on environment config
 
@@ -174,14 +179,15 @@ describe('Endpoints API - Create Endpoint', () => {
   });
 
   test('should reject duplicate endpoint name for same user', async () => {
+    const name = uniqueName('duplicate-test');
     // Create first endpoint
     await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
-      name: 'duplicate-test',
+      name,
     });
 
     // Try to create duplicate
     const response = await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
-      name: 'duplicate-test',
+      name,
     });
 
     expect(response.statusCode).toBe(409);
@@ -194,6 +200,7 @@ describe('Endpoints API - Create Endpoint', () => {
   });
 
   test('should accept custom rules', async () => {
+    const name = uniqueName('custom-rules-test');
     const customRules = [
       {
         path: '/custom',
@@ -206,7 +213,7 @@ describe('Endpoints API - Create Endpoint', () => {
     ];
 
     const response = await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
-      name: 'custom-rules-test',
+      name,
       rules: customRules,
     });
 
@@ -217,12 +224,13 @@ describe('Endpoints API - Create Endpoint', () => {
   });
 
   test('should invalidate endpoint list cache after creation', async () => {
+    const name = uniqueName('cache-test');
     // Populate cache
     await makeAuthRequest('/api/v1/endpoints');
 
     // Create endpoint
     await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
-      name: 'cache-test',
+      name,
     });
 
     // Check that cache was cleared
@@ -234,10 +242,11 @@ describe('Endpoints API - Create Endpoint', () => {
 
 describe('Endpoints API - List Endpoints', () => {
   test('should list endpoints with pagination', async () => {
+    const prefix = uniqueName('endpoint');
     // Create 3 test endpoints
-    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'endpoint-01' });
-    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'endpoint-02' });
-    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'endpoint-03' });
+    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: `${prefix}-01` });
+    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: `${prefix}-02` });
+    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: `${prefix}-03` });
 
     const response = await makeAuthRequest('/api/v1/endpoints?limit=2');
     expect(response.statusCode).toBe(200);
@@ -250,10 +259,11 @@ describe('Endpoints API - List Endpoints', () => {
   });
 
   test('should handle cursor-based pagination', async () => {
+    const prefix = uniqueName('page-test');
     // Create 3 endpoints
-    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'page-test-01' });
-    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'page-test-02' });
-    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'page-test-03' });
+    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: `${prefix}-01` });
+    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: `${prefix}-02` });
+    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: `${prefix}-03` });
 
     const page1 = await makeAuthRequest('/api/v1/endpoints?limit=2');
     const page1Body = page1.json();
@@ -266,7 +276,7 @@ describe('Endpoints API - List Endpoints', () => {
   });
 
   test('should cache list results', async () => {
-    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'cache-list-test' });
+    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: uniqueName('cache-list-test') });
 
     const response1 = await makeAuthRequest('/api/v1/endpoints?limit=20');
     expect(response1.statusCode).toBe(200);
@@ -282,21 +292,31 @@ describe('Endpoints API - List Endpoints', () => {
   });
 
   test('should support search filter', async () => {
-    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'searchable-endpoint' });
-    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'other-endpoint' });
+    const unique = crypto.randomBytes(3).toString('hex');
+    const searchableName = `searchable-${unique}`;
+    const otherName = `other-${unique}`;
 
-    const response = await makeAuthRequest('/api/v1/endpoints?search=searchable');
+    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: searchableName });
+    await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: otherName });
+
+    const response = await makeAuthRequest(`/api/v1/endpoints?search=${encodeURIComponent(unique)}`);
     const body = response.json();
 
-    expect(body.endpoints).toHaveLength(1);
-    expect(body.endpoints[0].name).toBe('searchable-endpoint');
+    expect(body.endpoints).toHaveLength(2);
+    expect(body.endpoints.map((ep: { name: string }) => ep.name).sort()).toEqual([otherName, searchableName].sort());
+
+    const filteredResponse = await makeAuthRequest('/api/v1/endpoints?search=searchable');
+    const filteredBody = filteredResponse.json();
+    expect(filteredBody.endpoints.some((ep: { name: string }) => ep.name === searchableName)).toBe(true);
+    expect(filteredBody.endpoints.some((ep: { name: string }) => ep.name === otherName)).toBe(false);
   });
 });
 
 describe('Endpoints API - Get Single Endpoint', () => {
   test('should get endpoint by ID', async () => {
+    const name = uniqueName('get-test-endpoint');
     const createResponse = await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
-      name: 'get-test-endpoint',
+      name,
     });
     const endpointId = createResponse.json().endpoint.id;
 
@@ -318,8 +338,9 @@ describe('Endpoints API - Get Single Endpoint', () => {
   });
 
   test('should cache endpoint details', async () => {
+    const name = uniqueName('cache-detail-test');
     const createResponse = await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
-      name: 'cache-detail-test',
+      name,
     });
     const endpointId = createResponse.json().endpoint.id;
 
@@ -336,8 +357,9 @@ describe('Endpoints API - Get Single Endpoint', () => {
 
 describe('Endpoints API - Delete Endpoint', () => {
   test('should delete endpoint', async () => {
+    const name = uniqueName('delete-test');
     const createResponse = await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
-      name: 'delete-test',
+      name,
     });
     const endpointId = createResponse.json().endpoint.id;
 
@@ -357,8 +379,9 @@ describe('Endpoints API - Delete Endpoint', () => {
   });
 
   test('should invalidate cache after deletion', async () => {
+    const name = uniqueName('delete-cache-test');
     const createResponse = await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
-      name: 'delete-cache-test',
+      name,
     });
     const endpointId = createResponse.json().endpoint.id;
 

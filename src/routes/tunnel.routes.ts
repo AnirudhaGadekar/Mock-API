@@ -126,6 +126,22 @@ export const tunnelRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
+  // Tunnel health snapshot for current user
+  fastify.get('/health', async (request, reply) => {
+    const user = getAuthenticatedUser(request);
+    const wsSessions = Array.from(activeTunnels.values()).filter((session) => session.userId === user.id);
+
+    return reply.send({
+      success: true,
+      health: {
+        websocketConnected: wsSessions.length > 0,
+        activeWebsocketTunnels: wsSessions.length,
+        tunnelIds: wsSessions.map((s) => s.tunnelId),
+      },
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   // Delete tunnel
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const user = getAuthenticatedUser(request);

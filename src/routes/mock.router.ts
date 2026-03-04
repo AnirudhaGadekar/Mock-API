@@ -535,6 +535,13 @@ function generateDefaultResponse(endpoint: { id: string; name: string; rules: un
   };
 }
 
+function applyChaosResponseHeaders(reply: FastifyReply, chaosApplied: string[], delayedMs?: number): void {
+  reply.header('X-Mock-Chaos-Applied', chaosApplied.length > 0 ? chaosApplied.join(',') : 'none');
+  if (delayedMs !== undefined) {
+    reply.header('X-Mock-Chaos-Delay-Ms', String(delayedMs));
+  }
+}
+
 /**
  * Production mock router plugin
  * Handles all requests to mock endpoints (subdomain routing)
@@ -682,6 +689,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
               // Chaos engine already sent a response
               return;
             }
+            applyChaosResponseHeaders(reply, chaos.applied, chaos.delayed);
 
             const res = await applyInterpolation(rule.response, request, params);
 
@@ -745,7 +753,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
                 responseStatus: status,
                 responseBody: payload,
                 latencyMs: latency,
-                chaosApplied: [],
+                chaosApplied: chaos.applied,
               });
             } catch {
               // WebSocket broadcast should be best-effort only
@@ -759,6 +767,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
           if (chaos.rateLimited || chaos.timedOut || chaos.errorInjected) {
             return;
           }
+          applyChaosResponseHeaders(reply, chaos.applied, chaos.delayed);
 
           // Proxy / Fallback Logic
           const settings = endpoint.settings as EndpointSettings | undefined;
@@ -845,7 +854,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
                     responseStatus: lastStatus,
                     responseBody: lastBody,
                     latencyMs: latency,
-                    chaosApplied: ['proxy'],
+                    chaosApplied: chaos.applied.length > 0 ? [...chaos.applied, 'proxy'] : ['proxy'],
                   });
                 } catch (err) {
                   logger.debug('Broadcast failed', { err });
@@ -933,7 +942,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
               responseStatus: 200,
               responseBody: defaultResponse,
               latencyMs: latency,
-              chaosApplied: [],
+              chaosApplied: chaos.applied,
             });
           } catch (broadcastErr) {
             logger.debug('WebSocket broadcast failed for default response', { err: broadcastErr, endpointId: endpoint.id });

@@ -11,14 +11,14 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     fastify.post('/switch', {
         preHandler: [authenticateApiKey]
     }, async (request: any, reply) => {
-        const { type, teamId } = request.body; // type: 'personal' | 'team'
+        const { type, teamId } = request.body ?? {}; // type: 'personal' | 'team'
         const userId = request.user.id;
 
         if (!['personal', 'team'].includes(type)) {
             return reply.code(400).send({ error: 'Invalid workspace type' });
         }
 
-        if (type === 'team' && !teamId) {
+        if (type === 'team' && (!teamId || typeof teamId !== 'string')) {
             return reply.code(400).send({ error: 'Team ID required for team workspace' });
         }
 

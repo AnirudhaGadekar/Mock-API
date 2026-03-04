@@ -18,6 +18,24 @@ interface ResponseMessage {
     body: string; // Base64
 }
 
+function getPublicTunnelBaseUrl(req: any): string {
+    const forwardedProtoHeader = req.headers['x-forwarded-proto'];
+    const forwardedHostHeader = req.headers['x-forwarded-host'];
+    const forwardedProto = Array.isArray(forwardedProtoHeader) ? forwardedProtoHeader[0] : forwardedProtoHeader;
+    const forwardedHost = Array.isArray(forwardedHostHeader) ? forwardedHostHeader[0] : forwardedHostHeader;
+
+    const proto = (forwardedProto || 'https').toString().split(',')[0].trim();
+    const host = (forwardedHost || req.hostname).toString().split(',')[0].trim();
+
+    if (host) {
+        return `${proto}://${host}`;
+    }
+    if (process.env.RENDER_EXTERNAL_URL) {
+        return process.env.RENDER_EXTERNAL_URL;
+    }
+    return 'http://localhost:3000';
+}
+
 const tunnelWsRoute: FastifyPluginAsync = async (fastify) => {
     fastify.get('/tunnel-ws', { websocket: true }, (connection: any /* SocketStream */, req: any) => {
         const socket = connection.socket;
@@ -55,10 +73,11 @@ const tunnelWsRoute: FastifyPluginAsync = async (fastify) => {
                     registerTunnel(tunnelId, socket as any, user.id);
 
                     logger.info(`Tunnel registered: ${tunnelId} for user ${user.id}`);
+                    const publicBaseUrl = getPublicTunnelBaseUrl(req);
                     socket.send(JSON.stringify({
                         type: 'CONNECTED',
                         tunnelId,
-                        publicUrl: `https://${req.hostname}/tunnel/${tunnelId}`
+                        publicUrl: `${publicBaseUrl}/tunnel/${tunnelId}`
                     }));
                 }
                 else if (data.type === 'RESPONSE') {

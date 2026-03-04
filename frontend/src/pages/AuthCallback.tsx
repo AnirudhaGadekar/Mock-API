@@ -15,7 +15,10 @@ export default function AuthCallback() {
     useEffect(() => {
         const finish = async () => {
             try {
-                await refreshUser();
+                const user = await refreshUser({ throwOnError: true, retries: 5, retryDelayMs: 400 });
+                if (!user || user.isAnonymous) {
+                    throw new Error('Session cookie not established after OAuth callback');
+                }
                 navigate('/', { replace: true });
             } catch (err) {
                 console.error('OAuth callback error', err);

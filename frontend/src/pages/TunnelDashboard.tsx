@@ -21,6 +21,7 @@ export default function TunnelDashboard() {
     const [tunnels, setTunnels] = useState<Tunnel[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [tunnelHealth, setTunnelHealth] = useState<{ websocketConnected: boolean; activeWebsocketTunnels: number } | null>(null);
 
     const fetchTunnels = async () => {
         setLoading(true);
@@ -28,6 +29,10 @@ export default function TunnelDashboard() {
             const res = await api.get('/api/v1/tunnel');
             if (res.data.success) {
                 setTunnels(res.data.tunnels);
+                const healthRes = await api.get('/api/v1/tunnel/health');
+                if (healthRes.data?.success) {
+                    setTunnelHealth(healthRes.data.health);
+                }
             } else {
                 setError(res.data.error?.message || 'Failed to fetch tunnels');
             }
@@ -60,6 +65,14 @@ export default function TunnelDashboard() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Local Tunnels</h1>
                     <p className="text-muted-foreground mt-2">Expose your localhost services to the internet securely.</p>
+                    <div className="mt-2 flex items-center gap-2 text-xs">
+                        <Badge variant={tunnelHealth?.websocketConnected ? "default" : "secondary"}>
+                            {tunnelHealth?.websocketConnected ? "CLI Tunnel Connected" : "CLI Tunnel Disconnected"}
+                        </Badge>
+                        <span className="text-muted-foreground">
+                            Active WS tunnels: {tunnelHealth?.activeWebsocketTunnels ?? 0}
+                        </span>
+                    </div>
                 </div>
                 <Button onClick={fetchTunnels} variant="outline" size="sm">
                     <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />

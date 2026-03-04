@@ -57,6 +57,19 @@ function sanitizeBodyString(bodyStr: string): string {
   }
 }
 
+function toJsonValue(bodyStr: string | null): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  if (!bodyStr) return Prisma.JsonNull;
+  const trimmed = bodyStr.trim();
+  if (!trimmed) return Prisma.JsonNull;
+
+  try {
+    return JSON.parse(trimmed) as Prisma.InputJsonValue;
+  } catch {
+    // Persist plain text bodies as JSON string values instead of dropping the log.
+    return bodyStr as unknown as Prisma.InputJsonValue;
+  }
+}
+
 export function captureRequestLog(
   endpointId: string,
   request: FastifyRequest,
@@ -95,11 +108,12 @@ export function captureRequestLog(
         path: request.url.split('?')[0] || request.url,
         queryParams: queryJson,
         headers: headersJson,
-        body: bodyStr ? (JSON.parse(bodyStr) as Prisma.InputJsonValue) : Prisma.JsonNull,
+        body: toJsonValue(bodyStr),
         ip: request.ip ?? null,
         userAgent: request.headers['user-agent'] ?? null,
         responseStatus,
         durationMs: latencyMs,
+        userId: (request as FastifyRequest & { user?: { id?: string } }).user?.id ?? null,
       },
     })
     .then((log) => {
@@ -128,6 +142,11 @@ export function captureRequestLog(
       });
     })
     .catch((err) => {
+      const code = (err as { code?: string }).code;
+      if (code === 'P2003') {
+        logger.debug('RequestLog skipped because endpoint was deleted before async write', { endpointId });
+        return;
+      }
       logger.error('RequestLog insert failed', { err, endpointId });
     });
 }
@@ -141,28 +160,33 @@ export function requestLoggerPostHook(
   payload: unknown,
   done: (err?: Error) => void
 ): void {
-  const endpoint = request.endpoint;
-  const start = request._requestLogStart ?? Date.now();
-  if (!endpoint?.id) {
-    done();
-    return;
-  }
-
-  const responseStatus = reply.statusCode;
-  const responseHeaders: Record<string, string | number> = {};
-  for (const [k, v] of Object.entries(reply.getHeaders())) {
-    if (v !== undefined) responseHeaders[k] = String(v);
-  }
-  let responseBody = '';
-  if (payload !== undefined && payload !== null) {
-    try {
-      responseBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
-    } catch {
-      responseBody = '[unserializable]';
+  try {
+    const endpoint = request.endpoint;
+    const start = request._requestLogStart ?? Date.now();
+    if (!endpoint?.id) {
+      done();
+      return;
     }
-  }
 
-  const latencyMs = Math.round(Date.now() - start);
-  captureRequestLog(endpoint.id, request, responseStatus, responseHeaders, responseBody, latencyMs);
-  done();
+    const responseStatus = reply.statusCode;
+    const responseHeaders: Record<string, string | number> = {};
+    for (const [k, v] of Object.entries(reply.getHeaders())) {
+      if (v !== undefined) responseHeaders[k] = String(v);
+    }
+    let responseBody = '';
+    if (payload !== undefined && payload !== null) {
+      try {
+        responseBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      } catch {
+        responseBody = '[unserializable]';
+      }
+    }
+
+    const latencyMs = Math.round(Date.now() - start);
+    captureRequestLog(endpoint.id, request, responseStatus, responseHeaders, responseBody, latencyMs);
+    done();
+  } catch (err) {
+    logger.error('Request log post-hook failed', { err });
+    done();
+  }
 }

@@ -51,11 +51,19 @@ export function getApiKeyCookieName(): string {
 }
 
 export function getApiKeyCookieOptions() {
+  const isProductionLike =
+    process.env.NODE_ENV === 'production' ||
+    process.env.RENDER === 'true' ||
+    Boolean(process.env.RENDER_EXTERNAL_URL);
+  const cookieDomain = process.env.API_KEY_COOKIE_DOMAIN?.trim();
+  const sameSite: 'none' | 'lax' = isProductionLike ? 'none' : 'lax';
+  
   return {
     httpOnly: true,
-    sameSite: 'none' as const,
-    secure: process.env.NODE_ENV === 'production',
+    sameSite,
+    secure: isProductionLike,
     path: '/',
+    domain: isProductionLike && cookieDomain ? cookieDomain : undefined,
     maxAge: resolveCookieMaxAgeSeconds(),
   };
 }
