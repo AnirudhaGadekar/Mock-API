@@ -6,14 +6,17 @@ import { useAuth } from '../contexts/AuthContext';
 type Tab = 'login' | 'signup' | 'otp';
 
 export const AuthModal: React.FC = () => {
-    const { authModalState, hideAuthModal, login, signup, apiKey, sendOtp, verifyOtp } = useAuth();
+    const { authModalState, hideAuthModal, login, signup, resendVerificationEmail, apiKey, sendOtp, verifyOtp } = useAuth();
     const { open, mode: initialMode } = authModalState;
 
     const [tab, setTab] = useState<Tab>(initialMode === 'signup' ? 'signup' : 'login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [name, setName] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [username, setUsername] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
     // OTP state
@@ -28,9 +31,12 @@ export const AuthModal: React.FC = () => {
         if (open) {
             setTab(initialMode === 'signup' ? 'signup' : 'login');
             setError(null);
+            setNotice(null);
             setEmail('');
             setPassword('');
-            setName('');
+            setFirstName('');
+            setLastName('');
+            setUsername('');
             setOtpStep('email');
             setOtpCode('');
             setOtpEmail('');
@@ -58,12 +64,24 @@ export const AuthModal: React.FC = () => {
     const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
+        setNotice(null);
         setLoading(true);
         try {
             if (tab === 'login') {
                 await login(email, password);
             } else {
-                await signup(email, password, name);
+                const result = await signup({
+                    firstName,
+                    lastName,
+                    username,
+                    email,
+                    password,
+                });
+                if (result.requiresEmailVerification) {
+                    setNotice(result.message);
+                } else {
+                    hideAuthModal();
+                }
             }
         } catch (err: any) {
             setError(err.response?.data?.error || 'Authentication failed');
@@ -298,16 +316,39 @@ export const AuthModal: React.FC = () => {
 
                             <form onSubmit={handleEmailPasswordSubmit} className="space-y-4">
                                 {tab === 'signup' && (
-                                    <div className="relative">
-                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                                        <input
-                                            type="text"
-                                            placeholder="Full Name"
-                                            required
-                                            value={name}
-                                            onChange={(e) => setName(e.target.value)}
-                                            className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-                                        />
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <div className="relative">
+                                            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                            <input
+                                                type="text"
+                                                placeholder="First Name"
+                                                required
+                                                value={firstName}
+                                                onChange={(e) => setFirstName(e.target.value)}
+                                                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                            <input
+                                                type="text"
+                                                placeholder="Last Name"
+                                                required
+                                                value={lastName}
+                                                onChange={(e) => setLastName(e.target.value)}
+                                                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder="Username"
+                                                required
+                                                value={username}
+                                                onChange={(e) => setUsername(e.target.value)}
+                                                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 px-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                                            />
+                                        </div>
                                     </div>
                                 )}
 
@@ -337,6 +378,18 @@ export const AuthModal: React.FC = () => {
                                 {error && (
                                     <div className="p-3 bg-red-500/10 border border-red-500/50 text-red-400 text-sm rounded-lg">
                                         {error}
+                                    </div>
+                                )}
+                                {notice && (
+                                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/50 text-emerald-300 text-sm rounded-lg">
+                                        {notice}
+                                        <button
+                                            type="button"
+                                            className="ml-2 underline text-emerald-200"
+                                            onClick={() => resendVerificationEmail(email)}
+                                        >
+                                            Resend email
+                                        </button>
                                     </div>
                                 )}
 

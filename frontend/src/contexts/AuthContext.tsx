@@ -9,6 +9,9 @@ axios.defaults.withCredentials = true;
 interface User {
     id: string;
     email: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
     name?: string;
     picture?: string;
     isAnonymous: boolean;
@@ -24,7 +27,20 @@ interface AuthContextType {
     apiKey: string | null;
     isAnonymous: boolean;
     login: (email: string, password: string) => Promise<void>;
-    signup: (email: string, password: string, name?: string) => Promise<void>;
+    signup: (payload: {
+        firstName: string;
+        lastName: string;
+        username: string;
+        email: string;
+        password: string;
+    }) => Promise<{
+        success: boolean;
+        message: string;
+        requiresEmailVerification: boolean;
+        user: User;
+    }>;
+    resendVerificationEmail: (email: string) => Promise<void>;
+    verifyEmailToken: (token: string) => Promise<void>;
     logout: () => Promise<void>;
     refreshUser: (options?: { throwOnError?: boolean; retries?: number; retryDelayMs?: number }) => Promise<User | null>;
     switchWorkspace: (type: 'PERSONAL' | 'TEAM', teamId?: string) => Promise<void>;
@@ -131,17 +147,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hideAuthModal();
     };
 
-    const signup = async (email: string, password: string, name?: string) => {
+    const signup = async (payload: {
+        firstName: string;
+        lastName: string;
+        username: string;
+        email: string;
+        password: string;
+    }) => {
         const res = await axios.post(`${API_URL}/api/v1/auth/signup`, {
-            email,
-            password,
-            name,
+            ...payload,
             conversionToken: isAnonymous ? apiKey : undefined
         });
-        const { apiKey: newKey, user: signedUpUser } = res.data;
-        syncApiKey(newKey);
-        setUser({ ...signedUpUser, isAnonymous: false });
-        hideAuthModal();
+        return {
+            success: Boolean(res.data?.success),
+            message: res.data?.message || 'Account created. Please verify your email.',
+            requiresEmailVerification: Boolean(res.data?.requiresEmailVerification),
+            user: {
+                ...res.data.user,
+                isAnonymous: false,
+                currentWorkspaceType: 'PERSONAL',
+            } as User,
+        };
+    };
+
+    const resendVerificationEmail = async (email: string) => {
+        await axios.post(`${API_URL}/api/v1/auth/resend-verification`, { email });
+    };
+
+    const verifyEmailToken = async (token: string) => {
+        await axios.post(`${API_URL}/api/v1/auth/verify-email`, { token });
     };
 
     const logout = async () => {
@@ -206,6 +240,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isAnonymous,
             login,
             signup,
+            resendVerificationEmail,
+            verifyEmailToken,
             logout,
             refreshUser,
             switchWorkspace,

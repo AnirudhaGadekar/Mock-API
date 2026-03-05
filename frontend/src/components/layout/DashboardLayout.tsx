@@ -22,12 +22,13 @@ import {
     Zap
 } from "lucide-react";
 import { useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 export function DashboardLayout() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const location = useLocation();
-    const { user, isAnonymous, showAuthModal, logout, loading } = useAuth();
+    const { user, isAnonymous, logout, loading } = useAuth();
+    const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
 
     // Determine page title based on path
@@ -150,7 +151,7 @@ export function DashboardLayout() {
                                 variant="default"
                                 size="sm"
                                 className="w-full gap-2"
-                                onClick={() => showAuthModal('login')}
+                                onClick={() => navigate('/login')}
                             >
                                 <LogIn size={14} />
                                 Sign In / Sign Up
@@ -212,7 +213,7 @@ export function DashboardLayout() {
                     <div className="ml-auto flex items-center gap-2">
                         {isAnonymous && (
                             <button
-                                onClick={() => showAuthModal('signup')}
+                                onClick={() => navigate('/signup')}
                                 className="hidden md:flex items-center gap-2 text-xs text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-full border border-indigo-500/30 transition-colors cursor-pointer"
                             >
                                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />

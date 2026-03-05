@@ -111,6 +111,12 @@ function validateEnvironment() {
     if (!jwtSecretStrong) {
       throw new Error('❌ Production requires JWT_SECRET with at least 32 chars and strong complexity');
     }
+    if (!process.env.FRONTEND_URL?.trim()) {
+      throw new Error('❌ Production requires FRONTEND_URL for auth callback and verification links');
+    }
+    if (isLocalhostLikeHost(process.env.FRONTEND_URL)) {
+      throw new Error(`❌ Production FRONTEND_URL cannot be localhost: ${process.env.FRONTEND_URL}`);
+    }
     if (!process.env.BASE_MOCK_DOMAIN) {
       logger.warn('⚠️  Production: BASE_MOCK_DOMAIN not set, using default');
     }

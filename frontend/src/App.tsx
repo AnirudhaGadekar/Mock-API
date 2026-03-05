@@ -10,11 +10,14 @@ import Chaos from "@/pages/Chaos";
 import Dashboard from "@/pages/Dashboard";
 import EndpointConfig from "@/pages/EndpointConfig";
 import Endpoints from "@/pages/Endpoints";
+import Login from "@/pages/Login";
 import Requests from "@/pages/Requests";
 import Settings from "@/pages/Settings";
+import Signup from "@/pages/Signup";
 import StateStore from "@/pages/StateStore";
 import TeamSettings from "@/pages/TeamSettings";
 import TunnelDashboard from "@/pages/TunnelDashboard";
+import VerifyEmail from "@/pages/VerifyEmail";
 import { Toaster } from "react-hot-toast";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
@@ -38,6 +41,9 @@ export default function App() {
                     {/* OAuth callback — no sidebar/layout */}
                     <Route path="/auth/callback" element={<AuthCallback />} />
                     <Route path="/auth/error" element={<AuthError />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
+                    <Route path="/verify-email" element={<VerifyEmail />} />
 
                     <Route path="/" element={<DashboardLayout />}>
                         <Route index element={<Dashboard />} />

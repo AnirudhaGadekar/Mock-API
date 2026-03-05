@@ -9,6 +9,16 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_ADDRESS = process.env.RESEND_FROM || 'onboarding@resend.dev';
 
+function isLocalhostLike(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.localhost');
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Send a 6-digit OTP to the given email address.
  */
@@ -92,4 +102,87 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
   }
 
   logger.info('OTP email sent via Resend', { to });
+}
+
+export async function sendVerificationEmail(to: string, verificationToken: string): Promise<void> {
+  const configuredFrontendUrl = process.env.FRONTEND_URL?.trim();
+  const configuredBaseUrl = process.env.BASE_ENDPOINT_URL?.trim();
+  const isProd = process.env.NODE_ENV === 'production';
+  const frontendUrl = (configuredFrontendUrl || configuredBaseUrl || 'http://localhost:5173').replace(/\/+$/, '');
+
+  if (isProd) {
+    if (!configuredFrontendUrl) {
+      throw new Error('FRONTEND_URL must be set in production for verification emails');
+    }
+    if (isLocalhostLike(configuredFrontendUrl)) {
+      throw new Error(`Invalid FRONTEND_URL in production: ${configuredFrontendUrl}`);
+    }
+  }
+
+  const verifyUrl = `${frontendUrl}/verify-email?token=${encodeURIComponent(verificationToken)}`;
+
+  const isDev = process.env.NODE_ENV !== 'production';
+  const resendKeyMissing = !process.env.RESEND_API_KEY;
+  if (isDev && resendKeyMissing) {
+    logger.warn(`[DEV] Verification link for ${to}: ${verifyUrl}`);
+    return;
+  }
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verify your MockURL account</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="520" cellpadding="0" cellspacing="0"
+               style="background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#0ea5e9,#2563eb);padding:32px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">MockURL</h1>
+              <p style="margin:8px 0 0;color:#bfdbfe;font-size:14px;">Verify your email address</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <p style="color:#cbd5e1;font-size:15px;line-height:1.6;margin:0 0 20px;">
+                Your account was created successfully. Click the button below to verify your email before signing in.
+              </p>
+              <p style="text-align:center;margin:28px 0;">
+                <a href="${verifyUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;">
+                  Verify Email
+                </a>
+              </p>
+              <p style="color:#64748b;font-size:12px;line-height:1.5;margin:0;">
+                If the button does not work, copy and paste this URL:<br/>
+                <span style="word-break:break-all;color:#93c5fd;">${verifyUrl}</span>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to,
+    subject: 'Verify your MockURL account',
+    html,
+  });
+
+  if (error) {
+    logger.error('Resend failed to deliver verification email', { error, to });
+    throw new Error(`Email delivery failed: ${error.message}`);
+  }
+
+  logger.info('Verification email sent via Resend', { to });
 }
