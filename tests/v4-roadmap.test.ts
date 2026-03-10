@@ -73,11 +73,11 @@ function makeAuthRequest(path: string, method: string = 'GET', body?: any) {
 describe('Roadmap V4 - Advanced Chaos Validation', () => {
     test('should allow setting timeout and jitter', async () => {
         // 1. Create endpoint
-        const createRes = await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'chaos-v4' });
+        const createRes = await makeAuthRequest('/api/v2/endpoints', 'POST', { name: 'chaos-v4' });
         const endpointId = createRes.json().endpoint.id;
 
         // 2. Set Chaos with new params
-        const chaosRes = await makeAuthRequest(`/api/v1/chaos/${endpointId}`, 'PUT', {
+        const chaosRes = await makeAuthRequest(`/api/v2/chaos/${endpointId}`, 'PUT', {
             enabled: true,
             jitter: { ms: 500 },
             timeout: { probability: 0.1, durationMs: 2000 }
@@ -91,10 +91,10 @@ describe('Roadmap V4 - Advanced Chaos Validation', () => {
     });
 
     test('should reject invalid jitter value', async () => {
-        const createRes = await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'chaos-fail' });
+        const createRes = await makeAuthRequest('/api/v2/endpoints', 'POST', { name: 'chaos-fail' });
         const endpointId = createRes.json().endpoint.id;
 
-        const chaosRes = await makeAuthRequest(`/api/v1/chaos/${endpointId}`, 'PUT', {
+        const chaosRes = await makeAuthRequest(`/api/v2/chaos/${endpointId}`, 'PUT', {
             jitter: { ms: 6000 } // Limit is 5000
         });
 
@@ -103,10 +103,10 @@ describe('Roadmap V4 - Advanced Chaos Validation', () => {
     });
 
     test('should reject invalid timeout duration', async () => {
-        const createRes = await makeAuthRequest('/api/v1/endpoints/create', 'POST', { name: 'timeout-fail' });
+        const createRes = await makeAuthRequest('/api/v2/endpoints', 'POST', { name: 'timeout-fail' });
         const endpointId = createRes.json().endpoint.id;
 
-        const chaosRes = await makeAuthRequest(`/api/v1/chaos/${endpointId}`, 'PUT', {
+        const chaosRes = await makeAuthRequest(`/api/v2/chaos/${endpointId}`, 'PUT', {
             timeout: { probability: 0.5, durationMs: 40000 } // Limit is 30000
         });
 
@@ -122,7 +122,7 @@ describe('Roadmap V4 - JWT Validation Mock', () => {
 
     test('should match rule when JWT is valid', async () => {
         // 1. Create endpoint with JWT rule
-        const createRes = await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
+        const createRes = await makeAuthRequest('/api/v2/endpoints', 'POST', {
             name: 'jwt-match',
             rules: [
                 {
@@ -160,7 +160,7 @@ describe('Roadmap V4 - JWT Validation Mock', () => {
     });
 
     test('should fail to match rule when JWT is invalid', async () => {
-        const createRes = await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
+        const createRes = await makeAuthRequest('/api/v2/endpoints', 'POST', {
             name: 'jwt-fail',
             rules: [
                 {
@@ -198,7 +198,7 @@ describe('Roadmap V4 - JWT Validation Mock', () => {
     });
 
     test('should fail to match rule when JWT is missing and required', async () => {
-        const createRes = await makeAuthRequest('/api/v1/endpoints/create', 'POST', {
+        const createRes = await makeAuthRequest('/api/v2/endpoints', 'POST', {
             name: 'jwt-missing',
             rules: [
                 {

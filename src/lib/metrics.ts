@@ -65,6 +65,18 @@ export const endpointRequestsTotal = new Counter({
   labelNames: ['endpoint_id'],
 });
 
+export const policyDeniedTotal = new Counter({
+  name: 'mockurl_policy_denied_total',
+  help: 'Total number of requests denied by security policies',
+  labelNames: ['policy', 'endpoint_id'],
+});
+
+export const maskedOutboundHeadersTotal = new Counter({
+  name: 'mockurl_masked_outbound_headers_total',
+  help: 'Total number of masked header fields in outbound payloads',
+  labelNames: ['channel', 'endpoint_id'],
+});
+
 export const metricsRegistry = {
   contentType: 'text/plain; version=0; charset=utf-8',
   async metrics(): Promise<string> {
@@ -72,6 +84,8 @@ export const metricsRegistry = {
       httpRequestsTotal.serialize(),
       httpRequestErrorsTotal.serialize(),
       endpointRequestsTotal.serialize(),
+      policyDeniedTotal.serialize(),
+      maskedOutboundHeadersTotal.serialize(),
     ];
     return sections.filter(Boolean).join('\n');
   },

@@ -51,11 +51,11 @@ const DEFAULT_API_BASE_URL = getDefaultApiBaseUrl();
 // OAuth credentials from env
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `${DEFAULT_API_BASE_URL}/api/v1/oauth/google/callback`;
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `${DEFAULT_API_BASE_URL}/api/v2/oauth/google/callback`;
 
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
-const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || `${DEFAULT_API_BASE_URL}/api/v1/oauth/github/callback`;
+const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || `${DEFAULT_API_BASE_URL}/api/v2/oauth/github/callback`;
 
 const FRONTEND_URL = process.env.FRONTEND_URL || getDefaultFrontendUrl();
 

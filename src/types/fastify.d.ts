@@ -8,5 +8,7 @@ declare module 'fastify' {
     endpoint?: import('./mock.types.js').Endpoint;
     _requestLogStart?: number;
     _pathForRules?: string;
+    user?: any;
+    v2Auth?: import('../middleware/auth-v2.middleware.js').V2AuthContext;
   }
 }

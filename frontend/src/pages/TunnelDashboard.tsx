@@ -26,10 +26,10 @@ export default function TunnelDashboard() {
     const fetchTunnels = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/api/v1/tunnel');
+            const res = await api.get('/api/v2/tunnel');
             if (res.data.success) {
                 setTunnels(res.data.tunnels);
-                const healthRes = await api.get('/api/v1/tunnel/health');
+                const healthRes = await api.get('/api/v2/tunnel/health');
                 if (healthRes.data?.success) {
                     setTunnelHealth(healthRes.data.health);
                 }
@@ -46,7 +46,7 @@ export default function TunnelDashboard() {
     const deleteTunnel = async (id: string) => {
         if (!confirm('Are you sure you want to stop this tunnel?')) return;
         try {
-            await api.delete(`/api/v1/tunnel/${id}`);
+            await api.delete(`/api/v2/tunnel/${id}`);
             fetchTunnels();
         } catch (err) {
             alert('Failed to delete tunnel');
@@ -171,3 +171,4 @@ export default function TunnelDashboard() {
         </div>
     );
 }
+

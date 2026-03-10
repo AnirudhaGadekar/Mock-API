@@ -60,7 +60,7 @@ describe('Team Route Integration Tests', () => {
     const slug = `eng-${crypto.randomBytes(4).toString('hex')}`;
     const res = await app.inject({
       method: 'POST',
-      url: '/api/v1/teams',
+      url: '/api/v2/teams',
       headers: { 'x-api-key': ownerApiKey },
       payload: { name: 'Engineering Team', slug },
     });
@@ -91,7 +91,7 @@ describe('Team Route Integration Tests', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/v1/workspace/switch',
+      url: '/api/v2/workspace/switch',
       headers: { 'x-api-key': memberApiKey },
       payload: { type: 'team', teamId: team.id },
     });
@@ -116,7 +116,7 @@ describe('Team Route Integration Tests', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/v1/workspace/switch',
+      url: '/api/v2/workspace/switch',
       headers: { 'x-api-key': memberApiKey },
       payload: { type: 'team', teamId: team.id },
     });

@@ -55,6 +55,12 @@ export interface EndpointSettings {
   targetUrl?: string; // Single fallback URL (legacy)
   upstreams?: string[]; // Chain of servers to proxy through
   globalHeaderRewriting?: HeaderRewritingRule[]; // Workspace-level rewriting
+  securityPolicy?: {
+    ipAllowlist?: string[];
+    maskedHeaders?: string[];
+    maskingStrategy?: 'full' | 'partial' | 'hash';
+    mtlsMode?: 'off' | 'optional' | 'required';
+  };
 }
 
 /**

@@ -7,6 +7,7 @@ import { broadcastRequest } from '../engine/websocket.js';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
+import { getSecurityFeatureFlag, isIpAllowedByPolicy, resolveEffectiveSecurityPolicy } from '../lib/security-policy.js';
 import { setState } from '../lib/state.js';
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
 import { requestLoggerPostHook } from '../middleware/request-logger.middleware.js';
@@ -577,6 +578,22 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
 
         // Fetch endpoint (with caching)
         const endpoint = await fetchEndpointBySubdomain(subdomain);
+
+        // Enterprise Security Policy: IP allowlist (feature-flagged)
+        if (getSecurityFeatureFlag('ip_allowlist')) {
+          const effectivePolicy = resolveEffectiveSecurityPolicy(endpoint.settings, null);
+          if (!isIpAllowedByPolicy(request.ip, effectivePolicy)) {
+            return reply.status(403).send({
+              success: false,
+              error: {
+                code: 'POLICY_DENIED',
+                message: 'Request blocked by security policy (ip_allowlist)',
+                endpointId: endpoint.id,
+              },
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
 
         // Rate limit per endpoint/IP (100 req/min free tier)
         const rateLimit = await checkRateLimit(`endpoint:${endpoint.id}:${request.ip}`, 100, 60);

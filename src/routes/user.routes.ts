@@ -1,5 +1,5 @@
 /**
- * GET /api/v1/user/me – current user (auth required)
+ * GET /api/v2/user/me – current user (auth required)
  */
 import { FastifyPluginAsync } from 'fastify';
 import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.middleware.js';

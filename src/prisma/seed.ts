@@ -54,10 +54,22 @@ async function main() {
   console.log(`   User 1: ${user1.email} (API Key: ${rawKey1})`);
   console.log(`   User 2: ${user2.email} (API Key: ${rawKey2})`);
 
+  // Ensure canonical personal workspaces exist (required by Endpoint.workspaceId)
+  const ws1 = await prisma.workspace.upsert({
+    where: { id: `ws_personal_${user1.id}` },
+    update: { updatedAt: new Date() },
+    create: {
+      id: `ws_personal_${user1.id}`,
+      type: 'PERSONAL',
+      personalOwnerUserId: user1.id,
+    },
+  });
+
   // Optional: Create sample endpoints for testing
   const endpoint1 = await prisma.endpoint.create({
     data: {
       userId: user1.id,
+      workspaceId: ws1.id,
       name: 'my-api',
       slug: 'my-api',
       rules: [],

@@ -35,7 +35,7 @@ export function AIRuleGenerator({ endpointId, onRuleGenerated }: AIRuleGenerator
 
         try {
             setLoading(true);
-            const response = await api.post('/api/v1/ai/generate-rule', {
+            const response = await api.post('/api/v2/ai/generate-rule', {
                 prompt: promptText,
                 endpointId
             });
@@ -53,7 +53,7 @@ export function AIRuleGenerator({ endpointId, onRuleGenerated }: AIRuleGenerator
     const refineRule = async (refinementPrompt: string) => {
         try {
             setLoading(true);
-            const response = await api.post('/api/v1/ai/refine-rule', {
+            const response = await api.post('/api/v2/ai/refine-rule', {
                 existingRule: generatedRule,
                 refinementPrompt
             });
@@ -194,3 +194,4 @@ export function AIRuleGenerator({ endpointId, onRuleGenerated }: AIRuleGenerator
         </div>
     );
 }
+

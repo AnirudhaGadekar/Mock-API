@@ -65,7 +65,7 @@ describe('History live summary and logging robustness', () => {
 
     const historyRes = await app.inject({
       method: 'GET',
-      url: `/api/v1/history/${endpointId}`,
+      url: `/api/v2/history/${endpointId}`,
       headers: {
         'x-api-key': testApiKey,
       },
@@ -79,7 +79,7 @@ describe('History live summary and logging robustness', () => {
 
     const summaryRes = await app.inject({
       method: 'GET',
-      url: `/api/v1/history/${endpointId}/live-summary`,
+      url: `/api/v2/history/${endpointId}/live-summary`,
       headers: {
         'x-api-key': testApiKey,
       },

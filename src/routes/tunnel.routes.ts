@@ -2,9 +2,9 @@
 /**
  * tunnel.routes.ts — Manage tunneling configs.
  *
- * POST   /api/v1/tunnel        — Create/update tunnel for current user
- * GET    /api/v1/tunnel        — List tunnels for current user
- * DELETE /api/v1/tunnel/:id    — Delete a tunnel
+ * POST   /api/v2/tunnel        — Create/update tunnel for current user
+ * GET    /api/v2/tunnel        — List tunnels for current user
+ * DELETE /api/v2/tunnel/:id    — Delete a tunnel
  *
  * NOTE: This is a lightweight abstraction around the Redis-backed configs
  * consumed by tunnel-proxy.ts. It does NOT attempt full ngrok-style auth;

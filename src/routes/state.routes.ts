@@ -76,7 +76,7 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', authenticateApiKey);
 
   /**
-   * GET /api/v1/state/:endpointId/:key
+   * GET /api/v2/state/:endpointId/:key
    * Get a single state value.
    */
   fastify.get<{ Params: { endpointId: string; key: string } }>(
@@ -117,7 +117,7 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
-   * POST /api/v1/state/:endpointId/:key
+   * POST /api/v2/state/:endpointId/:key
    * Set a state value.
    */
   fastify.post<{ Params: { endpointId: string; key: string }; Body: { value: unknown } }>(
@@ -180,7 +180,7 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
-   * DELETE /api/v1/state/:endpointId/:key
+   * DELETE /api/v2/state/:endpointId/:key
    * Delete a state value.
    */
   fastify.delete<{ Params: { endpointId: string; key: string } }>(
@@ -221,7 +221,7 @@ export const stateRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
-   * GET /api/v1/state/:endpointId
+   * GET /api/v2/state/:endpointId
    * List all state keys for an endpoint.
    */
   fastify.get<{ Params: { endpointId: string } }>(

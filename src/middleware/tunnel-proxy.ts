@@ -7,7 +7,7 @@
  * - Public entrypoint: /tunnel/:tunnelId/* → proxies to target
  *
  * Flow:
- * 1. Backend/console calls POST /api/v1/tunnel with { id?, targetUrl, headers?, ttlSeconds? }
+ * 1. Backend/console calls POST /api/v2/tunnel with { id?, targetUrl, headers?, ttlSeconds? }
  * 2. We store config under mockurl:tunnel:<id>
  * 3. Clients hit https://api.mockurl.com/tunnel/<id>/... and traffic is forwarded
  *    to targetUrl + path suffix with optional header injection.
@@ -171,10 +171,10 @@ export const tunnelProxyPlugin: FastifyPluginAsync = async (fastify) => {
 
       const buf = await upstreamResponse.arrayBuffer();
       // Mirror status and most headers back to client
-      for (const [k, v] of upstreamResponse.headers.entries()) {
-        if (k.toLowerCase() === 'transfer-encoding') continue;
+      upstreamResponse.headers.forEach((v, k) => {
+        if (k.toLowerCase() === 'transfer-encoding') return;
         reply.header(k, v);
-      }
+      });
       reply.status(upstreamResponse.status);
       return reply.send(Buffer.from(buf));
     } catch (err) {

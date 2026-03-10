@@ -5,6 +5,7 @@ import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { sendVerificationEmail } from '../lib/mailer.js';
+import { getFirstEnforcedTeamForEmail, isSamlAuthEnforcementEnabled, isSamlFeatureEnabled } from '../lib/saml-sso.js';
 import { authenticateApiKey, extractApiKey, invalidateUserCache } from '../middleware/auth.middleware.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKey.js';
 
@@ -181,8 +182,20 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
 
         try {
+            const normalizedEmail = String(email).toLowerCase().trim();
+            if (isSamlFeatureEnabled() && isSamlAuthEnforcementEnabled()) {
+                const enforcedTeamId = await getFirstEnforcedTeamForEmail(normalizedEmail);
+                if (enforcedTeamId) {
+                    return reply.code(403).send({
+                        error: 'SSO required for this account',
+                        code: 'SSO_REQUIRED',
+                        teamId: enforcedTeamId,
+                    });
+                }
+            }
+
             const user = await prisma.user.findUnique({
-                where: { email }
+                where: { email: normalizedEmail }
             });
 
             if (!user || !user.password) {

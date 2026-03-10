@@ -25,6 +25,7 @@ services:
       BASE_ENDPOINT_URL: ${BASE_ENDPOINT_URL:-http://localhost:3000/e}
     ports:
       - "3000:3000"
+    command: ["npm", "start"]
     depends_on:
       postgres:
         condition: service_healthy

@@ -7,17 +7,27 @@ import { prisma } from '../lib/db.js';
 import { events } from '../lib/events.js';
 import { logger } from '../lib/logger.js';
 import { recordHttpRequest } from '../lib/metrics.js';
+import { normalizePathTemplate } from '../lib/recorder-proposals.js';
+import { getSecurityFeatureFlag, maskHeadersByPolicy, resolveEffectiveSecurityPolicy } from '../lib/security-policy.js';
 
 const BODY_TRUNCATE = 1024 * 1024; // 1MB
-const SANITIZE_HEADERS = ['authorization', 'x-api-key', 'cookie'];
-
 const SENSITIVE_KEY_REGEX = /(pass(word)?|secret|token|api[-_]?key|auth(orization)?|session|cookie|jwt|bearer|private[-_]?key)/i;
 
-function sanitizeHeaders(headers: Record<string, string | string[] | undefined>): Record<string, unknown> {
+function sanitizeHeaders(
+  headers: Record<string, string | string[] | undefined>,
+  request: FastifyRequest,
+): Record<string, unknown> {
+  const endpointSettings = request.endpoint?.settings;
+  const policy = resolveEffectiveSecurityPolicy(endpointSettings, request.endpoint?.teamId ?? null);
+  const usePolicyMasking = getSecurityFeatureFlag('header_masking');
+
+  if (usePolicyMasking) {
+    return maskHeadersByPolicy(headers, policy);
+  }
+
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(headers)) {
-    const lower = k.toLowerCase();
-    if (SANITIZE_HEADERS.some((h) => lower === h) || SENSITIVE_KEY_REGEX.test(lower)) {
+    if (SENSITIVE_KEY_REGEX.test(k.toLowerCase())) {
       out[k] = '[REDACTED]';
     } else if (v !== undefined) {
       out[k] = v;
@@ -97,7 +107,7 @@ export function captureRequestLog(
       ? (query as unknown as Prisma.InputJsonValue)
       : Prisma.JsonNull;
   const headersJson = request.headers
-    ? (sanitizeHeaders(request.headers) as unknown as Prisma.InputJsonValue)
+    ? (sanitizeHeaders(request.headers, request) as unknown as Prisma.InputJsonValue)
     : Prisma.JsonNull;
 
   prisma.requestLog
@@ -106,6 +116,7 @@ export function captureRequestLog(
         endpointId,
         method: request.method,
         path: request.url.split('?')[0] || request.url,
+        normalizedPath: normalizePathTemplate(request.url.split('?')[0] || request.url),
         queryParams: queryJson,
         headers: headersJson,
         body: toJsonValue(bodyStr),

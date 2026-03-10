@@ -28,7 +28,10 @@ import {
     deleteEndpoint,
     fetchEndpoint,
     updateEndpoint,
-    type EndpointDetail
+    type EndpointDetail,
+    fetchRecorderProposals,
+    approveRecorderProposal,
+    type RecorderProposalPage
 } from "@/lib/api";
 import {
     ArrowLeft,
@@ -43,7 +46,10 @@ import {
     Settings,
     Sparkles,
     Trash2,
-    Zap
+    Zap,
+    ListChecks,
+    CheckCircle2,
+    XCircle
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
@@ -81,6 +87,11 @@ export default function EndpointConfigPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [showAI, setShowAI] = useState(false);
+    const [recorderLoading, setRecorderLoading] = useState(false);
+    const [recorderPage, setRecorderPage] = useState<RecorderProposalPage | null>(null);
+    const [recorderCursor, setRecorderCursor] = useState<string | null>(null);
+    const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
+    const [approvingId, setApprovingId] = useState<string | null>(null);
 
     const location = useLocation();
 
@@ -116,6 +127,27 @@ export default function EndpointConfigPage() {
         }
     };
 
+    const loadRecorderProposals = async (cursor?: string | null) => {
+        if (!id) return;
+        try {
+            setRecorderLoading(true);
+            const page = await fetchRecorderProposals(id, {
+                limit: 25,
+                cursor: cursor ?? undefined,
+                status: "PENDING"
+            });
+            setRecorderPage(page);
+            setRecorderCursor(page.nextCursor);
+            if (page.proposals.length && !selectedProposalId) {
+                setSelectedProposalId(page.proposals[0].id);
+            }
+        } catch {
+            // Silent failure; recorder is an enhancement
+        } finally {
+            setRecorderLoading(false);
+        }
+    };
+
     const handleSave = async () => {
         try {
             setSaving(true);
@@ -128,6 +160,23 @@ export default function EndpointConfigPage() {
             toast.error(err.response?.data?.error?.message || "Failed to save configuration");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleApproveProposal = async (proposalId: string, mode: "append" | "replace") => {
+        if (!id) return;
+        try {
+            setApprovingId(proposalId);
+            await approveRecorderProposal(id, proposalId, mode);
+            toast.success(mode === "replace" ? "Rules replaced from proposal" : "Rule appended from proposal");
+            await Promise.all([
+                loadEndpoint(),
+                loadRecorderProposals(null),
+            ]);
+        } catch (err: any) {
+            toast.error(err?.response?.data?.error?.message || "Failed to approve proposal");
+        } finally {
+            setApprovingId(null);
         }
     };
 
@@ -232,7 +281,7 @@ export default function EndpointConfigPage() {
             </div>
 
             <Tabs defaultValue="rules" className="w-full">
-                <TabsList className="grid w-full max-w-[600px] grid-cols-4">
+                <TabsList className="grid w-full max-w-[720px] grid-cols-5">
                     <TabsTrigger value="rules" className="flex items-center gap-2">
                         <Code className="h-4 w-4" /> Mock Rules
                     </TabsTrigger>
@@ -244,6 +293,9 @@ export default function EndpointConfigPage() {
                     </TabsTrigger>
                     <TabsTrigger value="inspector" className="flex items-center gap-2">
                         <Search className="h-4 w-4 text-blue-500" /> Inspector
+                    </TabsTrigger>
+                    <TabsTrigger value="recorder" className="flex items-center gap-2">
+                        <ListChecks className="h-4 w-4 text-emerald-500" /> Recorder
                     </TabsTrigger>
                 </TabsList>
 
@@ -305,7 +357,7 @@ export default function EndpointConfigPage() {
                                             </div>
                                             <div className="col-span-9">
                                                 <Input
-                                                    placeholder="/api/v1/resource"
+                                                    placeholder="/api/v2/resource"
                                                     value={rule.path}
                                                     onChange={(e) => updateRule(idx, { path: e.target.value })}
                                                     className="font-mono"
@@ -610,7 +662,203 @@ export default function EndpointConfigPage() {
                 <TabsContent value="inspector" className="pt-4">
                     <InspectorPanel endpointId={id!} />
                 </TabsContent>
+
+                <TabsContent value="recorder" className="pt-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-lg font-medium flex items-center gap-2">
+                                <ListChecks className="h-4 w-4 text-emerald-500" />
+                                Recorder Proposals
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                                Clusters of real traffic that can be promoted into rules, Beeceptor-style.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => loadRecorderProposals(null)}
+                                disabled={recorderLoading}
+                            >
+                                <RefreshCw className={`mr-2 h-4 w-4 ${recorderLoading ? "animate-spin" : ""}`} />
+                                Refresh
+                            </Button>
+                        </div>
+                    </div>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                            <div>
+                                <CardTitle className="text-base">Pending proposals</CardTitle>
+                                <CardDescription>
+                                    Most confident clusters first. Click a row to inspect sample &amp; rule.
+                                </CardDescription>
+                            </div>
+                            {recorderPage && (
+                                <div className="text-xs text-muted-foreground">
+                                    {recorderPage.proposals.length} shown
+                                    {recorderPage.hasMore ? " • more available via Next" : ""}
+                                </div>
+                            )}
+                        </CardHeader>
+                        <CardContent className="flex flex-col gap-4 md:flex-row">
+                            <div className="md:w-1/2">
+                                <div className="border rounded-md overflow-hidden">
+                                    <div className="grid grid-cols-6 gap-2 bg-muted px-3 py-2 text-xs font-medium">
+                                        <span>Method</span>
+                                        <span>Template</span>
+                                        <span>Status</span>
+                                        <span>Count</span>
+                                        <span>Conf.</span>
+                                        <span>Hints</span>
+                                    </div>
+                                    <div className="max-h-[320px] overflow-auto text-xs">
+                                        {recorderLoading && (
+                                            <div className="flex items-center justify-center py-6 text-muted-foreground">
+                                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                                Loading proposals…
+                                            </div>
+                                        )}
+                                        {!recorderLoading && (!recorderPage || recorderPage.proposals.length === 0) && (
+                                            <div className="py-6 text-center text-muted-foreground">
+                                                No recorder proposals yet. Start a recorder session for this endpoint and send some traffic.
+                                            </div>
+                                        )}
+                                        {!recorderLoading && recorderPage && recorderPage.proposals.map(p => {
+                                            const isSelected = p.id === selectedProposalId;
+                                            const confPct = Math.round(p.confidence * 100);
+                                            const hints: string[] = [];
+                                            if ((p as any).metadata?.contentType) hints.push((p as any).metadata.contentType);
+                                            if ((p as any).metadata?.hasAuth) hints.push("auth");
+                                            return (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    onClick={() => setSelectedProposalId(p.id)}
+                                                    className={`grid w-full grid-cols-6 gap-2 px-3 py-2 text-left hover:bg-accent ${
+                                                        isSelected ? "bg-accent" : ""
+                                                    }`}
+                                                >
+                                                    <span className="font-mono">{p.method}</span>
+                                                    <span className="truncate font-mono">{p.normalizedPath}</span>
+                                                    <span className="font-mono">{p.responseStatus}</span>
+                                                    <span>{p.count}</span>
+                                                    <span>{confPct}%</span>
+                                                    <span className="truncate">
+                                                        {hints.length ? hints.join(" • ") : "—"}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                {recorderPage && recorderPage.hasMore && (
+                                    <div className="mt-2 flex justify-end">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => loadRecorderProposals(recorderCursor)}
+                                            disabled={recorderLoading}
+                                        >
+                                            Next page
+                                            <ChevronRight className="ml-1 h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="md:w-1/2 space-y-3">
+                                {selectedProposalId && recorderPage && (
+                                    (() => {
+                                        const proposal = recorderPage.proposals.find(p => p.id === selectedProposalId);
+                                        if (!proposal) return (
+                                            <div className="text-sm text-muted-foreground">
+                                                Select a proposal on the left to inspect it.
+                                            </div>
+                                        );
+                                        const confPct = Math.round(proposal.confidence * 100);
+                                        return (
+                                            <>
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h4 className="text-sm font-medium flex items-center gap-1">
+                                                            <span className="font-mono">{proposal.method}</span>
+                                                            <span className="font-mono text-muted-foreground">
+                                                                {proposal.normalizedPath}
+                                                            </span>
+                                                        </h4>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {proposal.count} requests • {confPct}% confidence
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            disabled={approvingId === proposal.id}
+                                                            onClick={() => handleApproveProposal(proposal.id, "append")}
+                                                        >
+                                                            <CheckCircle2 className="mr-1 h-4 w-4 text-emerald-500" />
+                                                            Append
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="destructive"
+                                                            disabled={approvingId === proposal.id}
+                                                            onClick={() => handleApproveProposal(proposal.id, "replace")}
+                                                        >
+                                                            <XCircle className="mr-1 h-4 w-4" />
+                                                            Replace all
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid gap-3 md:grid-cols-2">
+                                                    <div>
+                                                        <h5 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                            Sample Request
+                                                        </h5>
+                                                        <div className="rounded-md border bg-muted/40 p-2 text-[11px] font-mono leading-snug max-h-48 overflow-auto">
+                                                            {proposal.sample ? (
+                                                                <pre className="whitespace-pre-wrap">
+                                                                    {JSON.stringify(proposal.sample, null, 2)}
+                                                                </pre>
+                                                            ) : (
+                                                                <span className="text-muted-foreground">No sample attached</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <h5 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                            Proposed Rule
+                                                        </h5>
+                                                        <div className="rounded-md border bg-muted/40 p-2 text-[11px] font-mono leading-snug max-h-48 overflow-auto">
+                                                            {proposal.proposedRule ? (
+                                                                <pre className="whitespace-pre-wrap">
+                                                                    {JSON.stringify(proposal.proposedRule, null, 2)}
+                                                                </pre>
+                                                            ) : (
+                                                                <span className="text-muted-foreground">No rule payload</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        );
+                                    })()
+                                )}
+                                {!selectedProposalId && (
+                                    <div className="text-sm text-muted-foreground">
+                                        Select a proposal on the left to inspect and publish it as a rule.
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
             </Tabs>
         </div>
     );
 }
+

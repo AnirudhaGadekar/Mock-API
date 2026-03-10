@@ -1,13 +1,14 @@
 /**
  * OTP Routes — Email One-Time Password authentication (Database-based)
  *
- * POST /api/v1/auth/send-otp   → generate + email OTP
- * POST /api/v1/auth/verify-otp → validate OTP, issue API key + cookie
+ * POST /api/v2/auth/send-otp   → generate + email OTP
+ * POST /api/v2/auth/verify-otp → validate OTP, issue API key + cookie
  */
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getApiKeyCookieName, getCookieOptions, sendOtp, verifyOtp } from '../auth/otp.js';
 import { logger } from '../lib/logger.js';
+import { getFirstEnforcedTeamForEmail, isSamlAuthEnforcementEnabled, isSamlFeatureEnabled } from '../lib/saml-sso.js';
 
 const sendOtpBodySchema = z.object({
     email: z.string().email(),
@@ -30,8 +31,20 @@ export async function otpRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         try {
             const { email } = request.body;
+            const normalizedEmail = String(email).toLowerCase().trim();
 
-            const result = await sendOtp({ email });
+            if (isSamlFeatureEnabled() && isSamlAuthEnforcementEnabled()) {
+                const enforcedTeamId = await getFirstEnforcedTeamForEmail(normalizedEmail);
+                if (enforcedTeamId) {
+                    return reply.code(403).send({
+                        error: 'SSO required for this account',
+                        code: 'SSO_REQUIRED',
+                        teamId: enforcedTeamId,
+                    });
+                }
+            }
+
+            const result = await sendOtp({ email: normalizedEmail });
 
             if (!result.success) {
                 const statusCode = result.error?.includes('rate limit') ? 429 : 400;
@@ -59,8 +72,20 @@ export async function otpRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         try {
             const { email, otp } = request.body;
+            const normalizedEmail = String(email).toLowerCase().trim();
 
-            const result = await verifyOtp({ email, otp });
+            if (isSamlFeatureEnabled() && isSamlAuthEnforcementEnabled()) {
+                const enforcedTeamId = await getFirstEnforcedTeamForEmail(normalizedEmail);
+                if (enforcedTeamId) {
+                    return reply.code(403).send({
+                        error: 'SSO required for this account',
+                        code: 'SSO_REQUIRED',
+                        teamId: enforcedTeamId,
+                    });
+                }
+            }
+
+            const result = await verifyOtp({ email: normalizedEmail, otp });
 
             if (!result.success) {
                 const statusCode = result.error?.includes('expired') ? 401 : 

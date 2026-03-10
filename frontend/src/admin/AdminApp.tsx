@@ -155,7 +155,7 @@ export const AdminApp: React.FC = () => {
     // ─── API helper ───────────────────────────────────────────────────────────
     const api = useCallback(
         (path: string, params?: Record<string, string | number>) =>
-            axios.get(`${API_BASE}/api/v1/admin${path}`, {
+            axios.get(`${API_BASE}/api/v2/admin${path}`, {
                 headers: { 'X-Admin-Secret': adminSecret },
                 params,
             }),
@@ -166,7 +166,7 @@ export const AdminApp: React.FC = () => {
     const tryLogin = useCallback(
         async (secret: string) => {
             try {
-                const resp = await axios.get(`${API_BASE}/api/v1/admin/overview`, {
+                const resp = await axios.get(`${API_BASE}/api/v2/admin/overview`, {
                     headers: { 'X-Admin-Secret': secret },
                 });
                 if (resp.data.success) {
@@ -704,3 +704,4 @@ export const AdminApp: React.FC = () => {
         </div>
     );
 };
+

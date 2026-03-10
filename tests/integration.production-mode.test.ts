@@ -45,7 +45,7 @@ describe('Production Mode Behavior Simulation', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/v1/endpoints/create',
+      url: '/api/v2/endpoints',
       headers: {
         'x-api-key': apiKey,
       },
@@ -54,7 +54,7 @@ describe('Production Mode Behavior Simulation', () => {
 
     expect(res.statusCode).toBe(201);
     const body = res.json();
-    expect(body.endpoint.url.startsWith('https://')).toBe(true);
-    expect(body.endpoint.url).not.toContain('localhost');
+    expect(body.data.url.startsWith('https://')).toBe(true);
+    expect(body.data.url).not.toContain('localhost');
   });
 });

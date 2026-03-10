@@ -1,9 +1,9 @@
 /**
  * chaos.routes.ts — Configure chaos engineering per endpoint.
  *
- * GET    /api/v1/chaos/:endpointId  — Get chaos config
- * PUT    /api/v1/chaos/:endpointId  — Set/update chaos config
- * DELETE /api/v1/chaos/:endpointId  — Clear chaos config
+ * GET    /api/v2/chaos/:endpointId  — Get chaos config
+ * PUT    /api/v2/chaos/:endpointId  — Set/update chaos config
+ * DELETE /api/v2/chaos/:endpointId  — Clear chaos config
  */
 import { FastifyPluginAsync } from 'fastify';
 import { ChaosConfig, clearChaosConfig, getChaosConfig, setChaosConfig } from '../engine/chaos.js';

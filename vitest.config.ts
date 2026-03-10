@@ -5,6 +5,13 @@ export default defineConfig({
     globals: true,
     environment: 'node',
 
+    // Many suites mutate shared Redis state (flushdb/quit). Run tests single-threaded to avoid cross-suite interference.
+    poolOptions: {
+      threads: {
+        singleThread: true,
+      },
+    },
+
     // 👇 Tell vitest where tests are now
     include: ['tests/**/*.test.ts'],
 

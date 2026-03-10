@@ -56,39 +56,67 @@ const getRedisClient = () => {
   });
 };
 
-export const redis = global.redis || getRedisClient();
+let _redis: any = global.redis || getRedisClient();
 
-// Connection event handlers
-redis.on('connect', () => {
-  logger.info('Redis connection established');
-});
+function attachEventHandlers(client: any) {
+  client.on('connect', () => {
+    logger.info('Redis connection established');
+  });
 
-redis.on('ready', () => {
-  logger.info('Redis client ready');
-});
+  client.on('ready', () => {
+    logger.info('Redis client ready');
+  });
 
-redis.on('error', (error: any) => {
-  logger.error('Redis connection error', { error: error.message });
-});
+  client.on('error', (error: any) => {
+    logger.error('Redis connection error', { error: error.message });
+  });
 
-redis.on('close', () => {
-  logger.warn('Redis connection closed');
-});
+  client.on('close', () => {
+    logger.warn('Redis connection closed');
+  });
 
-redis.on('reconnecting', (delay: number) => {
-  logger.info(`Redis reconnecting in ${delay}ms`);
+  client.on('reconnecting', (delay: number) => {
+    logger.info(`Redis reconnecting in ${delay}ms`);
+  });
+}
+
+attachEventHandlers(_redis);
+
+function ensureRedis(): any {
+  // ioredis: status can be 'ready'|'connect'|'reconnecting'|'end' etc.
+  if (!_redis || _redis.status === 'end') {
+    _redis = getRedisClient();
+    attachEventHandlers(_redis);
+    if (process.env.NODE_ENV !== 'production') {
+      global.redis = _redis;
+    }
+  }
+  return _redis;
+}
+
+// Export a proxy so code keeps using `redis.*`, but we can recover if some test calls `redis.quit()`.
+export const redis: any = new Proxy({}, {
+  get(_target, prop: string) {
+    const client = ensureRedis();
+    const value = client[prop];
+    if (typeof value === 'function') {
+      return value.bind(client);
+    }
+    return value;
+  },
 });
 
 // Store in global to prevent hot-reload creating multiple instances
 if (process.env.NODE_ENV !== 'production') {
-  global.redis = redis;
+  global.redis = _redis;
 }
 
 /**
  * Graceful shutdown handler for Redis connection
  */
 export async function disconnectRedis(): Promise<void> {
-  await redis.quit();
+  const client = ensureRedis();
+  await client.quit();
   logger.info('Redis connection closed gracefully');
 }
 
@@ -97,7 +125,8 @@ export async function disconnectRedis(): Promise<void> {
  */
 export async function checkRedisHealth(): Promise<boolean> {
   try {
-    const result = await redis.ping();
+    const client = ensureRedis();
+    const result = await client.ping();
     return result === 'PONG';
   } catch (error) {
     logger.error('Redis health check failed', { error });

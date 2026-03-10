@@ -21,7 +21,7 @@ describe('🔐 Full OTP Auth Flow (E2E)', () => {
   test('Send OTP', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/v1/auth/send-otp',
+      url: '/api/v2/auth/send-otp',
       payload: { email: testEmail }
     });
 
@@ -47,7 +47,7 @@ describe('🔐 Full OTP Auth Flow (E2E)', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/api/v1/auth/verify-otp',
+      url: '/api/v2/auth/verify-otp',
       payload: { email: testEmail, otp }
     });
 
@@ -68,7 +68,7 @@ describe('🔐 Full OTP Auth Flow (E2E)', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/api/v1/user/me',
+      url: '/api/v2/user/me',
       headers: { cookie }
     });
 

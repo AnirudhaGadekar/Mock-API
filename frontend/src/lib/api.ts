@@ -60,7 +60,7 @@ api.interceptors.request.use((config) => {
  * Returns the API key (existing or newly created).
  */
 export async function initSession(): Promise<string> {
-  const res = await axios.post(`${API_BASE_URL}/api/v1/session`, undefined, { withCredentials: true });
+  const res = await axios.post(`${API_BASE_URL}/api/v2/session`, undefined, { withCredentials: true });
 
   if (res.data.success && res.data.session?.apiKey) {
     const newKey = res.data.session.apiKey as string;
@@ -147,46 +147,46 @@ export interface ChaosConfig {
 // ─── API helpers ───────────────────────────────────────────────────────────────
 
 export async function fetchEndpoints(): Promise<Endpoint[]> {
-  const res = await api.get<{ success: boolean; endpoints: Endpoint[] }>(
-    '/api/v1/endpoints?limit=50&sort=createdAt%3Adesc',
+  const res = await api.get<{ success: boolean; data: { endpoints: Endpoint[] } }>(
+    '/api/v2/endpoints?limit=50&sort=createdAt%3Adesc',
   );
-  return res.data.endpoints ?? [];
+  return res.data.data?.endpoints ?? [];
 }
 
 export async function createEndpoint(name: string): Promise<Endpoint> {
-  const res = await api.post<{ success: boolean; endpoint: Endpoint }>(
-    '/api/v1/endpoints/create',
+  const res = await api.post<{ success: boolean; data: Endpoint }>(
+    '/api/v2/endpoints',
     { name },
   );
-  return res.data.endpoint;
+  return res.data.data;
 }
 
 export async function deleteEndpoint(id: string): Promise<void> {
-  await api.delete(`/api/v1/endpoints/${id}`);
+  await api.delete(`/api/v2/endpoints/${id}`);
 }
 
 export async function fetchEndpoint(id: string): Promise<EndpointDetail> {
-  const res = await api.get<{ success: boolean } & EndpointDetail>(`/api/v1/endpoints/${id}`);
-  return res.data;
+  const res = await api.get<{ success: boolean; data: EndpointDetail }>(`/api/v2/endpoints/${id}`);
+  return res.data.data;
 }
 
 export async function updateEndpoint(id: string, patch: { name?: string; rules?: any[]; settings?: any }): Promise<Endpoint> {
-  const res = await api.patch<{ success: boolean; endpoint: Endpoint }>(`/api/v1/endpoints/${id}`, patch);
-  return res.data.endpoint;
+  const res = await api.patch<{ success: boolean; data: Endpoint }>(`/api/v2/endpoints/${id}`, patch);
+  return res.data.data;
 }
 
 export async function fetchHistory(
   endpointId: string,
   params?: { search?: string; method?: string; status?: string; limit?: number },
 ): Promise<HistoryResponse> {
-  const res = await api.get<HistoryResponse>(`/api/v1/history/${endpointId}`, {
+  const res = await api.get<HistoryResponse>(`/api/v2/history/${endpointId}`, {
     params: { limit: 50, ...params },
   });
   return res.data;
 }
 
 export async function fetchLiveSummary(endpointId: string): Promise<LiveSummaryResponse['summary']> {
-  const res = await api.get<LiveSummaryResponse>(`/api/v1/history/${endpointId}/live-summary`);
+  const res = await api.get<LiveSummaryResponse>(`/api/v2/history/${endpointId}/live-summary`);
   return res.data.summary;
 }
 
@@ -194,7 +194,7 @@ export async function fetchLiveSummary(endpointId: string): Promise<LiveSummaryR
 // Chaos config helpers
 export async function fetchChaosConfig(endpointId: string): Promise<ChaosConfig> {
   const res = await api.get<{ success: boolean; config: ChaosConfig }>(
-    `/api/v1/chaos/${endpointId}`,
+    `/api/v2/chaos/${endpointId}`,
   );
   return res.data.config;
 }
@@ -204,7 +204,7 @@ export async function updateChaosConfig(
   patch: Partial<ChaosConfig>,
 ): Promise<ChaosConfig> {
   const res = await api.put<{ success: boolean; config: ChaosConfig }>(
-    `/api/v1/chaos/${endpointId}`,
+    `/api/v2/chaos/${endpointId}`,
     patch,
   );
   return res.data.config;
@@ -213,29 +213,75 @@ export async function updateChaosConfig(
 // State store helpers
 export async function fetchStateKeys(endpointId: string): Promise<string[]> {
   const res = await api.get<{ success: boolean; keys: string[] }>(
-    `/api/v1/state/${endpointId}`,
+    `/api/v2/state/${endpointId}`,
   );
   return res.data.keys;
 }
 
 export async function fetchStateValue(endpointId: string, key: string): Promise<any> {
   const res = await api.get<{ success: boolean; value: any }>(
-    `/api/v1/state/${endpointId}/${key}`,
+    `/api/v2/state/${endpointId}/${key}`,
   );
   return res.data.value;
 }
 
 export async function setStateValue(endpointId: string, key: string, value: any): Promise<void> {
-  await api.post(`/api/v1/state/${endpointId}/${key}`, { value });
+  await api.post(`/api/v2/state/${endpointId}/${key}`, { value });
 }
 
 export async function deleteStateValue(endpointId: string, key: string): Promise<void> {
-  await api.delete(`/api/v1/state/${endpointId}/${key}`);
+  await api.delete(`/api/v2/state/${endpointId}/${key}`);
+}
+
+// ─── Recorder / Proposals ─────────────────────────────────────────────────────
+
+export interface RecorderProposal {
+  id: string;
+  recorderSessionId: string;
+  endpointId: string;
+  method: string;
+  normalizedPath: string;
+  responseStatus: number;
+  count: number;
+  confidence: number;
+  status: string;
+  createdAt: string;
+  decidedAt: string | null;
+  metadata: {
+    workspaceId: string;
+  };
+  proposedRule: unknown;
+  sample?: unknown;
+}
+
+export interface RecorderProposalPage {
+  proposals: RecorderProposal[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export async function fetchRecorderProposals(
+  recorderSessionId: string,
+  params?: { limit?: number; cursor?: string; status?: 'PENDING' | 'APPROVED' | 'REJECTED' },
+): Promise<RecorderProposalPage> {
+  const res = await api.get<{
+    success: boolean;
+    data: RecorderProposalPage;
+  }>(`/api/v2/recorder-sessions/${recorderSessionId}/proposals`, { params });
+  return res.data.data;
+}
+
+export async function approveRecorderProposal(
+  recorderSessionId: string,
+  proposalId: string,
+  mode: 'append' | 'replace' = 'append',
+): Promise<void> {
+  await api.post(`/api/v2/recorder-sessions/${recorderSessionId}/proposals/${proposalId}/approve`, { mode });
 }
 
 export async function importOpenApi(spec: string): Promise<{ success: boolean; message: string; endpoints: any[] }> {
   const res = await api.post<{ success: boolean; message: string; endpoints: any[] }>(
-    '/api/v1/oas-import',
+    '/api/v2/oas-import',
     { spec }
   );
   return res.data;
@@ -264,44 +310,45 @@ export interface TeamMember {
 }
 
 export async function fetchUserTeams(): Promise<Team[]> {
-  const res = await api.get<Team[]>('/api/v1/teams');
+  const res = await api.get<Team[]>('/api/v2/teams');
   return res.data;
 }
 
 export async function createTeam(name: string, slug: string): Promise<Team> {
-  const res = await api.post<Team>('/api/v1/teams', { name, slug });
+  const res = await api.post<Team>('/api/v2/teams', { name, slug });
   return res.data;
 }
 
 export async function fetchTeam(teamId: string): Promise<Team> {
-  const res = await api.get<Team>(`/api/v1/teams/${teamId}`);
+  const res = await api.get<Team>(`/api/v2/teams/${teamId}`);
   return res.data;
 }
 
 export async function inviteMember(teamId: string, email: string, role: string): Promise<any> {
-  const res = await api.post(`/api/v1/teams/${teamId}/invites`, { email, role });
+  const res = await api.post(`/api/v2/teams/${teamId}/invites`, { email, role });
   return res.data;
 }
 
 export async function updateMemberRole(teamId: string, userId: string, role: string): Promise<void> {
-  await api.patch(`/api/v1/teams/${teamId}/members/${userId}`, { role });
+  await api.patch(`/api/v2/teams/${teamId}/members/${userId}`, { role });
 }
 
 export async function removeMember(teamId: string, userId: string): Promise<void> {
-  await api.delete(`/api/v1/teams/${teamId}/members/${userId}`);
+  await api.delete(`/api/v2/teams/${teamId}/members/${userId}`);
 }
 
 export async function shareEndpoint(endpointId: string, teamId: string): Promise<void> {
   // We need to update the endpoint with teamId
   // This might require a new endpoint or updating the existing updateEndpoint to support teamId
-  await api.patch(`/api/v1/endpoints/${endpointId}`, { teamId, isShared: true });
+  await api.patch(`/api/v2/endpoints/${endpointId}`, { teamId, isShared: true });
 }
 
 export async function switchWorkspace(type: 'personal' | 'team', teamId?: string): Promise<void> {
-  await api.post('/api/v1/workspace/switch', { type, teamId });
+  await api.post('/api/v2/workspace/switch', { type, teamId });
 }
 
 export async function fetchCurrentWorkspace(): Promise<{ type: 'personal' | 'team'; teamId: string | null }> {
-  const res = await api.get<{ type: 'personal' | 'team'; teamId: string | null }>('/api/v1/workspace/current');
+  const res = await api.get<{ type: 'personal' | 'team'; teamId: string | null }>('/api/v2/workspace/current');
   return res.data;
 }
+

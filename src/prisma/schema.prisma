@@ -48,12 +48,44 @@ model User {
   createdInvites        TeamInvite[]   @relation("InviteCreator")
   requestLogs           RequestLog[]
   endpointAuditLogs     EndpointAuditLog[]
+  auditSecurityEvents   AuditSecurityEvent[]
+  recorderSessions      RecorderSession[]
+  recorderProposals     RecorderProposal[]
+  serviceApiKeys        ServiceApiKey[]
+  personalWorkspaces    Workspace[]      @relation("PersonalWorkspaceOwner")
+  apiCredentials        ApiCredential[]
   
   @@index([email])
   @@index([username])
   @@index([apiKeyHash])
   @@index([googleId])
   @@index([githubId])
+}
+
+model ServiceApiKey {
+  id            String        @id @default(cuid())
+  name          String
+  keyHash       String        @unique
+  scopes        String[]
+  workspaceType WorkspaceType @default(PERSONAL)
+  teamId        String?
+  workspaceId   String?
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace     Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([workspaceId])
+  @@index([workspaceType])
+  @@index([revokedAt])
+  @@index([keyHash, revokedAt])
 }
 
 enum AuthProvider {
@@ -95,6 +127,7 @@ model Team {
   members     TeamMember[]
   endpoints   Endpoint[]
   invites     TeamInvite[]
+  workspace   Workspace?
   
   @@index([slug])
   @@index([ownerId])
@@ -147,6 +180,7 @@ model TeamInvite {
   
   @@index([token])
   @@index([teamId])
+  @@index([teamId, acceptedAt, expiresAt])
 }
 
 // ============================================
@@ -164,12 +198,16 @@ model Endpoint {
   requestCount Int       @default(0)
   lastActiveAt DateTime? @default(now())
   
-  // Ownership - belongs to EITHER user OR team
+  // Ownership - belongs to EITHER user OR team (legacy compatibility; prefer workspaceId)
   userId       String?
   user         User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   teamId       String?
   team         Team?     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  // Canonical multi-tenant boundary
+  workspaceId  String?
+  workspace    Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   
   // Timestamps
   createdAt    DateTime  @default(now())
@@ -178,10 +216,17 @@ model Endpoint {
   // Logs
   requestLogs  RequestLog[]
   auditLogs    EndpointAuditLog[]
+  recorderSessionLinks RecorderSessionEndpoint[]
+  recorderProposals   RecorderProposal[]
   
   @@index([slug])
   @@index([userId])
   @@index([teamId])
+  @@index([workspaceId])
+  @@index([userId, createdAt])
+  @@index([teamId, createdAt])
+  @@index([userId, name])
+  @@index([teamId, name])
 }
 
 model EndpointAuditLog {
@@ -198,6 +243,8 @@ model EndpointAuditLog {
 
   workspaceType WorkspaceType
   teamId      String?
+  workspaceId String?
+  workspace   Workspace?         @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   ip          String?
   userAgent   String?
   details     Json?
@@ -210,6 +257,37 @@ model EndpointAuditLog {
   @@index([createdAt])
   @@index([workspaceType])
   @@index([teamId])
+  @@index([workspaceId])
+}
+
+model AuditSecurityEvent {
+  id            String        @id @default(cuid())
+  actorUserId   String?
+  actorUser     User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorKind     String
+  action        String
+  targetType    String
+  targetId      String?
+  workspaceType WorkspaceType @default(PERSONAL)
+  teamId        String?
+  workspaceId   String?
+  workspace     Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  result        String
+  reason        String?
+  diff          Json?
+  metadata      Json?
+  ip            String?
+  userAgent     String?
+  requestId     String?
+  createdAt     DateTime      @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([targetType, targetId])
+  @@index([workspaceType, teamId])
+  @@index([workspaceId])
+  @@index([result])
+  @@index([createdAt])
 }
 
 // ============================================
@@ -236,6 +314,7 @@ model RequestLog {
   
   method      String
   path        String
+  normalizedPath String?
   queryParams Json?
   headers     Json?
   body        Json?
@@ -254,6 +333,153 @@ model RequestLog {
 
   @@index([endpointId])
   @@index([endpointId, createdAt])
+  @@index([endpointId, responseStatus, createdAt])
+  @@index([endpointId, normalizedPath, createdAt])
   @@index([createdAt])
   @@index([userId])
+}
+
+enum RecorderProposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model RecorderProposal {
+  id               String                @id @default(cuid())
+  workspaceId      String
+  workspace        Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  recorderSessionId String
+  recorderSession   RecorderSession      @relation(fields: [recorderSessionId], references: [id], onDelete: Cascade)
+
+  endpointId       String
+  endpoint         Endpoint              @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  method           String
+  normalizedPath   String
+  responseStatus   Int
+
+  count            Int                   @default(1)
+  confidence       Float                 @default(0)
+  proposedRule     Json
+  sample           Json?
+
+  status           RecorderProposalStatus @default(PENDING)
+  decidedAt        DateTime?
+  decidedByUserId  String?
+  decidedByUser    User?                 @relation(fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@unique([recorderSessionId, endpointId, method, normalizedPath, responseStatus], name: "RecorderProposal_dedupe_key")
+  @@index([workspaceId, status, createdAt])
+  @@index([recorderSessionId, status, createdAt])
+  @@index([endpointId, normalizedPath, status])
+  @@index([normalizedPath])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model RecorderSession {
+  id            String        @id @default(uuid())
+  createdById   String
+  createdBy     User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  workspaceType WorkspaceType @default(PERSONAL)
+  teamId        String?
+  workspaceId   String?
+  workspace     Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  status        RecorderStatus @default(ACTIVE)
+  mode          RecorderMode   @default(SAMPLED)
+  endpoints     RecorderSessionEndpoint[]
+  proposals     RecorderProposal[]
+  maxRequests   Int?
+  maxBytes      Int?
+  ttlExpiresAt  DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([createdById])
+  @@index([teamId])
+  @@index([workspaceId])
+  @@index([status])
+  @@index([ttlExpiresAt])
+}
+
+model Workspace {
+  id                    String             @id @default(cuid())
+  type                  WorkspaceType
+  personalOwnerUserId   String?
+  personalOwnerUser     User?              @relation("PersonalWorkspaceOwner", fields: [personalOwnerUserId], references: [id], onDelete: Cascade)
+  teamId                String?            @unique
+  team                  Team?              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  endpoints             Endpoint[]
+  serviceApiKeys        ServiceApiKey[]
+  endpointAuditLogs     EndpointAuditLog[]
+  auditSecurityEvents   AuditSecurityEvent[]
+  recorderSessions      RecorderSession[]
+  apiCredentials        ApiCredential[]
+  recorderProposals     RecorderProposal[]
+
+  @@unique([type, personalOwnerUserId], name: "Workspace_type_personalOwnerUserId_key")
+  @@index([type])
+  @@index([personalOwnerUserId])
+}
+
+enum ApiCredentialPrincipalType {
+  USER
+  SERVICE
+}
+
+model ApiCredential {
+  id            String                      @id @default(cuid())
+  principalType ApiCredentialPrincipalType
+  userId        String
+  user          User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId   String
+  workspace     Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  keyHash       String                      @unique
+  scopes        String[]
+  expiresAt     DateTime?
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+  rotatedFromId String?
+  rotatedFrom   ApiCredential?              @relation("CredentialRotation", fields: [rotatedFromId], references: [id], onDelete: SetNull)
+  rotatedTo     ApiCredential[]             @relation("CredentialRotation")
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([revokedAt])
+  @@index([workspaceId, revokedAt])
+}
+
+model RecorderSessionEndpoint {
+  id                String          @id @default(cuid())
+  recorderSessionId String
+  recorderSession   RecorderSession @relation(fields: [recorderSessionId], references: [id], onDelete: Cascade)
+  endpointId        String
+  endpoint          Endpoint        @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+
+  @@unique([recorderSessionId, endpointId], name: "RecorderSessionEndpoint_session_endpoint_key")
+  @@index([endpointId])
+  @@index([recorderSessionId])
+}
+
+enum RecorderMode {
+  OFF
+  SAMPLED
+  FULL
+}
+
+enum RecorderStatus {
+  ACTIVE
+  STOPPED
+  EXPIRED
 }

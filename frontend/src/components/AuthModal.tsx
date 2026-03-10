@@ -137,7 +137,7 @@ export const AuthModal: React.FC = () => {
 
     // ── OAuth ─────────────────────────────────────────────────────────────
     const handleOAuth = (provider: 'google' | 'github') => {
-        const oauthUrl = new URL(`${API_BASE_URL}/api/v1/oauth/${provider}`);
+        const oauthUrl = new URL(`${API_BASE_URL}/api/v2/oauth/${provider}`);
         if (apiKey) oauthUrl.searchParams.append('conversionToken', apiKey);
         window.location.href = oauthUrl.toString();
     };
@@ -409,3 +409,4 @@ export const AuthModal: React.FC = () => {
         </div>
     );
 };
+

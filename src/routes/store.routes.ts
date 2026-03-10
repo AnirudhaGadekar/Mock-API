@@ -1,14 +1,14 @@
 /**
  * store.routes.ts — Enhanced stateful store API.
  *
- * POST   /api/v1/store/:endpointId/push     — Push item to collection
- * POST   /api/v1/store/:endpointId/get       — Get value at path
- * POST   /api/v1/store/:endpointId/set       — Set value at path
- * POST   /api/v1/store/:endpointId/list      — List/filter/sort collection
- * POST   /api/v1/store/:endpointId/count     — Count items in collection
- * POST   /api/v1/store/:endpointId/remove    — Remove value at path
- * GET    /api/v1/store/:endpointId           — Get entire store
- * DELETE /api/v1/store/:endpointId           — Clear entire store
+ * POST   /api/v2/store/:endpointId/push     — Push item to collection
+ * POST   /api/v2/store/:endpointId/get       — Get value at path
+ * POST   /api/v2/store/:endpointId/set       — Set value at path
+ * POST   /api/v2/store/:endpointId/list      — List/filter/sort collection
+ * POST   /api/v2/store/:endpointId/count     — Count items in collection
+ * POST   /api/v2/store/:endpointId/remove    — Remove value at path
+ * GET    /api/v2/store/:endpointId           — Get entire store
+ * DELETE /api/v2/store/:endpointId           — Clear entire store
  */
 import { FastifyPluginAsync } from 'fastify';
 import { statefulStore } from '../engine/stateful-store.js';

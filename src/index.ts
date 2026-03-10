@@ -22,7 +22,6 @@ import { adminRoutes } from './routes/admin.routes.js';
 import { aiRulesRoutes } from './routes/ai-rules.routes.js';
 import { authRoutes } from './routes/auth.js';
 import { chaosRoutes } from './routes/chaos.routes.js';
-import { endpointsRoutes } from "./routes/endpoints.routes.js";
 import { historyRoutes } from './routes/history.routes.js';
 import { inviteRoutes } from './routes/invites.js';
 import { mockRouterPlugin } from './routes/mock.router.js';
@@ -36,6 +35,10 @@ import { teamRoutes } from './routes/teams.js';
 import tunnelWsRoute from './routes/tunnel-ws.js';
 import { tunnelRoutes } from './routes/tunnel.routes.js';
 import { userRoutes } from './routes/user.routes.js';
+import { v2EndpointsRoutes } from './routes/v2/endpoints.routes.js';
+import { v2RecorderRoutes } from './routes/v2/recorder.routes.js';
+import { v2SamlRoutes } from './routes/v2/saml.routes.js';
+import { v2ServiceKeysRoutes } from './routes/v2/service-keys.routes.js';
 import { workspaceRoutes } from './routes/workspace.js';
 
 function isDeployedEnvironment(): boolean {
@@ -62,6 +65,41 @@ function isLocalhostLikeHost(hostOrUrl: string | undefined): boolean {
   } catch {
     return false;
   }
+}
+
+function getContractPath(pathWithQuery: string): string {
+  return pathWithQuery.split('?')[0] || pathWithQuery;
+}
+
+function applyApiContractHeaders(pathWithQuery: string, reply: { header: (name: string, value: string) => unknown }) {
+  const path = getContractPath(pathWithQuery);
+
+  if (path === '/api/v2' || path.startsWith('/api/v2/')) {
+    const deprecation = (process.env.V2_DEPRECATION ?? 'false').trim().toLowerCase();
+    const isDeprecated = deprecation === '1' || deprecation === 'true' || deprecation === 'yes' || deprecation === 'on';
+    const sunset = process.env.V2_SUNSET_AT?.trim() || 'Wed, 31 Dec 2099 23:59:59 GMT';
+
+    reply.header('x-api-version', '2');
+    reply.header('x-api-contract', 'stable');
+    reply.header('x-api-lifecycle', 'current');
+    reply.header('x-api-supported-versions', '2');
+    reply.header('deprecation', isDeprecated ? 'true' : 'false');
+    if (isDeprecated) {
+      reply.header('sunset', sunset);
+      reply.header('x-api-migration-guide', '/documentation');
+      reply.header('link', '</documentation>; rel=\"deprecation\"');
+      return;
+    }
+    reply.header('sunset', sunset);
+    reply.header('x-api-migration-guide', '/documentation');
+    reply.header('link', '</api/v2>; rel=\"latest-version\"');
+  }
+}
+
+function isFeatureEnabled(name: string): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) return false;
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
 }
 
 /**
@@ -310,6 +348,11 @@ async function buildApp() {
     });
   });
 
+  app.addHook('onSend', async function (request, reply, payload) {
+    applyApiContractHeaders(request.url, reply);
+    return payload;
+  });
+
   app.addHook('onResponse', async function (request, reply) {
     logger.info('Request completed', {
       method: request.method,
@@ -330,29 +373,34 @@ async function buildApp() {
   // Swagger Documentation
   await registerSwagger(app);
 
-  // API routes (session is unauthenticated — must be first)
-  await app.register(sessionRoutes, { prefix: '/api/v1/session' });
+  // API routes (session is unauthenticated and v2 is the primary contract)
+  await app.register(sessionRoutes, { prefix: '/api/v2/session' });
 
-  await app.register(endpointsRoutes, { prefix: '/api/v1/endpoints' });
-  await app.register(historyRoutes, { prefix: '/api/v1/history' });
-  await app.register(adminRoutes, { prefix: '/api/v1/admin' });
-  await app.register(userRoutes, { prefix: '/api/v1/user' });
-  await app.register(stateRoutes, { prefix: '/api/v1/state' });
-  await app.register(storeRoutes, { prefix: '/api/v1/store' });
-  await app.register(chaosRoutes, { prefix: '/api/v1/chaos' });
-  await app.register(oasRoutes, { prefix: '/api/v1' });
-  await app.register(tunnelRoutes, { prefix: '/api/v1/tunnel' });
-  await app.register(teamRoutes, { prefix: '/api/v1/teams' });
-  await app.register(authRoutes, { prefix: '/api/v1/auth' });
-  await app.register(otpRoutes, { prefix: '/api/v1/auth' });
-  await app.register(oauthRoutes, { prefix: '/api/v1/oauth' });
-  await app.register(inviteRoutes, { prefix: '/api/v1/invites' });
-  await app.register(workspaceRoutes, { prefix: '/api/v1/workspace' });
+  await app.register(historyRoutes, { prefix: '/api/v2/history' });
+  await app.register(adminRoutes, { prefix: '/api/v2/admin' });
+  await app.register(userRoutes, { prefix: '/api/v2/user' });
+  await app.register(stateRoutes, { prefix: '/api/v2/state' });
+  await app.register(storeRoutes, { prefix: '/api/v2/store' });
+  await app.register(chaosRoutes, { prefix: '/api/v2/chaos' });
+  await app.register(oasRoutes, { prefix: '/api/v2' });
+  await app.register(tunnelRoutes, { prefix: '/api/v2/tunnel' });
+  await app.register(teamRoutes, { prefix: '/api/v2/teams' });
+  await app.register(authRoutes, { prefix: '/api/v2/auth' });
+  await app.register(otpRoutes, { prefix: '/api/v2/auth' });
+  await app.register(oauthRoutes, { prefix: '/api/v2/oauth' });
+  await app.register(inviteRoutes, { prefix: '/api/v2/invites' });
+  await app.register(workspaceRoutes, { prefix: '/api/v2/workspace' });
+  await app.register(v2EndpointsRoutes, { prefix: '/api/v2/endpoints' });
+  await app.register(v2RecorderRoutes, { prefix: '/api/v2/recorder-sessions' });
+  await app.register(v2ServiceKeysRoutes, { prefix: '/api/v2/service-keys' });
+  if (isFeatureEnabled('FEATURE_SAML_SSO')) {
+    await app.register(v2SamlRoutes, { prefix: '/api/v2/saml' });
+  }
   await app.register(tunnelProxyPlugin);
   await app.register(mockRouterPlugin);
 
   // AI Routes
-  await app.register(aiRulesRoutes, { prefix: '/api/v1/ai' });
+  await app.register(aiRulesRoutes, { prefix: '/api/v2/ai' });
 
   // Error handler
   app.setErrorHandler((error: unknown, request, reply) => {

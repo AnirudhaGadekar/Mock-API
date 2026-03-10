@@ -1,5 +1,0 @@
-# Prisma Migrations
-
-This directory will contain Prisma migration files.
-
-Run `npm run prisma:migrate` to create migrations after setting up the database.

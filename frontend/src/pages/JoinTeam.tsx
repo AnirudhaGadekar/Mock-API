@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AuthModal } from '../components/AuthModal';
 import { useAuth } from '../contexts/AuthContext';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v2';
 
 export const JoinTeamPage: React.FC = () => {
     const { token } = useParams<{ token: string }>();
@@ -115,3 +115,4 @@ export const JoinTeamPage: React.FC = () => {
         </div>
     );
 };
+

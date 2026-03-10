@@ -13,7 +13,7 @@ import { generateApiKey, hashApiKey } from '../utils/apiKey.js';
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     const API_KEY_COOKIE = getApiKeyCookieName();
     /**
-     * POST /api/v1/session
+     * POST /api/v2/session
      * Auto-create an anonymous user and return their API key.
      */
     fastify.post('/', async (_request, reply) => {
@@ -73,7 +73,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     /**
-     * GET /api/v1/session/me
+     * GET /api/v2/session/me
      * Validate an existing API key and return user info.
      */
     fastify.get('/me', async (request, reply) => {

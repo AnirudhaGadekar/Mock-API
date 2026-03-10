@@ -5,11 +5,11 @@
  * This is separate from user API keys.
  *
  * Endpoints:
- *   GET /api/v1/admin/overview    → system stats
- *   GET /api/v1/admin/users       → all users with endpoint counts
- *   GET /api/v1/admin/endpoints   → all endpoints across users
- *   GET /api/v1/admin/logs        → request logs with full request/response
- *   GET /api/v1/admin/errors      → only error logs (4xx + 5xx)
+ *   GET /api/v2/admin/overview    → system stats
+ *   GET /api/v2/admin/users       → all users with endpoint counts
+ *   GET /api/v2/admin/endpoints   → all endpoints across users
+ *   GET /api/v2/admin/logs        → request logs with full request/response
+ *   GET /api/v2/admin/errors      → only error logs (4xx + 5xx)
  */
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../lib/db.js';

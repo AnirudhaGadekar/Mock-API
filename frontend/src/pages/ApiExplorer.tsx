@@ -7,15 +7,15 @@ const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? `http:/
 const EXAMPLES = [
   {
     title: "List Endpoints",
-    code: `curl -X GET "${API_BASE}/api/v1/endpoints" \\\n+  -H "X-API-Key: <your_api_key>"`,
+    code: `curl -X GET "${API_BASE}/api/v2/endpoints" \\\n  -H "X-API-Key: <your_api_key>"`,
   },
   {
     title: "Create Endpoint",
-    code: `curl -X POST "${API_BASE}/api/v1/endpoints/create" \\\n+  -H "X-API-Key: <your_api_key>" \\\n+  -H "Content-Type: application/json" \\\n+  -d '{"name":"my-endpoint"}'`,
+    code: `curl -X POST "${API_BASE}/api/v2/endpoints" \\\n  -H "X-API-Key: <your_api_key>" \\\n  -H "Content-Type: application/json" \\\n  -d '{"name":"my-endpoint"}'`,
   },
   {
     title: "Configure Chaos",
-    code: `curl -X PUT "${API_BASE}/api/v1/chaos/<endpoint_id>" \\\n+  -H "X-API-Key: <your_api_key>" \\\n+  -H "Content-Type: application/json" \\\n+  -d '{"enabled":true,"errorInject":{"probability":0.3,"status":503}}'`,
+    code: `curl -X PUT "${API_BASE}/api/v2/chaos/<endpoint_id>" \\\n  -H "X-API-Key: <your_api_key>" \\\n  -H "Content-Type: application/json" \\\n  -d '{"enabled":true,"errorInject":{"probability":0.3,"status":503}}'`,
   },
 ];
 
@@ -95,4 +95,5 @@ export default function ApiExplorerPage() {
     </div>
   );
 }
+
 

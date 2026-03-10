@@ -27,7 +27,7 @@ describe('Crash/Error Handling Integration', () => {
   });
 
   test('returns structured 404 from not-found handler', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/definitely-not-a-route' });
+    const res = await app.inject({ method: 'GET', url: '/api/v2/definitely-not-a-route' });
     expect(res.statusCode).toBe(404);
     const body = res.json();
     expect(body.success).toBe(false);

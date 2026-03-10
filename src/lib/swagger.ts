@@ -30,11 +30,20 @@ export async function registerSwagger(app: FastifyInstance) {
 
     await app.register(swagger, {
         openapi: {
+            openapi: '3.1.0',
             info: {
                 title: 'MockUrl API',
                 description: 'MockUrl Backend API with Fastify and Zod',
                 version: '1.0.0',
+                contact: {
+                    name: 'MockUrl API Team',
+                    url: 'https://mockurl.com',
+                },
+                license: {
+                    name: 'MIT',
+                },
             },
+            jsonSchemaDialect: 'https://json-schema.org/draft/2020-12/schema',
             servers: [
                 {
                     url: serverUrl,
@@ -52,7 +61,18 @@ export async function registerSwagger(app: FastifyInstance) {
             },
             security: [{ apiKeyAuth: [] }],
         },
-        transform: jsonSchemaTransform, // Use Zod schema transformer
+        // Some legacy routes still use plain JSON schema and can break strict zod-only transform.
+        transform: (input) => {
+            try {
+                return jsonSchemaTransform(input as any);
+            } catch {
+                const routeSchema = (input as any)?.schema ?? {};
+                return {
+                    schema: routeSchema,
+                    url: (input as any)?.url,
+                };
+            }
+        },
     });
 
     await app.register(swaggerUi, {

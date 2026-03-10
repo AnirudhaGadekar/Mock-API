@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Switch workspace
     const switchWorkspace = async (type: 'PERSONAL' | 'TEAM', teamId?: string) => {
         try {
-            await axios.post(`${API_URL}/api/v1/workspace/switch`, { type: type.toLowerCase(), teamId });
+            await axios.post(`${API_URL}/api/v2/workspace/switch`, { type: type.toLowerCase(), teamId });
             await refreshUser();
         } catch (err) {
             console.error('Failed to switch workspace', err);
@@ -90,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const initAuth = async () => {
             try {
                 try {
-                    const res = await axios.get(`${API_URL}/api/v1/auth/me`);
+                    const res = await axios.get(`${API_URL}/api/v2/auth/me`);
                     const userData = res.data;
                     setUser({
                         ...userData,
@@ -114,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const createAnonymousSession = async () => {
         try {
             // Try new auth endpoint first
-            const res = await axios.post(`${API_URL}/api/v1/auth/anonymous`);
+            const res = await axios.post(`${API_URL}/api/v2/auth/anonymous`);
             const { apiKey: newKey, user: newUser } = res.data;
             syncApiKey(newKey);
             setUser({ ...newUser, isAnonymous: true });
@@ -122,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.error('New auth/anonymous failed, trying old session endpoint', err);
             try {
                 // Fallback: old session endpoint for backward compatibility
-                const res = await axios.post(`${API_URL}/api/v1/session`);
+                const res = await axios.post(`${API_URL}/api/v2/session`);
                 if (res.data.success && res.data.session?.apiKey) {
                     const newKey = res.data.session.apiKey;
                     syncApiKey(newKey);
@@ -140,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const login = async (email: string, password: string) => {
-        const res = await axios.post(`${API_URL}/api/v1/auth/login`, { email, password });
+        const res = await axios.post(`${API_URL}/api/v2/auth/login`, { email, password });
         const { apiKey: newKey, user: loggedInUser } = res.data;
         syncApiKey(newKey);
         setUser({ ...loggedInUser, isAnonymous: false });
@@ -154,7 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: string;
         password: string;
     }) => {
-        const res = await axios.post(`${API_URL}/api/v1/auth/signup`, {
+        const res = await axios.post(`${API_URL}/api/v2/auth/signup`, {
             ...payload,
             conversionToken: isAnonymous ? apiKey : undefined
         });
@@ -171,16 +171,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const resendVerificationEmail = async (email: string) => {
-        await axios.post(`${API_URL}/api/v1/auth/resend-verification`, { email });
+        await axios.post(`${API_URL}/api/v2/auth/resend-verification`, { email });
     };
 
     const verifyEmailToken = async (token: string) => {
-        await axios.post(`${API_URL}/api/v1/auth/verify-email`, { token });
+        await axios.post(`${API_URL}/api/v2/auth/verify-email`, { token });
     };
 
     const logout = async () => {
         try {
-            await axios.post(`${API_URL}/api/v1/auth/logout`);
+            await axios.post(`${API_URL}/api/v2/auth/logout`);
         } catch (err) {
             console.error('Logout failed on server', err);
         } finally {
@@ -191,11 +191,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const sendOtp = async (email: string): Promise<void> => {
-        await axios.post(`${API_URL}/api/v1/auth/send-otp`, { email });
+        await axios.post(`${API_URL}/api/v2/auth/send-otp`, { email });
     };
 
     const verifyOtp = async (email: string, otp: string): Promise<void> => {
-        const res = await axios.post(`${API_URL}/api/v1/auth/verify-otp`, { email, otp });
+        const res = await axios.post(`${API_URL}/api/v2/auth/verify-otp`, { email, otp });
         const { apiKey: newKey, user: loggedInUser } = res.data;
         syncApiKey(newKey);
         setUser({ ...loggedInUser, isAnonymous: false });
@@ -208,7 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         for (let attempt = 0; attempt <= retries; attempt += 1) {
             try {
-                const res = await axios.get(`${API_URL}/api/v1/auth/me`);
+                const res = await axios.get(`${API_URL}/api/v2/auth/me`);
                 const userData = res.data;
                 const normalized = {
                     ...userData,
@@ -263,3 +263,4 @@ export const useAuth = () => {
     }
     return context;
 };
+
