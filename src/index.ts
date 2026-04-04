@@ -270,12 +270,12 @@ async function buildApp() {
   });
 
   // Health checks
-  app.get('/', async function (_request, reply) {
+  app.get('/api', async function (_request, reply) {
     return reply.status(200).send({
       success: true,
       service: 'MockAPI API',
       status: 'ok',
-      docs: '/api/docs',
+      docs: '/documentation',
       health: '/health',
       frontend: process.env.FRONTEND_URL || null,
       timestamp: new Date().toISOString(),
@@ -372,11 +372,6 @@ async function buildApp() {
 
   // Swagger Documentation
   await registerSwagger(app);
-
-  // Human-friendly entrypoint for browsers.
-  app.get('/', async function (_request, reply) {
-    return reply.redirect('/documentation');
-  });
 
   // API routes (session is unauthenticated and v2 is the primary contract)
   await app.register(sessionRoutes, { prefix: '/api/v2/session' });
