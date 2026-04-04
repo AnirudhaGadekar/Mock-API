@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Custom endpoint name validator (MockUrl spec): /^[a-z0-9-]{5,40}$/
+ * Custom endpoint name validator (MockAPI spec): /^[a-z0-9-]{5,40}$/
  */
 export const endpointNameSchema = z
   .string()
@@ -12,7 +12,7 @@ export const endpointNameSchema = z
   });
 
 /**
- * Mock rule response schema (MockUrl-compatible)
+ * Mock rule response schema (MockAPI-compatible)
  */
 export const mockRuleResponseSchema = z.object({
   status: z.number().int().min(100).max(599),
@@ -22,7 +22,7 @@ export const mockRuleResponseSchema = z.object({
 });
 
 /**
- * Mock rule schema (matches MockUrl structure)
+ * Mock rule schema (matches MockAPI structure)
  */
 export const mockRuleSchema = z.object({
   path: z.string().regex(/^\/.*$/, { message: 'Path must start with /' }),
@@ -48,7 +48,7 @@ export const mockRuleSchema = z.object({
 });
 
 /**
- * Default mock rules (MockUrl spec exact)
+ * Default mock rules (MockAPI spec exact)
  */
 export const DEFAULT_MOCK_RULES = [
   {
@@ -71,7 +71,7 @@ export const DEFAULT_MOCK_RULES = [
 ];
 
 /**
- * CREATE endpoint request schema (MockUrl: { name } → optional rules)
+ * CREATE endpoint request schema (MockAPI: { name } → optional rules)
  */
 export const createEndpointSchema = z.object({
   name: endpointNameSchema,
@@ -93,7 +93,7 @@ export const listEndpointsQuerySchema = z.object({
 export type ListEndpointsQuery = z.infer<typeof listEndpointsQuerySchema>;
 
 /**
- * Endpoint response schema (matches MockUrl API format)
+ * Endpoint response schema (matches MockAPI API format)
  */
 export const endpointResponseSchema = z.object({
   id: z.string().uuid(),
@@ -118,7 +118,7 @@ export const endpointResponseSchema = z.object({
 export type EndpointResponse = z.infer<typeof endpointResponseSchema>;
 
 /**
- * API error response schema (MockUrl-compatible)
+ * API error response schema (MockAPI-compatible)
  */
 export const apiErrorSchema = z.object({
   success: z.literal(false),

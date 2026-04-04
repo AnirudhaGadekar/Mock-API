@@ -1,9 +1,9 @@
 {
-    "name": "@mockurl/tunnel",
+    "name": "@mockapi/tunnel",
     "version": "1.0.0",
-    "description": "CLI tool for MockURL local tunneling",
+    "description": "CLI tool for MockAPI local tunneling",
     "bin": {
-        "mockurl": "./dist/index.js",
+        "mockapi": "./dist/index.js",
         "murl": "./dist/index.js"
     },
     "scripts": {

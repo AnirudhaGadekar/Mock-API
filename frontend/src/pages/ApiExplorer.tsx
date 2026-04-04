@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { API_BASE_URL } from "@/lib/api";
 import { Code2, ExternalLink, FileCode2, Shield, TerminalSquare } from "lucide-react";
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? `http://${window.location.hostname}:3000`;
+const API_BASE = API_BASE_URL;
 
 const EXAMPLES = [
   {

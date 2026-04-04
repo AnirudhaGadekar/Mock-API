@@ -36,7 +36,7 @@ export class TunnelClient {
     }
 
     async connect(): Promise<void> {
-        this.spinner = ora('Connecting to MockUrl tunnel server...').start();
+        this.spinner = ora('Connecting to MockAPI tunnel server...').start();
 
         return new Promise((resolve, reject) => {
             this.ws = new WebSocket(this.config.serverUrl);

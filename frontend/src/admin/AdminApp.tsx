@@ -1,5 +1,5 @@
 /**
- * AdminApp.tsx — MockUrl Admin Dashboard
+ * AdminApp.tsx — MockAPI Admin Dashboard
  *
  * Full monitoring panel: overview stats, users, endpoints, request logs.
  * Click any log row to see full request + response details.
@@ -23,8 +23,9 @@ import {
     Zap,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { API_BASE_URL } from '../lib/api';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000';
+const API_BASE = API_BASE_URL;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface Overview {
@@ -331,7 +332,7 @@ export const AdminApp: React.FC = () => {
                         <Shield size={20} />
                     </div>
                     <div>
-                        <h1>MockUrl Admin</h1>
+                        <h1>MockAPI Admin</h1>
                         <p>System monitoring &amp; request inspection</p>
                     </div>
                 </div>

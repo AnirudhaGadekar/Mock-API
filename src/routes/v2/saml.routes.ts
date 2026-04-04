@@ -40,7 +40,7 @@ const teamSsoConfigBodySchema = z.object({
 });
 
 function getSamlEntityId(): string {
-  return process.env.SAML_SP_ENTITY_ID?.trim() || 'mockurl:v2:saml:sp';
+  return process.env.SAML_SP_ENTITY_ID?.trim() || 'mockapi:v2:saml:sp';
 }
 
 function getSamlAcsUrl(): string {

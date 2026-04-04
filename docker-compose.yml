@@ -3,29 +3,29 @@ version: '3.9'
 services:
   postgres:
     image: postgres:14-alpine
-    container_name: MockUrl-postgres
+    container_name: MockAPI-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-MockUrl}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-MockUrl_pass}
-      POSTGRES_DB: ${POSTGRES_DB:-MockUrl}
+      POSTGRES_USER: ${POSTGRES_USER:-MockAPI}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-MockAPI_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-MockAPI}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U MockUrl"]
+      test: ["CMD-SHELL", "pg_isready -U MockAPI"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - MockUrl-network
+      - MockAPI-network
 
   pgbouncer:
     image: pgbouncer/pgbouncer:latest
-    container_name: MockUrl-pgbouncer
+    container_name: MockAPI-pgbouncer
     environment:
-      DATABASE_URL: "${DATABASE_URL:-postgresql://${POSTGRES_USER:-MockUrl}:${POSTGRES_PASSWORD:-MockUrl_pass}@postgres:5432/${POSTGRES_DB:-MockUrl}}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://${POSTGRES_USER:-MockAPI}:${POSTGRES_PASSWORD:-MockAPI_pass}@postgres:5432/${POSTGRES_DB:-MockAPI}}"
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 1000
       DEFAULT_POOL_SIZE: 20
@@ -40,11 +40,11 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - MockUrl-network
+      - MockAPI-network
 
   redis:
     image: redis:7-alpine
-    container_name: MockUrl-redis
+    container_name: MockAPI-redis
     command: redis-server --appendonly yes
     ports:
       - "16379:6379"
@@ -56,7 +56,7 @@ services:
       timeout: 3s
       retries: 5
     networks:
-      - MockUrl-network
+      - MockAPI-network
 
 volumes:
   postgres_data:
@@ -65,5 +65,5 @@ volumes:
     driver: local
 
 networks:
-  MockUrl-network:
+  MockAPI-network:
     driver: bridge

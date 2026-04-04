@@ -30,19 +30,34 @@ function isLocalhostLike(hostOrUrl: string | undefined): boolean {
         return false;
     }
 }
-function getDefaultApiBaseUrl(): string {
-    if (isDeployedEnvironment()) {
-        return process.env.RENDER_EXTERNAL_URL || 'https://mock-url-9rwn.onrender.com';
+
+function getOriginFromBaseEndpointUrl(): string | null {
+    const baseEndpointUrl = process.env.BASE_ENDPOINT_URL?.trim();
+    if (!baseEndpointUrl) {
+        return null;
     }
+
+    try {
+        return new URL(baseEndpointUrl).origin;
+    } catch {
+        return null;
+    }
+}
+
+function getDefaultApiBaseUrl(): string {
+    const originFromBaseEndpointUrl = getOriginFromBaseEndpointUrl();
+    if (originFromBaseEndpointUrl) {
+        return originFromBaseEndpointUrl;
+    }
+
+    if (isDeployedEnvironment()) {
+        return process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000';
+    }
+
     return 'http://localhost:3000';
 }
 
 function getDefaultFrontendUrl(): string {
-    if (isDeployedEnvironment()) {
-        // In production we host frontend on Vercel.
-        // Keep this as fallback when FRONTEND_URL is missing to avoid OAuth callback dead-ends.
-        return 'https://mock-url-frontend.vercel.app';
-    }
     return 'http://localhost:5173';
 }
 
@@ -61,7 +76,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || getDefaultFrontendUrl();
 
 const isDeployed = isDeployedEnvironment();
 if (isDeployed && !process.env.FRONTEND_URL) {
-    logger.warn('FRONTEND_URL not set in production. Falling back to https://mock-url-frontend.vercel.app.');
+    logger.warn('FRONTEND_URL not set in production. OAuth redirects require FRONTEND_URL to be configured.');
 }
 if (isDeployed && (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET)) {
     logger.error('CONFIG ERROR: Missing Google OAuth credentials in deployed environment.');

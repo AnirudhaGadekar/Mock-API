@@ -131,7 +131,7 @@ export const websocketPlugin: FastifyPluginAsync = async (fastify: FastifyInstan
         // Send welcome message
         ws.send(JSON.stringify({
             type: 'connected',
-            message: 'Connected to MockUrl live request stream',
+            message: 'Connected to MockAPI live request stream',
             endpointId,
             timestamp: new Date().toISOString(),
         }));

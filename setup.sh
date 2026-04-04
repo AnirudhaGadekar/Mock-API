@@ -2,7 +2,7 @@
 
 set -e
 
-echo "🚀 Setting up MockUrl Clone Backend..."
+echo "🚀 Setting up MockAPI Clone Backend..."
 
 # Colors for output
 RED='\033[0;31m'

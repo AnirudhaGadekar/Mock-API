@@ -21,7 +21,7 @@ beforeAll(async () => {
   testApiKey = generateApiKey();
   const testUser = await prisma.user.create({
     data: {
-      email: `test-${crypto.randomBytes(4).toString('hex')}@mockurl.com`,
+      email: `test-${crypto.randomBytes(4).toString('hex')}@mockapi.com`,
       apiKeyHash: hashApiKey(testApiKey),
     },
   });

@@ -22,7 +22,7 @@ export const logger = winston.createLogger({
     winston.format.json()
   ),
   defaultMeta: {
-    service: 'MockUrl',
+    service: 'MockAPI',
     environment: process.env.NODE_ENV,
   },
   transports: [

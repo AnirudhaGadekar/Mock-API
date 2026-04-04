@@ -37,7 +37,7 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Your MockURL Login Code</title>
+  <title>Your MockAPI Login Code</title>
 </head>
 <body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
@@ -49,7 +49,7 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
           <tr>
             <td style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:32px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">
-                🔐 MockURL
+                🔐 MockAPI
               </h1>
               <p style="margin:8px 0 0;color:#c4b5fd;font-size:14px;">One-Time Login Code</p>
             </td>
@@ -58,7 +58,7 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
           <tr>
             <td style="padding:40px 32px;">
               <p style="color:#94a3b8;font-size:15px;margin:0 0 24px;">
-                Use the code below to sign in to MockURL. This code expires in
+                Use the code below to sign in to MockAPI. This code expires in
                 <strong style="color:#e2e8f0;">5 minutes</strong>.
               </p>
               <!-- OTP Box -->
@@ -77,7 +77,7 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
           <tr>
             <td style="padding:16px 32px;background:#0f172a;border-top:1px solid #1e293b;text-align:center;">
               <p style="margin:0;color:#475569;font-size:12px;">
-                MockURL &mdash; Mock API endpoints, instantly.
+                MockAPI &mdash; Mock API endpoints, instantly.
               </p>
             </td>
           </tr>
@@ -92,7 +92,7 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
   const { error } = await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: `${otp} is your MockURL login code`,
+    subject: `${otp} is your MockAPI login code`,
     html,
   });
 
@@ -134,7 +134,7 @@ export async function sendVerificationEmail(to: string, verificationToken: strin
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Verify your MockURL account</title>
+  <title>Verify your MockAPI account</title>
 </head>
 <body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
@@ -144,7 +144,7 @@ export async function sendVerificationEmail(to: string, verificationToken: strin
                style="background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden;">
           <tr>
             <td style="background:linear-gradient(135deg,#0ea5e9,#2563eb);padding:32px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">MockURL</h1>
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">MockAPI</h1>
               <p style="margin:8px 0 0;color:#bfdbfe;font-size:14px;">Verify your email address</p>
             </td>
           </tr>
@@ -175,7 +175,7 @@ export async function sendVerificationEmail(to: string, verificationToken: strin
   const { error } = await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: 'Verify your MockURL account',
+    subject: 'Verify your MockAPI account',
     html,
   });
 

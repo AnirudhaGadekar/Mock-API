@@ -11,7 +11,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [theme, setTheme] = useState<Theme>(() => {
-        const saved = localStorage.getItem('mockurl_theme');
+        const saved = localStorage.getItem('mockapi_theme');
         if (saved === 'light' || saved === 'dark') return saved;
         return 'dark'; // Default to dark since current app is dark
     });
@@ -20,7 +20,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const root = window.document.documentElement;
         root.classList.remove('light', 'dark');
         root.classList.add(theme);
-        localStorage.setItem('mockurl_theme', theme);
+        localStorage.setItem('mockapi_theme', theme);
     }, [theme]);
 
     const toggleTheme = () => {

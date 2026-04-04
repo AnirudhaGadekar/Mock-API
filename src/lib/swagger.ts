@@ -32,12 +32,12 @@ export async function registerSwagger(app: FastifyInstance) {
         openapi: {
             openapi: '3.1.0',
             info: {
-                title: 'MockUrl API',
-                description: 'MockUrl Backend API with Fastify and Zod',
+                title: 'MockAPI API',
+                description: 'MockAPI Backend API with Fastify and Zod',
                 version: '1.0.0',
                 contact: {
-                    name: 'MockUrl API Team',
-                    url: 'https://mockurl.com',
+                    name: 'MockAPI API Team',
+                    url: 'https://mockapi.com',
                 },
                 license: {
                     name: 'MIT',

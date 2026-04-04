@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     const userData = res.data;
                     setUser({
                         ...userData,
-                        isAnonymous: userData.authProvider === 'ANONYMOUS' || userData.email?.endsWith('@mockurl.local')
+                        isAnonymous: userData.authProvider === 'ANONYMOUS' || userData.email?.endsWith('@mockapi.local')
                     });
                     setApiKey(null);
                     setApiKeyRef('');
@@ -212,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const userData = res.data;
                 const normalized = {
                     ...userData,
-                    isAnonymous: userData.authProvider === 'ANONYMOUS' || userData.email?.endsWith('@mockurl.local')
+                    isAnonymous: userData.authProvider === 'ANONYMOUS' || userData.email?.endsWith('@mockapi.local')
                 } as User;
                 setUser(normalized);
                 return normalized;

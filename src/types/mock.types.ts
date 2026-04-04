@@ -1,5 +1,5 @@
 /**
- * Core types for MockUrl mock endpoint system
+ * Core types for MockAPI mock endpoint system
  */
 
 /**

@@ -5,14 +5,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: MockUrl-app
+    container_name: MockAPI-app
     environment:
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
       LOG_LEVEL: info
-      DATABASE_URL: "${DATABASE_URL:-postgresql://${POSTGRES_USER:-MockUrl}:${POSTGRES_PASSWORD:-MockUrl_pass}@pgbouncer:5432/${POSTGRES_DB:-MockUrl}?schema=public&pgbouncer=true&connection_limit=1}"
-      DIRECT_DATABASE_URL: "${DIRECT_DATABASE_URL:-postgresql://${POSTGRES_USER:-MockUrl}:${POSTGRES_PASSWORD:-MockUrl_pass}@postgres:5432/${POSTGRES_DB:-MockUrl}?schema=public}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://${POSTGRES_USER:-MockAPI}:${POSTGRES_PASSWORD:-MockAPI_pass}@pgbouncer:5432/${POSTGRES_DB:-MockAPI}?schema=public&pgbouncer=true&connection_limit=1}"
+      DIRECT_DATABASE_URL: "${DIRECT_DATABASE_URL:-postgresql://${POSTGRES_USER:-MockAPI}:${POSTGRES_PASSWORD:-MockAPI_pass}@postgres:5432/${POSTGRES_DB:-MockAPI}?schema=public}"
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
@@ -35,7 +35,7 @@ services:
         condition: service_started
     restart: unless-stopped
     networks:
-      - MockUrl-network
+      - MockAPI-network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/healthz"]
       interval: 30s
@@ -45,28 +45,28 @@ services:
 
   postgres:
     image: postgres:14-alpine
-    container_name: MockUrl-postgres
+    container_name: MockAPI-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-MockUrl}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-MockUrl_pass}
-      POSTGRES_DB: ${POSTGRES_DB:-MockUrl}
+      POSTGRES_USER: ${POSTGRES_USER:-MockAPI}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-MockAPI_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-MockAPI}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U MockUrl"]
+      test: ["CMD-SHELL", "pg_isready -U MockAPI"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
     networks:
-      - MockUrl-network
+      - MockAPI-network
 
   pgbouncer:
     image: pgbouncer/pgbouncer:latest
-    container_name: MockUrl-pgbouncer
+    container_name: MockAPI-pgbouncer
     environment:
-      DATABASE_URL: "${DATABASE_URL:-postgresql://${POSTGRES_USER:-MockUrl}:${POSTGRES_PASSWORD:-MockUrl_pass}@postgres:5432/${POSTGRES_DB:-MockUrl}}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://${POSTGRES_USER:-MockAPI}:${POSTGRES_PASSWORD:-MockAPI_pass}@postgres:5432/${POSTGRES_DB:-MockAPI}}"
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 1000
       DEFAULT_POOL_SIZE: 20
@@ -80,11 +80,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - MockUrl-network
+      - MockAPI-network
 
   redis:
     image: redis:7-alpine
-    container_name: MockUrl-redis
+    container_name: MockAPI-redis
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
@@ -95,7 +95,7 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - MockUrl-network
+      - MockAPI-network
 
 volumes:
   postgres_data:
@@ -104,5 +104,5 @@ volumes:
     driver: local
 
 networks:
-  MockUrl-network:
+  MockAPI-network:
     driver: bridge

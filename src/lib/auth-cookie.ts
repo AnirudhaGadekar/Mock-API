@@ -1,4 +1,4 @@
-const API_KEY_COOKIE_NAME = 'mockurl_api_key';
+const API_KEY_COOKIE_NAME = 'mockapi_api_key';
 const DEFAULT_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 function parseDurationToSeconds(raw: string): number | null {

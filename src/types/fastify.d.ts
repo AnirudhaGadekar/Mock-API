@@ -1,5 +1,5 @@
 /**
- * Fastify type augmentations for MockUrl
+ * Fastify type augmentations for MockAPI
  */
 import 'fastify';
 

@@ -4,8 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AuthModal } from '../components/AuthModal';
 import { useAuth } from '../contexts/AuthContext';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v2';
+import { API_BASE_URL } from '../lib/api';
 
 export const JoinTeamPage: React.FC = () => {
     const { token } = useParams<{ token: string }>();
@@ -20,7 +19,7 @@ export const JoinTeamPage: React.FC = () => {
     useEffect(() => {
         const fetchInvite = async () => {
             try {
-                const res = await axios.get(`${API_URL}/invites/${token}`);
+                const res = await axios.get(`${API_BASE_URL}/api/v2/invites/${token}`);
                 setInviteData(res.data);
             } catch (err: any) {
                 setError(err.response?.data?.error || 'Failed to validate invitation');
@@ -40,7 +39,7 @@ export const JoinTeamPage: React.FC = () => {
 
         setJoining(true);
         try {
-            await axios.post(`${API_URL}/invites/${token}/accept`, {}, {
+            await axios.post(`${API_BASE_URL}/api/v2/invites/${token}/accept`, {}, {
                 headers: { 'x-api-key': apiKey }
             });
             // Success - redirect to team dashboard

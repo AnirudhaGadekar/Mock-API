@@ -68,7 +68,7 @@ describe('security policy enforcement', () => {
       method: 'GET',
       url: `/e/${endpointName}/hello`,
       headers: {
-        host: 'mockurl.com',
+        host: 'mockapi.com',
       },
       remoteAddress: '172.16.10.9',
     });

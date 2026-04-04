@@ -14,7 +14,7 @@ import { FastifyReply } from 'fastify';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 
-const CHAOS_PREFIX = 'mockurl:chaos:';
+const CHAOS_PREFIX = 'mockapi:chaos:';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

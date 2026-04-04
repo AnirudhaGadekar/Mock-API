@@ -48,31 +48,31 @@ class Counter {
 }
 
 export const httpRequestsTotal = new Counter({
-  name: 'mockurl_http_requests_total',
+  name: 'mockapi_http_requests_total',
   help: 'Total number of HTTP requests',
   labelNames: ['method', 'status_code', 'endpoint_id'],
 });
 
 export const httpRequestErrorsTotal = new Counter({
-  name: 'mockurl_http_request_errors_total',
+  name: 'mockapi_http_request_errors_total',
   help: 'Total number of HTTP requests resulting in 5xx errors',
   labelNames: ['method', 'status_code', 'endpoint_id'],
 });
 
 export const endpointRequestsTotal = new Counter({
-  name: 'mockurl_endpoint_requests_total',
+  name: 'mockapi_endpoint_requests_total',
   help: 'Total number of requests per mock endpoint',
   labelNames: ['endpoint_id'],
 });
 
 export const policyDeniedTotal = new Counter({
-  name: 'mockurl_policy_denied_total',
+  name: 'mockapi_policy_denied_total',
   help: 'Total number of requests denied by security policies',
   labelNames: ['policy', 'endpoint_id'],
 });
 
 export const maskedOutboundHeadersTotal = new Counter({
-  name: 'mockurl_masked_outbound_headers_total',
+  name: 'mockapi_masked_outbound_headers_total',
   help: 'Total number of masked header fields in outbound payloads',
   labelNames: ['channel', 'endpoint_id'],
 });

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mockurl-backend
+    name: mockapi-backend
     env: node
     plan: starter
     autoDeploy: true

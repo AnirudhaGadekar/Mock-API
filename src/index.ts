@@ -87,12 +87,12 @@ function applyApiContractHeaders(pathWithQuery: string, reply: { header: (name: 
     if (isDeprecated) {
       reply.header('sunset', sunset);
       reply.header('x-api-migration-guide', '/documentation');
-      reply.header('link', '</documentation>; rel=\"deprecation\"');
+      reply.header('link', '</documentation>; rel="deprecation"');
       return;
     }
     reply.header('sunset', sunset);
     reply.header('x-api-migration-guide', '/documentation');
-    reply.header('link', '</api/v2>; rel=\"latest-version\"');
+    reply.header('link', '</api/v2>; rel="latest-version"');
   }
 }
 
@@ -162,7 +162,7 @@ function validateEnvironment() {
 
   const baseEndpointUrl = process.env.BASE_ENDPOINT_URL?.trim();
   if (isDeployed && baseEndpointUrl && isLocalhostLikeHost(baseEndpointUrl)) {
-    logger.error('CONFIG ERROR: BASE_ENDPOINT_URL is localhost in a deployed environment. Use your public domain (for example, https://mock-url-9rwn.onrender.com/e).', {
+    logger.error('CONFIG ERROR: BASE_ENDPOINT_URL is localhost in a deployed environment. Use your public domain (for example, https://api.yourdomain.com/e).', {
       BASE_ENDPOINT_URL: baseEndpointUrl,
       NODE_ENV: process.env.NODE_ENV,
       RENDER: process.env.RENDER,
@@ -273,7 +273,7 @@ async function buildApp() {
   app.get('/', async function (_request, reply) {
     return reply.status(200).send({
       success: true,
-      service: 'MockUrl API',
+      service: 'MockAPI API',
       status: 'ok',
       docs: '/api/docs',
       health: '/health',
@@ -372,6 +372,11 @@ async function buildApp() {
 
   // Swagger Documentation
   await registerSwagger(app);
+
+  // Human-friendly entrypoint for browsers.
+  app.get('/', async function (_request, reply) {
+    return reply.redirect('/documentation');
+  });
 
   // API routes (session is unauthenticated and v2 is the primary contract)
   await app.register(sessionRoutes, { prefix: '/api/v2/session' });

@@ -274,7 +274,7 @@ export default function Dashboard() {
                                     />
                                     No endpoints yet.
                                     <br />
-                                    Create one above to get a live mock URL.
+                                    Create one above to get a live Mock API.
                                 </div>
                             ) : (
                                 endpoints.map((ep) => (
@@ -364,7 +364,7 @@ export default function Dashboard() {
                                     </div>
                                 </div>
 
-                                {/* Mock URL + curl */}
+                                {/* Mock API + curl */}
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg border">
                                         <Wifi
@@ -516,7 +516,7 @@ export default function Dashboard() {
                                             No requests captured yet.
                                         </p>
                                         <p className="text-xs mt-1 opacity-60">
-                                            Send a request to your mock URL to see
+                                            Send a request to your Mock API to see
                                             it here.
                                         </p>
                                     </div>
@@ -593,7 +593,7 @@ export default function Dashboard() {
                             Select an endpoint
                         </h3>
                         <p className="text-sm mt-1 max-w-sm text-center">
-                            Pick an endpoint from the sidebar to view its mock URL,
+                            Pick an endpoint from the sidebar to view its Mock API,
                             stats, and a ready-to-run curl snippet. Create one first
                             if you haven't already.
                         </p>

@@ -17,7 +17,7 @@ import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 import { authenticateApiKey, getAuthenticatedUser } from '../middleware/auth.middleware.js';
 
-const TUNNEL_PREFIX = 'mockurl:tunnel:';
+const TUNNEL_PREFIX = 'mockapi:tunnel:';
 
 interface TunnelConfig {
   id: string;

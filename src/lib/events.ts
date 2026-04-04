@@ -37,34 +37,34 @@ export type EndpointDeletedEvent = {
   deletedAt: Date;
 };
 
-type MockUrlEvents = {
+type MockAPIEvents = {
   requestLogged: (payload: RequestLoggedEvent) => void;
   endpointCreated: (payload: EndpointEvent) => void;
   endpointUpdated: (payload: EndpointUpdatedEvent) => void;
   endpointDeleted: (payload: EndpointDeletedEvent) => void;
 };
 
-class MockUrlEventBus extends EventEmitter {
-  emit<EventName extends keyof MockUrlEvents>(
+class MockAPIEventBus extends EventEmitter {
+  emit<EventName extends keyof MockAPIEvents>(
     event: EventName,
-    payload: Parameters<MockUrlEvents[EventName]>[0],
+    payload: Parameters<MockAPIEvents[EventName]>[0],
   ): boolean {
     return super.emit(event, payload);
   }
 
-  on<EventName extends keyof MockUrlEvents>(
+  on<EventName extends keyof MockAPIEvents>(
     event: EventName,
-    listener: MockUrlEvents[EventName],
+    listener: MockAPIEvents[EventName],
   ): this {
     return super.on(event, listener);
   }
 
-  off<EventName extends keyof MockUrlEvents>(
+  off<EventName extends keyof MockAPIEvents>(
     event: EventName,
-    listener: MockUrlEvents[EventName],
+    listener: MockAPIEvents[EventName],
   ): this {
     return super.off(event, listener);
   }
 }
 
-export const events = new MockUrlEventBus();
+export const events = new MockAPIEventBus();

@@ -75,7 +75,7 @@ export const useTeamStore = create<TeamState>()(
             }
         }),
         {
-            name: 'mockurl-team-store',
+            name: 'mockapi-team-store',
             partialize: (state) => ({ currentTeamId: state.currentTeamId }),
         }
     )

@@ -262,7 +262,7 @@ export default function EndpointConfigPage() {
                     <div>
                         <h2 className="text-2xl font-bold tracking-tight">{endpoint.name}</h2>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span className="font-mono">{endpoint.subdomain}.mockurl.com</span>
+                            <span className="font-mono">{endpoint.subdomain}.mockapi.com</span>
                             <ChevronRight className="h-3 w-3" />
                             <span>Configuration</span>
                         </div>

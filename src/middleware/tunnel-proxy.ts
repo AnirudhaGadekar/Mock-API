@@ -8,8 +8,8 @@
  *
  * Flow:
  * 1. Backend/console calls POST /api/v2/tunnel with { id?, targetUrl, headers?, ttlSeconds? }
- * 2. We store config under mockurl:tunnel:<id>
- * 3. Clients hit https://api.mockurl.com/tunnel/<id>/... and traffic is forwarded
+ * 2. We store config under mockapi:tunnel:<id>
+ * 3. Clients hit https://api.mockapi.com/tunnel/<id>/... and traffic is forwarded
  *    to targetUrl + path suffix with optional header injection.
  */
 import { randomUUID } from 'crypto';
@@ -18,7 +18,7 @@ import { getTunnel } from '../lib/active-tunnels.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 
-const TUNNEL_PREFIX = 'mockurl:tunnel:';
+const TUNNEL_PREFIX = 'mockapi:tunnel:';
 
 export interface TunnelConfig {
   id: string;

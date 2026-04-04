@@ -37,7 +37,7 @@ function configureWindowsEsbuild(rootDir) {
   const sourceBinary = getWindowsEsbuildSource(rootDir);
   if (!sourceBinary) return;
 
-  const tempDir = path.join(os.tmpdir(), 'mockurl-esbuild');
+  const tempDir = path.join(os.tmpdir(), 'mockapi-esbuild');
   mkdirSync(tempDir, { recursive: true });
   const targetBinary = path.join(tempDir, `esbuild-${process.pid}-${Date.now()}.exe`);
   copyFileSync(sourceBinary, targetBinary);

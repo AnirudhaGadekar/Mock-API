@@ -6,13 +6,13 @@ config({ path: '.env' });
 
 // Mock environment variables if not set
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
-const defaultTestDb = 'postgresql://MockUrl:MockUrl_pass@localhost:5432/MockUrl_test?schema=public';
-const defaultLocalDb = 'postgresql://MockUrl:MockUrl_pass@localhost:5432/MockUrl?schema=public';
+const defaultTestDb = 'postgresql://MockAPI:MockAPI_pass@localhost:5432/MockAPI_test?schema=public';
+const defaultLocalDb = 'postgresql://MockAPI:MockAPI_pass@localhost:5432/MockAPI?schema=public';
 const useIsolatedTestDb = process.env.USE_ISOLATED_TEST_DB === 'true';
 
 if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = useIsolatedTestDb ? defaultTestDb : defaultLocalDb;
-} else if (!useIsolatedTestDb && process.env.DATABASE_URL.includes('MockUrl_test')) {
+} else if (!useIsolatedTestDb && process.env.DATABASE_URL.includes('MockAPI_test')) {
   // Allow running tests even when isolated test DB has not been provisioned locally.
   process.env.DATABASE_URL = defaultLocalDb;
 }
@@ -26,5 +26,5 @@ process.env.TEST_BASE_URL = `http://localhost:${dynamicPort}`; // Force fetch cl
 process.env.OTP_SECRET = process.env.OTP_SECRET || 'test-otp-secret-key';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-must-be-32-chars-long';
 process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
-process.env.BASE_MOCK_DOMAIN = 'mockurl.com';
+process.env.BASE_MOCK_DOMAIN = 'mockapi.com';
 process.env.LOG_LEVEL = 'error'; // Reduce noise in tests

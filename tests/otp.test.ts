@@ -275,7 +275,7 @@ describe('OTP auth module', () => {
       const { getApiKeyCookieName, getCookieOptions } = await loadOtpModule();
       const options = getCookieOptions();
 
-      expect(getApiKeyCookieName()).toBe('mockurl_api_key');
+      expect(getApiKeyCookieName()).toBe('mockapi_api_key');
       expect(options.httpOnly).toBe(true);
       expect(options.sameSite).toBe('lax');
       expect(options.path).toBe('/');

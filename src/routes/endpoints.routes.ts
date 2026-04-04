@@ -93,8 +93,6 @@ function formatEndpointResponse(endpoint: { id: string; name: string; slug: stri
     baseUrl = normalizeEndpointBaseUrl(`${protocol}://${effectiveHost}`);
   } else if (renderExternalUrl && !(isProductionLike && isLocalhostHost(renderExternalUrl))) {
     baseUrl = normalizeEndpointBaseUrl(renderExternalUrl);
-  } else if (isProductionLike) {
-    baseUrl = 'https://mock-url-9rwn.onrender.com/e';
   } else {
     baseUrl = 'http://localhost:3000/e';
   }

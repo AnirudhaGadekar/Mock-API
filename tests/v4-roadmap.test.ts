@@ -21,11 +21,11 @@ beforeAll(async () => {
         const testApiKeyHash = hashApiKey(testApiKey);
 
         // Cleanup if previous run failed
-        await prisma.user.deleteMany({ where: { email: 'v4test@mockurl.com' } });
+        await prisma.user.deleteMany({ where: { email: 'v4test@mockapi.com' } });
 
         const testUser = await prisma.user.create({
             data: {
-                email: `v4test-${crypto.randomBytes(4).toString('hex')}@mockurl.com`,
+                email: `v4test-${crypto.randomBytes(4).toString('hex')}@mockapi.com`,
                 apiKeyHash: testApiKeyHash,
             },
         });
@@ -117,7 +117,7 @@ describe('Roadmap V4 - Advanced Chaos Validation', () => {
 
 describe('Roadmap V4 - JWT Validation Mock', () => {
     const JWT_SECRET = 'test-secret-123';
-    const validToken = jwt.sign({ sub: 'user123' }, JWT_SECRET, { issuer: 'mockurl', audience: 'app' });
+    const validToken = jwt.sign({ sub: 'user123' }, JWT_SECRET, { issuer: 'mockapi', audience: 'app' });
     const invalidToken = jwt.sign({ sub: 'user123' }, 'wrong-secret');
 
     test('should match rule when JWT is valid', async () => {
@@ -131,7 +131,7 @@ describe('Roadmap V4 - JWT Validation Mock', () => {
                     condition: {
                         jwtValidation: {
                             secret: JWT_SECRET,
-                            issuer: 'mockurl',
+                            issuer: 'mockapi',
                             audience: 'app',
                             required: true
                         }
@@ -150,7 +150,7 @@ describe('Roadmap V4 - JWT Validation Mock', () => {
             method: 'GET',
             url: '/secure',
             headers: {
-                host: `${subdomain}.mockurl.com`,
+                host: `${subdomain}.mockapi.com`,
                 authorization: `Bearer ${validToken}`
             }
         });
@@ -186,7 +186,7 @@ describe('Roadmap V4 - JWT Validation Mock', () => {
             method: 'GET',
             url: '/secure',
             headers: {
-                host: `${subdomain}.mockurl.com`,
+                host: `${subdomain}.mockapi.com`,
                 authorization: `Bearer ${invalidToken}`
             }
         });
@@ -223,7 +223,7 @@ describe('Roadmap V4 - JWT Validation Mock', () => {
             method: 'GET',
             url: '/secure',
             headers: {
-                host: `${subdomain}.mockurl.com`
+                host: `${subdomain}.mockapi.com`
             }
         });
 

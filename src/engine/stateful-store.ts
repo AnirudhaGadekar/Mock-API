@@ -1,7 +1,7 @@
 /**
  * stateful-store.ts — Schema-less JSON store with CRUD + filter/sort/push.
  *
- * This is the MockUrl differentiator: persistent stateful mocking.
+ * This is the MockAPI differentiator: persistent stateful mocking.
  * Data persists across requests and supports rich querying.
  /**
  * Operations:
@@ -21,7 +21,7 @@
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 
-const STORE_PREFIX = 'mockurl:store:';
+const STORE_PREFIX = 'mockapi:store:';
 const STORE_TTL = 60 * 60 * 24 * 7; // 7 days
 
 // ─── Deep path helpers ──────────────────────────────────────────────────────

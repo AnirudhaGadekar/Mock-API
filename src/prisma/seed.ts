@@ -15,7 +15,7 @@ function getSeedEndpointBaseUrl(): string {
   }
 
   if (process.env.NODE_ENV === 'production' || process.env.RENDER === 'true' || process.env.RENDER_EXTERNAL_URL) {
-    const deployedBase = process.env.RENDER_EXTERNAL_URL || 'https://mock-url-9rwn.onrender.com';
+    const deployedBase = process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000';
     return `${deployedBase.replace(/\/+$/, '')}/e`;
   }
 

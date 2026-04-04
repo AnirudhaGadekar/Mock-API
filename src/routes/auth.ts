@@ -17,7 +17,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     // ============================================
     fastify.post('/anonymous', async (_request, reply) => {
         try {
-            const anonymousEmail = `anon-${crypto.randomBytes(8).toString('hex')}@mockurl.local`;
+            const anonymousEmail = `anon-${crypto.randomBytes(8).toString('hex')}@mockapi.local`;
 
             // Use hashing utility
             const apiKey = generateApiKey();

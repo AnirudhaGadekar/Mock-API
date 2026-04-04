@@ -41,7 +41,7 @@ class EndpointNotFoundError extends Error {
 }
 
 function getAllowedMockDomains(): string[] {
-  const base = (process.env.BASE_MOCK_DOMAIN || 'mockurl.com').toLowerCase();
+  const base = (process.env.BASE_MOCK_DOMAIN || 'mockapi.com').toLowerCase();
   const extra = (process.env.ALLOWED_MOCK_DOMAINS || '')
     .split(',')
     .map((s) => s.trim().toLowerCase())
@@ -71,8 +71,8 @@ function extractSubdomainFromHostname(hostname: string, domains: string[]): stri
 /**
  * Extract subdomain from hostname or path
  * Supports both:
- * - Subdomain routing: my-endpoint.mockurl.com
- * - Path routing: mockurl.com/my-endpoint (fallback)
+ * - Subdomain routing: my-endpoint.mockapi.com
+ * - Path routing: mockapi.com/my-endpoint (fallback)
  */
 function extractSubdomain(request: FastifyRequest): string | null {
   const hostname = request.hostname;
@@ -191,7 +191,7 @@ function getPathname(request: FastifyRequest): string {
 /**
  * Normalize path for rule matching.
  *
- * - Subdomain routing (e.g. https://my-api.mockurl.com/users): pathname is /users, subdomain is my-api → use /users
+ * - Subdomain routing (e.g. https://my-api.mockapi.com/users): pathname is /users, subdomain is my-api → use /users
  * - Path-based routing (e.g. https://app.com/my-api/users): pathname is /my-api/users, subdomain is my-api → strip /my-api prefix → /users
  *
  * This ensures rules defined as /users or /users/:id match correctly in both modes.
@@ -373,7 +373,7 @@ async function findMatchingRule(
 }
 
 /**
- * Simple template substitution (MockUrl-style): {{req.body}}, {{req.params.id}}, {{JSON.stringify(req.body)}}
+ * Simple template substitution (MockAPI-style): {{req.body}}, {{req.params.id}}, {{JSON.stringify(req.body)}}
  */
 function interpolate(
   value: string,
@@ -524,7 +524,7 @@ async function triggerWebhook(url: string, request: FastifyRequest, response: Ru
 }
 
 /**
- * Default response when no rule matches (MockUrl-style fallback)
+ * Default response when no rule matches (MockAPI-style fallback)
  */
 function generateDefaultResponse(endpoint: { id: string; name: string; rules: unknown }, _request: FastifyRequest) {
   const rulesArr = Array.isArray(endpoint.rules) ? endpoint.rules : [];
@@ -568,7 +568,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
             success: false,
             error: {
               code: 'INVALID_ENDPOINT',
-              message: 'No endpoint subdomain detected. Use format: https://your-endpoint.mockurl.com',
+              message: 'No endpoint subdomain detected. Use format: https://your-endpoint.mockapi.com',
             },
             timestamp: new Date().toISOString(),
           });

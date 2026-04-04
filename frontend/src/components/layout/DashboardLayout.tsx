@@ -79,7 +79,7 @@ export function DashboardLayout() {
                         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary">
                             <Globe size={18} />
                         </div>
-                        <span>MockURL</span>
+                        <span>MockAPI</span>
                     </div>
                     <Button
                         variant="ghost"

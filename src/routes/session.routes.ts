@@ -1,5 +1,5 @@
 /**
- * Session routes — MockUrl-style zero-signup auth.
+ * Session routes — MockAPI-style zero-signup auth.
  * [UPGRADED] Now uses SHA-256 hashing for API keys.
  */
 import { FastifyPluginAsync } from 'fastify';
@@ -33,7 +33,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
             const apiKey = generateApiKey();
             const apiKeyHash = hashApiKey(apiKey);
-            const email = `anon-${generateShortId()}@mockurl.local`;
+            const email = `anon-${generateShortId()}@mockapi.local`;
 
             const user = await prisma.user.create({
                 data: {

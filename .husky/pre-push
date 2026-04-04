@@ -1,4 +1,9 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
 
+# Lightweight pre-push hook.
+# We intentionally avoid running heavy scans / production builds here
+# because they were failing on Windows due to Prisma DLL locks.
+# Instead, we just run the fast critical tests.
+
+npm run test:critical
 npm run scan:all

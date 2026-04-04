@@ -1,7 +1,7 @@
 /**
- * api.ts – MockUrl Console API client.
+ * api.ts – MockAPI Console API client.
  *
- * MockUrl-style: auto-creates an anonymous session on first visit.
+ * MockAPI-style: auto-creates an anonymous session on first visit.
  */
 import axios from 'axios';
 
@@ -11,23 +11,7 @@ function resolveApiBaseUrl(): string {
     return configured.replace(/\/+$/, '');
   }
 
-  const origin = window.location.origin;
-  const host = window.location.hostname.toLowerCase();
-  const isLocal = host === 'localhost' || host === '127.0.0.1';
-  const isVercel = host.endsWith('.vercel.app');
-
-  // Production-safe fallback for this deployment topology:
-  // frontend on Vercel, backend on Render.
-  if (!isLocal && isVercel) {
-    const fallback = 'https://mock-url-9rwn.onrender.com';
-    console.error(
-      '[CONFIG] VITE_API_URL is missing on Vercel deployment; falling back to Render backend:',
-      fallback
-    );
-    return fallback;
-  }
-
-  return origin;
+  return window.location.origin;
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -351,4 +335,3 @@ export async function fetchCurrentWorkspace(): Promise<{ type: 'personal' | 'tea
   const res = await api.get<{ type: 'personal' | 'team'; teamId: string | null }>('/api/v2/workspace/current');
   return res.data;
 }
-

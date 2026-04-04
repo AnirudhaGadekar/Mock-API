@@ -20,7 +20,7 @@ describe('History live summary and logging robustness', () => {
     testApiKey = generateApiKey();
     const testUser = await prisma.user.create({
       data: {
-        email: `history-${crypto.randomBytes(4).toString('hex')}@mockurl.com`,
+        email: `history-${crypto.randomBytes(4).toString('hex')}@mockapi.com`,
         apiKeyHash: hashApiKey(testApiKey),
       },
     });

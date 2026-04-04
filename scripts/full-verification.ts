@@ -46,8 +46,8 @@ function setupTestEnvironment() {
     JWT_EXPIRES_IN: '7d',
     OTP_SECRET: '12345678901234567890123456789012',
     API_KEY_SECRET: '12345678901234567890123456789012',
-    DATABASE_URL: 'postgresql://MockUrl:MockUrl_pass@localhost:5432/MockUrl',
-    DIRECT_DATABASE_URL: 'postgresql://MockUrl:MockUrl_pass@localhost:5432/MockUrl',
+    DATABASE_URL: 'postgresql://MockAPI:MockAPI_pass@localhost:5432/MockAPI',
+    DIRECT_DATABASE_URL: 'postgresql://MockAPI:MockAPI_pass@localhost:5432/MockAPI',
     REDIS_URL: 'redis://localhost:16379',
     REDIS_HOST: 'localhost',
     REDIS_PORT: '16379',
@@ -303,7 +303,7 @@ async function main() {
     console.error('');
     console.error('To debug issues:');
     console.error('1. Check Docker: docker ps');
-    console.error('2. Check logs: docker logs MockUrl-postgres MockUrl-redis');
+    console.error('2. Check logs: docker logs MockAPI-postgres MockAPI-redis');
     console.error('3. Check ports: netstat -an | grep -E "3000|5173|5432|6379|16379"');
     console.error('4. Check environment variables: cat .env');
     process.exit(1);

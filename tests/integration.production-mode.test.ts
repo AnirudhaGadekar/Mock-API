@@ -14,7 +14,7 @@ describe('Production Mode Behavior Simulation', () => {
   beforeAll(async () => {
     process.env.NODE_ENV = 'production';
     process.env.RENDER = 'true';
-    process.env.RENDER_EXTERNAL_URL = 'https://mock-url-9rwn.onrender.com';
+    process.env.RENDER_EXTERNAL_URL = 'https://mock-api-9rwn.onrender.com';
 
     app = await buildApp();
     await app.ready();

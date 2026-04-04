@@ -257,7 +257,7 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
       if (existing) {
         return v2Error(request, reply, 409, {
           code: V2_ERROR_CODES.SLUG_TAKEN,
-          message: `Subdomain \"${name}\" is already taken`,
+          message: `Subdomain "${name}" is already taken`,
         });
       }
 
@@ -429,7 +429,7 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
         if (existing && existing.id !== endpoint.id) {
           return v2Error(request, reply, 409, {
             code: V2_ERROR_CODES.SLUG_TAKEN,
-            message: `Subdomain \"${nextName}\" is already taken`,
+            message: `Subdomain "${nextName}" is already taken`,
           });
         }
       }
@@ -669,4 +669,3 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 };
-

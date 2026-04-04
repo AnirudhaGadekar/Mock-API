@@ -1416,7 +1416,7 @@ async function verifyAdvancedFeaturesAndChaos(): Promise<TestFailure[]> {
       });
     }
     
-    // Test MockUrl's built-in chaos engineering functionality
+    // Test MockAPI's built-in chaos engineering functionality
     try {
       // First, create a test endpoint to apply chaos to
       const createEndpointResponse = await fetch(`${baseUrl}/api/endpoints`, {
@@ -1608,7 +1608,7 @@ async function verifyAdvancedFeaturesAndChaos(): Promise<TestFailure[]> {
       failures.push({
         file: 'src/engine/chaos.ts',
         type: 'integration',
-        error: `MockUrl chaos feature testing failed: ${error.message}`,
+        error: `MockAPI chaos feature testing failed: ${error.message}`,
         suggestedFix: 'Check chaos engine implementation and Redis connection'
       });
     }
@@ -1640,7 +1640,7 @@ async function runProductionVerification(): Promise<VerificationResult> {
       PORT: '3000',
       HOST: '0.0.0.0',
       JWT_SECRET: 'Prod_Secret_Key_1234567890_ABCdef_GHI!@#$%^&*()_Complex_String_2024',
-      DATABASE_URL: 'postgresql://MockUrl:MockUrl_pass@localhost:5432/MockUrl',
+      DATABASE_URL: 'postgresql://MockAPI:MockAPI_pass@localhost:5432/MockAPI',
       REDIS_URL: 'redis://localhost:16379',
       CORS_ORIGIN: 'http://localhost:5173',
       LOG_LEVEL: 'error',
@@ -1906,7 +1906,7 @@ ${failure.line ? `- **Line:** ${failure.line}` : ''}
     markdown += `- Get entire store - PASSED\n`;
     markdown += `- Clear store - PASSED\n\n`;
     
-    markdown += `### ✅ MockUrl Chaos Engineering\n`;
+    markdown += `### ✅ MockAPI Chaos Engineering\n`;
     markdown += `- Chaos config CRUD - PASSED\n`;
     markdown += `- Delay simulation - PASSED\n`;
     markdown += `- Error injection - PASSED\n`;

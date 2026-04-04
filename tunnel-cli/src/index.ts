@@ -6,8 +6,8 @@ import { TunnelClient } from './tunnel-client.js';
 const program = new Command();
 
 program
-    .name('mockurl')
-    .description('Expose localhost to the internet via MockUrl tunnel')
+    .name('mockapi')
+    .description('Expose localhost to the internet via MockAPI tunnel')
     .version('1.0.0');
 
 program
@@ -22,7 +22,7 @@ program
     .action(async (options: any) => {
         // Determine the server URL
         // If running in dev/local, default to ws://localhost:10000
-        // In prod, it should default to wss://mock-url-9rwn.onrender.com/tunnel-ws
+        // In prod, it should default to wss://mock-api-9rwn.onrender.com/tunnel-ws
         const serverUrl = options.server || 'ws://localhost:10000/tunnel-ws';
 
         console.log(chalk.blue(`Targeting server: ${serverUrl}`));
