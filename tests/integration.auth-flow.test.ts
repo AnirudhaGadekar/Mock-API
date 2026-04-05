@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { buildApp } from '../src/index.js';
@@ -10,8 +11,10 @@ describe('Full OTP auth flow (E2E)', () => {
   let cookie: string | null = null;
   let otp: string | null = null;
   let signupOtp: string | null = null;
-  const testEmail = `test_${Date.now()}@example.com`;
-  const signupEmail = `signup_${Date.now()}@example.com`;
+  const uniqueSuffix = crypto.randomBytes(6).toString('hex');
+  const testEmail = `test_${uniqueSuffix}@example.com`;
+  const signupEmail = `signup_${uniqueSuffix}@example.com`;
+  const signupUsername = `signup_${uniqueSuffix}`;
   const originalAuthMode = process.env.AUTH_MODE;
 
   beforeAll(async () => {
@@ -28,6 +31,15 @@ describe('Full OTP auth flow (E2E)', () => {
 
   afterAll(async () => {
     process.env.AUTH_MODE = originalAuthMode;
+    if (servicesAvailable) {
+      await prisma.user.deleteMany({
+        where: {
+          email: {
+            in: [testEmail, signupEmail],
+          },
+        },
+      });
+    }
     if (servicesAvailable) {
       await app.close();
     }
@@ -106,7 +118,7 @@ describe('Full OTP auth flow (E2E)', () => {
       payload: {
         firstName: 'Signup',
         lastName: 'Tester',
-        username: `signup_${Date.now()}`.toLowerCase(),
+        username: signupUsername,
         email: signupEmail,
       },
     });
