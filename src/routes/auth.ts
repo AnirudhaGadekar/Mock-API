@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
+import { sendOtp } from '../auth/otp.js';
 import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
@@ -55,13 +56,13 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
 
     // ============================================
-    // SIGN UP (Email/Password or Conversion)
+    // SIGN UP (OTP-first with optional anonymous conversion)
     // ============================================
     fastify.post('/signup', async (request, reply) => {
         const { firstName, lastName, username, email, password, conversionToken } = request.body as any;
 
-        if (!firstName || !lastName || !username || !email || !password) {
-            return reply.code(400).send({ error: 'firstName, lastName, username, email and password are required' });
+        if (!firstName || !lastName || !username || !email) {
+            return reply.code(400).send({ error: 'firstName, lastName, username and email are required' });
         }
 
         try {
@@ -69,78 +70,156 @@ export async function authRoutes(fastify: FastifyInstance) {
             const normalizedUsername = String(username).toLowerCase().trim();
             const trimmedFirstName = String(firstName).trim();
             const trimmedLastName = String(lastName).trim();
+            const normalizedPassword = typeof password === 'string' ? password.trim() : '';
 
             if (!normalizedUsername || normalizedUsername.length < 3) {
                 return reply.code(400).send({ error: 'Username must be at least 3 characters' });
             }
 
-            const existingUser = await prisma.user.findUnique({
-                where: { email: normalizedEmail }
+            const existingUserByEmail = await prisma.user.findUnique({
+                where: { email: normalizedEmail },
+                select: {
+                    id: true,
+                    authProvider: true,
+                    username: true,
+                    firstName: true,
+                    lastName: true,
+                    emailVerified: true,
+                    currentWorkspaceType: true,
+                    currentTeamId: true,
+                }
             });
 
-            if (existingUser && existingUser.authProvider !== 'ANONYMOUS') {
-                return reply.code(409).send({ error: 'Email already registered' });
+            let anonymousUser: { id: string; authProvider: string } | null = null;
+
+            if (conversionToken) {
+                anonymousUser = await prisma.user.findUnique({
+                    where: { apiKeyHash: hashApiKey(conversionToken) },
+                    select: { id: true, authProvider: true }
+                });
+
+                if (!anonymousUser || anonymousUser.authProvider !== 'ANONYMOUS') {
+                    return reply.code(400).send({ error: 'Invalid conversion token' });
+                }
             }
 
             const existingUsername = await prisma.user.findUnique({
-                where: { username: normalizedUsername }
+                where: { username: normalizedUsername },
+                select: { id: true }
             });
 
-            if (existingUsername) {
+            const targetUserId = anonymousUser?.id ?? existingUserByEmail?.id ?? null;
+            if (existingUsername && existingUsername.id !== targetUserId) {
                 return reply.code(409).send({ error: 'Username is already taken' });
             }
 
-            const hashedPassword = await bcrypt.hash(password, 10);
-            const verificationToken = crypto.randomBytes(32).toString('hex');
             const generatedApiKeyHash = hashApiKey(generateApiKey());
+            const hashedPassword = normalizedPassword ? await bcrypt.hash(normalizedPassword, 10) : null;
+            const accountName = `${trimmedFirstName} ${trimmedLastName}`.trim();
 
             let user;
 
-            // Conversion logic
-            if (conversionToken) {
-                const conversionHash = hashApiKey(conversionToken);
-                const anonymousUser = await prisma.user.findUnique({
-                    where: { apiKeyHash: conversionHash }
-                });
-
-                if (anonymousUser && anonymousUser.authProvider === 'ANONYMOUS') {
-                    user = await prisma.user.update({
-                        where: { id: anonymousUser.id },
-                        data: {
-                            email: normalizedEmail,
-                            password: hashedPassword,
-                            username: normalizedUsername,
-                            firstName: trimmedFirstName,
-                            lastName: trimmedLastName,
-                            name: `${trimmedFirstName} ${trimmedLastName}`.trim(),
-                            authProvider: 'LOCAL',
-                            emailVerified: false,
-                            verificationToken,
-                            apiKeyHash: generatedApiKeyHash,
-                        }
-                    });
-                    await invalidateUserCache(conversionToken);
-                } else {
-                    return reply.code(400).send({ error: 'Invalid conversion token' });
+            if (anonymousUser) {
+                if (existingUserByEmail && existingUserByEmail.id !== anonymousUser.id) {
+                    return reply.code(409).send({ error: 'Email already registered. Please log in instead.' });
                 }
+
+                user = await prisma.user.update({
+                    where: { id: anonymousUser.id },
+                    data: {
+                        email: normalizedEmail,
+                        username: normalizedUsername,
+                        firstName: trimmedFirstName,
+                        lastName: trimmedLastName,
+                        name: accountName,
+                        authProvider: 'EMAIL_OTP',
+                        emailVerified: false,
+                        verificationToken: null,
+                        apiKeyHash: generatedApiKeyHash,
+                        ...(hashedPassword ? { password: hashedPassword } : {}),
+                    },
+                    select: {
+                        id: true,
+                        email: true,
+                        username: true,
+                        firstName: true,
+                        lastName: true,
+                        name: true,
+                        authProvider: true,
+                        emailVerified: true,
+                        currentWorkspaceType: true,
+                        currentTeamId: true,
+                    }
+                });
+                await invalidateUserCache(conversionToken);
+            } else if (existingUserByEmail) {
+                const profileAlreadyCompleted = Boolean(
+                    existingUserByEmail.username || existingUserByEmail.firstName || existingUserByEmail.lastName
+                );
+
+                if (profileAlreadyCompleted) {
+                    return reply.code(409).send({ error: 'Email already registered. Please log in instead.' });
+                }
+
+                user = await prisma.user.update({
+                    where: { id: existingUserByEmail.id },
+                    data: {
+                        username: normalizedUsername,
+                        firstName: trimmedFirstName,
+                        lastName: trimmedLastName,
+                        name: accountName,
+                        authProvider: existingUserByEmail.authProvider === 'ANONYMOUS' ? 'EMAIL_OTP' : existingUserByEmail.authProvider,
+                        verificationToken: null,
+                        apiKeyHash: generatedApiKeyHash,
+                        ...(hashedPassword ? { password: hashedPassword } : {}),
+                    },
+                    select: {
+                        id: true,
+                        email: true,
+                        username: true,
+                        firstName: true,
+                        lastName: true,
+                        name: true,
+                        authProvider: true,
+                        emailVerified: true,
+                        currentWorkspaceType: true,
+                        currentTeamId: true,
+                    }
+                });
             } else {
                 user = await prisma.user.create({
                     data: {
                         email: normalizedEmail,
-                        password: hashedPassword,
                         username: normalizedUsername,
                         firstName: trimmedFirstName,
                         lastName: trimmedLastName,
-                        name: `${trimmedFirstName} ${trimmedLastName}`.trim(),
+                        name: accountName,
                         apiKeyHash: generatedApiKeyHash,
-                        authProvider: 'LOCAL',
+                        authProvider: 'EMAIL_OTP',
                         emailVerified: false,
-                        verificationToken,
+                        verificationToken: null,
+                        ...(hashedPassword ? { password: hashedPassword } : {}),
+                    },
+                    select: {
+                        id: true,
+                        email: true,
+                        username: true,
+                        firstName: true,
+                        lastName: true,
+                        name: true,
+                        authProvider: true,
+                        emailVerified: true,
+                        currentWorkspaceType: true,
+                        currentTeamId: true,
                     }
                 });
             }
 
-            await sendVerificationEmail(user.email, verificationToken);
+            const otpResult = await sendOtp({ email: normalizedEmail });
+            if (!otpResult.success) {
+                const statusCode = otpResult.error?.includes('rate limit') ? 429 : 500;
+                return reply.code(statusCode).send({ error: otpResult.error || 'Failed to send OTP' });
+            }
 
             const cookieOptions = getApiKeyCookieOptions();
             reply.clearCookie(API_KEY_COOKIE, {
@@ -150,19 +229,25 @@ export async function authRoutes(fastify: FastifyInstance) {
                 sameSite: cookieOptions.sameSite,
             });
 
-            logger.info('User signed up and pending email verification', { userId: user.id, isConversion: !!conversionToken });
+            logger.info('User signed up and OTP sent', { userId: user.id, isConversion: !!conversionToken });
 
             return {
                 success: true,
-                message: 'Account created. Please verify your email before signing in.',
-                requiresEmailVerification: true,
+                message: 'Account created. Enter the 6-digit code sent to your email to finish signing in.',
+                requiresOtpVerification: true,
+                requiresEmailVerification: false,
+                ...(otpResult.devOtp ? { devOtp: otpResult.devOtp } : {}),
                 user: {
                     id: user.id,
                     email: user.email,
                     username: user.username,
                     firstName: user.firstName,
                     lastName: user.lastName,
+                    name: user.name,
+                    authProvider: user.authProvider,
                     emailVerified: user.emailVerified,
+                    currentWorkspaceType: user.currentWorkspaceType,
+                    currentTeamId: user.currentTeamId,
                 }
             };
         } catch (error) {
@@ -237,7 +322,10 @@ export async function authRoutes(fastify: FastifyInstance) {
                     username: user.username,
                     firstName: user.firstName,
                     lastName: user.lastName,
+                    authProvider: user.authProvider,
                     emailVerified: user.emailVerified,
+                    currentWorkspaceType: user.currentWorkspaceType,
+                    currentTeamId: user.currentTeamId,
                 }
             };
         } catch (error) {

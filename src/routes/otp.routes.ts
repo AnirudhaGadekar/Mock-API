@@ -90,7 +90,6 @@ export async function otpRoutes(fastify: FastifyInstance) {
             if (!result.success) {
                 const statusCode = result.error?.includes('expired') ? 401 : 
                                   result.error?.includes('attempts') ? 401 : 
-                                  result.error?.includes('Password login') ? 401 :
                                   result.error?.includes('Security') ? 403 : 400;
                 return reply.code(statusCode).send({ 
                     error: result.error,

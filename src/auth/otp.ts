@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/db.js';
 import { getApiKeyCookieName as getSharedApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
 import { logger } from '../lib/logger.js';
+import { sendOtpEmail } from '../lib/mailer.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKey.js';
 
 // Environment variable validation at module load time
@@ -37,7 +38,6 @@ const JWT_SECRET = process.env.JWT_SECRET!;
 const JWT_EXPIRY = process.env.JWT_EXPIRY ?? process.env.JWT_EXPIRES_IN ?? '7d';
 const OTP_TTL_MINUTES = 5; // 5 minutes
 const MAX_VERIFY_ATTEMPTS = 5; // lockout after 5 wrong guesses
-const ALLOW_OTP_FOR_PASSWORD_USERS = process.env.ALLOW_OTP_FOR_PASSWORD_USERS === 'true';
 
 /**
  * Interface for JWT payload
@@ -171,7 +171,7 @@ export async function sendOtp(request: SendOtpRequest): Promise<ApiResponse> {
             },
         });
 
-        // Send email (mocked for testing)
+        await sendOtpEmail(normalizedEmail, otp);
         logger.info('OTP generated', { email: normalizedEmail });
 
         const response: ApiResponse = {
@@ -320,29 +320,32 @@ async function authenticateUser(email: string): Promise<ApiResponse> {
                 name: true,
                 authProvider: true,
                 password: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                picture: true,
+                emailVerified: true,
+                currentWorkspaceType: true,
+                currentTeamId: true,
             },
         });
-
-        if (user?.password && !ALLOW_OTP_FOR_PASSWORD_USERS) {
-            logger.warn('Blocked OTP login for password-protected account', { email });
-            return {
-                success: false,
-                error: 'Password login is required for this account.',
-            };
-        }
 
         const newApiKey = generateApiKey();
         const newApiKeyHash = hashApiKey(newApiKey);
 
         if (user) {
+            const nextAuthProvider =
+                user.authProvider === 'ANONYMOUS' || user.authProvider === 'LOCAL'
+                    ? 'EMAIL_OTP'
+                    : user.authProvider;
+
             // Update existing user
             user = await prisma.user.update({
                 where: { id: user.id },
                 data: {
                     apiKeyHash: newApiKeyHash,
                     emailVerified: true,
-                    // Only switch provider if user is still anonymous
-                    ...(user.authProvider === 'ANONYMOUS' ? { authProvider: 'EMAIL_OTP' } : {}),
+                    authProvider: nextAuthProvider,
                 },
                 select: {
                     id: true,
@@ -350,6 +353,13 @@ async function authenticateUser(email: string): Promise<ApiResponse> {
                     name: true,
                     authProvider: true,
                     password: true,
+                    username: true,
+                    firstName: true,
+                    lastName: true,
+                    picture: true,
+                    emailVerified: true,
+                    currentWorkspaceType: true,
+                    currentTeamId: true,
                 },
             });
         } else {
@@ -367,6 +377,13 @@ async function authenticateUser(email: string): Promise<ApiResponse> {
                     name: true,
                     authProvider: true,
                     password: true,
+                    username: true,
+                    firstName: true,
+                    lastName: true,
+                    picture: true,
+                    emailVerified: true,
+                    currentWorkspaceType: true,
+                    currentTeamId: true,
                 },
             });
         }
@@ -384,6 +401,14 @@ async function authenticateUser(email: string): Promise<ApiResponse> {
                 id: user.id,
                 email: user.email,
                 name: user.name,
+                username: user.username,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                picture: user.picture,
+                authProvider: user.authProvider,
+                emailVerified: user.emailVerified,
+                currentWorkspaceType: user.currentWorkspaceType,
+                currentTeamId: user.currentTeamId,
                 isAnonymous: false,
             },
         };

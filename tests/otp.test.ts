@@ -25,6 +25,7 @@ const loggerMock = {
 const generateApiKeyMock = vi.fn(() => 'mock-api-key');
 const hashApiKeyMock = vi.fn(() => 'mock-api-key-hash');
 const jwtSignMock = vi.fn(() => 'mock-jwt-token');
+const sendOtpEmailMock = vi.fn();
 
 vi.mock('../src/lib/db.js', () => ({
   prisma: prismaMock,
@@ -37,6 +38,10 @@ vi.mock('../src/lib/logger.js', () => ({
 vi.mock('../src/utils/apiKey.js', () => ({
   generateApiKey: generateApiKeyMock,
   hashApiKey: hashApiKeyMock,
+}));
+
+vi.mock('../src/lib/mailer.js', () => ({
+  sendOtpEmail: sendOtpEmailMock,
 }));
 
 vi.mock('jsonwebtoken', () => ({
@@ -123,6 +128,7 @@ describe('OTP auth module', () => {
           }),
         }),
       );
+      expect(sendOtpEmailMock).toHaveBeenCalledWith('test@example.com', expect.stringMatching(/^\d{6}$/));
     });
 
     it('returns rate-limit error when recent attempts are too high', async () => {
@@ -208,7 +214,7 @@ describe('OTP auth module', () => {
       });
     });
 
-    it('blocks OTP login for password-protected accounts by default', async () => {
+    it('allows OTP login for password-backed accounts', async () => {
       const { verifyOtp } = await loadOtpModule();
       const otp = '123456';
 
@@ -226,47 +232,43 @@ describe('OTP auth module', () => {
         name: 'Test User',
         authProvider: 'LOCAL',
         password: 'hashed-password',
-      });
-
-      const result = await verifyOtp({ email: 'test@example.com', otp });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Password login is required for this account.');
-      expect(prismaMock.user.update).not.toHaveBeenCalled();
-    });
-
-    it('allows OTP login for password users when explicitly enabled', async () => {
-      process.env.ALLOW_OTP_FOR_PASSWORD_USERS = 'true';
-      const { verifyOtp } = await loadOtpModule();
-      const otp = '123456';
-
-      prismaMock.otp.findFirst.mockResolvedValue({
-        id: 'otp1',
-        hash: buildOtpHash(otp),
-        attempts: 0,
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 60_000),
-      });
-      prismaMock.otp.delete.mockResolvedValue({});
-      prismaMock.user.findUnique.mockResolvedValue({
-        id: 'user-1',
-        email: 'test@example.com',
-        name: 'Test User',
-        authProvider: 'LOCAL',
-        password: 'hashed-password',
+        username: 'test-user',
+        firstName: 'Test',
+        lastName: 'User',
+        picture: null,
+        emailVerified: false,
+        currentWorkspaceType: 'PERSONAL',
+        currentTeamId: null,
       });
       prismaMock.user.update.mockResolvedValue({
         id: 'user-1',
         email: 'test@example.com',
         name: 'Test User',
-        authProvider: 'LOCAL',
+        authProvider: 'EMAIL_OTP',
         password: 'hashed-password',
+        username: 'test-user',
+        firstName: 'Test',
+        lastName: 'User',
+        picture: null,
+        emailVerified: true,
+        currentWorkspaceType: 'PERSONAL',
+        currentTeamId: null,
       });
 
       const result = await verifyOtp({ email: 'test@example.com', otp });
 
       expect(result.success).toBe(true);
       expect(prismaMock.user.update).toHaveBeenCalled();
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-1' },
+          data: expect.objectContaining({
+            apiKeyHash: 'mock-api-key-hash',
+            authProvider: 'EMAIL_OTP',
+            emailVerified: true,
+          }),
+        }),
+      );
     });
   });
 
