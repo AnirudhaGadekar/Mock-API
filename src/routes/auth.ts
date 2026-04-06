@@ -217,8 +217,14 @@ export async function authRoutes(fastify: FastifyInstance) {
 
             const otpResult = await sendOtp({ email: normalizedEmail });
             if (!otpResult.success) {
-                const statusCode = otpResult.error?.includes('rate limit') ? 429 : 500;
-                return reply.code(statusCode).send({ error: otpResult.error || 'Failed to send OTP' });
+                const statusCode = otpResult.statusCode
+                    ?? (otpResult.error?.includes('rate limit') ? 429 : 500);
+                return reply
+                    .code(statusCode)
+                    .send({
+                        error: otpResult.error || 'Failed to send OTP',
+                        ...(otpResult.code ? { code: otpResult.code } : {}),
+                    });
             }
 
             const cookieOptions = getApiKeyCookieOptions();

@@ -3,6 +3,7 @@
  * Docs: https://resend.com/docs
  */
 import { Resend } from 'resend';
+import { ApiError } from './errors.js';
 import { logger } from './logger.js';
 
 const FROM_ADDRESS = process.env.RESEND_FROM || 'onboarding@resend.dev';
@@ -18,6 +19,30 @@ function getResendClient(): Resend {
     resend = new Resend(apiKey);
   }
   return resend;
+}
+
+function mapResendError(to: string, error: any): ApiError {
+  const message = error?.message ?? 'Email provider rejected the request';
+
+  const isSandboxRestriction =
+    error?.statusCode === 403 && typeof message === 'string' && message.includes('testing emails');
+
+  if (isSandboxRestriction) {
+    return new ApiError(
+      'Email sending is disabled in this environment (Resend sandbox). Verify a domain on Resend and set RESEND_FROM to that domain, or use AUTH_MODE=dev-bypass while testing.',
+      {
+        statusCode: 503,
+        code: 'EMAIL_PROVIDER_SANDBOX',
+        meta: { provider: 'resend', to },
+      }
+    );
+  }
+
+  return new ApiError(`Email delivery failed: ${message}`, {
+    statusCode: error?.statusCode ?? 502,
+    code: 'EMAIL_PROVIDER_ERROR',
+    meta: { provider: 'resend', to },
+  });
 }
 
 function isLocalhostLike(value: string): boolean {
@@ -102,16 +127,23 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
 </html>
   `.trim();
 
-  const { error } = await getResendClient().emails.send({
-    from: FROM_ADDRESS,
-    to,
-    subject: `${otp} is your MockAPI login code`,
-    html,
-  });
+  try {
+    const { error } = await getResendClient().emails.send({
+      from: FROM_ADDRESS,
+      to,
+      subject: `${otp} is your MockAPI login code`,
+      html,
+    });
 
-  if (error) {
+    if (error) {
+      throw mapResendError(to, error);
+    }
+  } catch (error: any) {
     logger.error('Resend failed to deliver OTP email', { error, to });
-    throw new Error(`Email delivery failed: ${error.message}`);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw mapResendError(to, error);
   }
 
   logger.info('OTP email sent via Resend', { to });
@@ -185,16 +217,23 @@ export async function sendVerificationEmail(to: string, verificationToken: strin
 </html>
   `.trim();
 
-  const { error } = await getResendClient().emails.send({
-    from: FROM_ADDRESS,
-    to,
-    subject: 'Verify your MockAPI account',
-    html,
-  });
+  try {
+    const { error } = await getResendClient().emails.send({
+      from: FROM_ADDRESS,
+      to,
+      subject: 'Verify your MockAPI account',
+      html,
+    });
 
-  if (error) {
+    if (error) {
+      throw mapResendError(to, error);
+    }
+  } catch (error: any) {
     logger.error('Resend failed to deliver verification email', { error, to });
-    throw new Error(`Email delivery failed: ${error.message}`);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw mapResendError(to, error);
   }
 
   logger.info('Verification email sent via Resend', { to });

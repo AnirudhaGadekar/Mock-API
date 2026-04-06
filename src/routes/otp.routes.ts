@@ -47,8 +47,14 @@ export async function otpRoutes(fastify: FastifyInstance) {
             const result = await sendOtp({ email: normalizedEmail });
 
             if (!result.success) {
-                const statusCode = result.error?.includes('rate limit') ? 429 : 400;
-                return reply.code(statusCode).send({ error: result.error });
+                const statusCode = result.statusCode
+                    ?? (result.error?.includes('rate limit') ? 429 : 400);
+                return reply
+                    .code(statusCode)
+                    .send({
+                        error: result.error,
+                        ...(result.code ? { code: result.code } : {}),
+                    });
             }
 
             return reply.send({

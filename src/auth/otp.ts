@@ -8,6 +8,7 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/db.js';
+import { ApiError } from '../lib/errors.js';
 import { getApiKeyCookieName as getSharedApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
 import { logger } from '../lib/logger.js';
 import { sendOtpEmail } from '../lib/mailer.js';
@@ -55,6 +56,8 @@ export interface JWTPayload {
 export interface ApiResponse {
     success: boolean;
     error?: string;
+    code?: string;
+    statusCode?: number;
     [key: string]: any;
 }
 
@@ -187,6 +190,16 @@ export async function sendOtp(request: SendOtpRequest): Promise<ApiResponse> {
         return response;
     } catch (error) {
         logger.error('Failed to send OTP', { error });
+
+        if (error instanceof ApiError) {
+            return {
+                success: false,
+                error: error.message,
+                code: error.code,
+                statusCode: error.statusCode,
+            };
+        }
+
         return {
             success: false,
             error: 'Failed to send OTP. Please try again.',
