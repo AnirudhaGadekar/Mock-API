@@ -29,10 +29,17 @@ export default function App() {
                     position="bottom-right"
                     toastOptions={{
                         style: {
-                            background: '#0f172a',
-                            color: '#fff',
-                            border: '1px solid #1e293b'
-                        }
+                            background: 'hsl(var(--card) / 0.96)',
+                            color: 'hsl(var(--card-foreground))',
+                            border: '1px solid hsl(var(--border) / 0.8)',
+                            boxShadow: 'var(--shadow-floating)',
+                            backdropFilter: 'blur(20px)',
+                            borderRadius: '1rem'
+                        },
+                        iconTheme: {
+                            primary: 'hsl(var(--primary))',
+                            secondary: 'hsl(var(--primary-foreground))'
+                        },
                     }}
                 />
                 {/* Global Auth Modal — triggered via useAuth().showAuthModal() */}

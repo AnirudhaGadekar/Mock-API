@@ -1,4 +1,3 @@
-
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,15 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import { Globe, RefreshCw, Terminal, Trash2 } from "lucide-react";
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 interface Tunnel {
     id: string;
     userId: string;
     targetUrl: string;
     createdAt: string;
-    type: 'HTTP' | 'WEBSOCKET';
-    publicUrl?: string; // constructed client-side or returned
+    type: "HTTP" | "WEBSOCKET";
+    publicUrl?: string;
 }
 
 export default function TunnelDashboard() {
@@ -26,72 +25,109 @@ export default function TunnelDashboard() {
     const fetchTunnels = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/api/v2/tunnel');
+            const res = await api.get("/api/v2/tunnel");
             if (res.data.success) {
                 setTunnels(res.data.tunnels);
-                const healthRes = await api.get('/api/v2/tunnel/health');
+                const healthRes = await api.get("/api/v2/tunnel/health");
                 if (healthRes.data?.success) {
                     setTunnelHealth(healthRes.data.health);
                 }
+                setError(null);
             } else {
-                setError(res.data.error?.message || 'Failed to fetch tunnels');
+                setError(res.data.error?.message || "Failed to fetch tunnels");
             }
         } catch (err) {
-            setError('Network error');
+            setError("Network error");
         } finally {
             setLoading(false);
         }
     };
 
     const deleteTunnel = async (id: string) => {
-        if (!confirm('Are you sure you want to stop this tunnel?')) return;
+        if (!confirm("Are you sure you want to stop this tunnel?")) return;
         try {
             await api.delete(`/api/v2/tunnel/${id}`);
             fetchTunnels();
         } catch (err) {
-            alert('Failed to delete tunnel');
+            alert("Failed to delete tunnel");
         }
     };
 
     useEffect(() => {
         fetchTunnels();
-        const interval = setInterval(fetchTunnels, 5000); // Poll every 5s for live status
+        const interval = setInterval(fetchTunnels, 5000);
         return () => clearInterval(interval);
     }, []);
 
     return (
-        <div className="container mx-auto p-6 space-y-8">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Local Tunnels</h1>
-                    <p className="text-muted-foreground mt-2">Expose your localhost services to the internet securely.</p>
-                    <div className="mt-2 flex items-center gap-2 text-xs">
+        <div className="space-y-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="space-y-2">
+                    <div className="auth-kicker w-fit">
+                        <span className="h-2 w-2 rounded-full bg-primary" />
+                        Connectivity
+                    </div>
+                    <h2 className="text-3xl font-semibold">Local tunnels</h2>
+                    <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                        Expose localhost services securely, validate tunnel health, and keep an eye on every public route from one place.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
                         <Badge variant={tunnelHealth?.websocketConnected ? "default" : "secondary"}>
-                            {tunnelHealth?.websocketConnected ? "CLI Tunnel Connected" : "CLI Tunnel Disconnected"}
+                            {tunnelHealth?.websocketConnected ? "CLI tunnel connected" : "CLI tunnel disconnected"}
                         </Badge>
                         <span className="text-muted-foreground">
-                            Active WS tunnels: {tunnelHealth?.activeWebsocketTunnels ?? 0}
+                            Active websocket tunnels: {tunnelHealth?.activeWebsocketTunnels ?? 0}
                         </span>
                     </div>
                 </div>
+
                 <Button onClick={fetchTunnels} variant="outline" size="sm">
-                    <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                     Refresh
                 </Button>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <Card className="bg-slate-50 border-slate-200">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.3fr)]">
+                <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Terminal className="h-5 w-5" /> CLI Quick Start</CardTitle>
+                        <CardTitle className="flex items-center gap-2">
+                            <Terminal className="h-5 w-5 text-primary" />
+                            CLI quick start
+                        </CardTitle>
+                        <CardDescription>Install the tunnel CLI and expose a local service in seconds.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="bg-slate-900 text-slate-50 p-4 rounded-md font-mono text-sm overflow-x-auto">
-                            <p className="text-slate-400"># Install the CLI</p>
+                        <div className="surface-code rounded-[1.25rem] p-4 font-mono text-sm text-foreground">
+                            <p className="text-muted-foreground"># Install the CLI</p>
                             <p>$ npm install -g @mockapi/tunnel</p>
                             <br />
-                            <p className="text-slate-400"># Start a tunnel (port 3000)</p>
+                            <p className="text-muted-foreground"># Start a tunnel on port 3000</p>
                             <p>$ mockapi tunnel -p 3000</p>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Operational summary</CardTitle>
+                        <CardDescription>Current tunnel footprint and websocket health at a glance.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 sm:grid-cols-3">
+                        <div className="status-banner px-4 py-4">
+                            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Tunnel count</div>
+                            <div className="mt-2 text-2xl font-semibold">{tunnels.length}</div>
+                        </div>
+                        <div className="status-banner px-4 py-4">
+                            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Websocket CLI</div>
+                            <div className="mt-2 text-2xl font-semibold">
+                                {tunnelHealth?.websocketConnected ? "Online" : "Idle"}
+                            </div>
+                        </div>
+                        <div className="status-banner px-4 py-4">
+                            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Public routes</div>
+                            <div className="mt-2 text-2xl font-semibold">
+                                {tunnels.filter((tunnel) => tunnel.type === "WEBSOCKET").length}
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -99,8 +135,8 @@ export default function TunnelDashboard() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Active Tunnels</CardTitle>
-                    <CardDescription>Live list of your exposed endpoints.</CardDescription>
+                    <CardTitle>Active tunnels</CardTitle>
+                    <CardDescription>Live list of exposed local services and public tunnel URLs.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {error && (
@@ -124,17 +160,17 @@ export default function TunnelDashboard() {
                         <TableBody>
                             {tunnels.length === 0 && !loading && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
-                                        No active tunnels found. Start one using the CLI!
+                                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                                        No active tunnels found. Start one using the CLI quick start above.
                                     </TableCell>
                                 </TableRow>
                             )}
                             {tunnels.map((tunnel) => (
                                 <TableRow key={tunnel.id}>
-                                    <TableCell className="font-medium font-mono">{tunnel.id}</TableCell>
+                                    <TableCell className="font-mono font-medium">{tunnel.id}</TableCell>
                                     <TableCell>
-                                        <Badge variant={tunnel.type === 'WEBSOCKET' ? 'default' : 'secondary'}>
-                                            {tunnel.type === 'WEBSOCKET' ? 'Live (CLI)' : 'Static (HTTP)'}
+                                        <Badge variant={tunnel.type === "WEBSOCKET" ? "default" : "secondary"}>
+                                            {tunnel.type === "WEBSOCKET" ? "Live (CLI)" : "Static (HTTP)"}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="font-mono text-xs">{tunnel.targetUrl}</TableCell>
@@ -143,20 +179,20 @@ export default function TunnelDashboard() {
                                             href={`/tunnel/${tunnel.id}`}
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="flex items-center gap-1 text-blue-600 hover:underline font-mono text-xs"
+                                            className="flex items-center gap-1 font-mono text-xs text-primary transition-colors hover:text-primary/80 hover:underline"
                                         >
                                             <Globe className="h-3 w-3" />
                                             {window.location.origin}/tunnel/{tunnel.id}
                                         </a>
                                     </TableCell>
-                                    <TableCell className="text-muted-foreground text-xs">
+                                    <TableCell className="text-xs text-muted-foreground">
                                         {new Date(tunnel.createdAt).toLocaleString()}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                            className="text-destructive hover:text-destructive"
                                             onClick={() => deleteTunnel(tunnel.id)}
                                         >
                                             <Trash2 className="h-4 w-4" />
@@ -171,4 +207,3 @@ export default function TunnelDashboard() {
         </div>
     );
 }
-

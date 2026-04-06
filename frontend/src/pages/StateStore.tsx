@@ -99,16 +99,14 @@ export default function StateStore() {
         <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
                 <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
-                        State Store
-                    </h1>
+                    <h1 className="gradient-text text-3xl font-bold">State Store</h1>
                     <p className="text-muted-foreground mt-1">
                         Stateful mocking engine. Store, retrieve, and modify JSON data per endpoint via API or control panel.
                     </p>
                 </div>
 
                 <select
-                    className="bg-background border border-input h-10 px-3 rounded-md min-w-[200px]"
+                    className="min-w-[220px] rounded-2xl border border-input/80 bg-background/75 px-4 py-3 text-sm shadow-[inset_0_1px_0_hsl(var(--background)/0.35)] focus:border-primary/45 focus:outline-none focus:ring-4 focus:ring-ring/15"
                     value={selectedEndpoint?.id || ""}
                     onChange={(e) => {
                         const ep = endpoints.find(x => x.id === e.target.value);
@@ -131,7 +129,7 @@ export default function StateStore() {
                         <CardHeader className="flex-shrink-0">
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                    <Database className="w-4 h-4 text-blue-400" />
+                                    <Database className="w-4 h-4 text-primary" />
                                     State Keys
                                 </CardTitle>
                                 <div className="text-xs text-muted-foreground">{keys.length} total</div>
@@ -155,16 +153,19 @@ export default function StateStore() {
                                         <div
                                             key={key}
                                             onClick={() => loadValue(key)}
-                                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors group ${selectedKey === key ? 'bg-blue-500/20 text-blue-100' : 'hover:bg-muted'
+                                            className={`group flex cursor-pointer items-center justify-between rounded-xl border p-2 transition-colors ${
+                                                selectedKey === key
+                                                    ? "border-primary/20 bg-primary/12 text-foreground shadow-soft"
+                                                    : "border-transparent hover:bg-muted/70"
                                                 }`}
                                         >
                                             <div className="flex items-center gap-2 overflow-hidden">
-                                                <Code2 className={`w-3.5 h-3.5 ${selectedKey === key ? 'text-blue-400' : 'text-muted-foreground'}`} />
+                                                <Code2 className={`w-3.5 h-3.5 ${selectedKey === key ? 'text-primary' : 'text-muted-foreground'}`} />
                                                 <span className="text-sm font-mono truncate">{key}</span>
                                             </div>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleDelete(key); }}
-                                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 text-red-400 rounded transition-all"
+                                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 text-destructive rounded transition-all"
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
@@ -197,7 +198,7 @@ export default function StateStore() {
                                 />
                                 <Button
                                     size="sm"
-                                    className="w-full text-xs h-8 bg-blue-600 hover:bg-blue-700"
+                                    className="w-full h-8 text-xs"
                                     onClick={handleCreate}
                                     disabled={!newKey}
                                 >
@@ -211,11 +212,11 @@ export default function StateStore() {
                 {/* Right Column: Value Editor */}
                 <div className="lg:col-span-8">
                     {selectedKey ? (
-                        <Card className="h-[600px] flex flex-col border-blue-500/20">
-                            <CardHeader className="border-b border-border bg-blue-500/5">
+                        <Card className="h-[600px] flex flex-col border-primary/20">
+                            <CardHeader className="border-b border-border bg-primary/5">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <CardTitle className="flex items-center gap-2 text-blue-400">
+                                        <CardTitle className="flex items-center gap-2 text-primary">
                                             <Code2 className="w-5 h-5" />
                                             {selectedKey}
                                         </CardTitle>
@@ -229,11 +230,11 @@ export default function StateStore() {
                             <CardContent className="flex-grow overflow-hidden p-0 relative">
                                 <div className="absolute inset-0 flex flex-col">
                                     <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-b border-border text-[10px] font-mono text-muted-foreground">
-                                        <Braces className="w-3 h-3 text-blue-400" />
+                                        <Braces className="w-3 h-3 text-primary" />
                                         APPLICATION/JSON
                                     </div>
                                     <textarea
-                                        className="w-full flex-grow bg-background p-6 font-mono text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                        className="w-full flex-grow bg-background p-6 font-mono text-sm resize-none focus:outline-none focus:ring-4 focus:ring-ring/15"
                                         value={JSON.stringify(selectedValue, null, 4)}
                                         onChange={(e) => {
                                             try {

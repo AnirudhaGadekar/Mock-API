@@ -1,11 +1,13 @@
 /**
- * AuthCallback — OAuth redirect landing page.
+ * AuthCallback - OAuth redirect landing page.
  * After Google/GitHub OAuth, the backend sets the cookie and
  * redirects here. We call refreshUser() and bounce to home.
  */
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function AuthCallback() {
     const { refreshUser } = useAuth();
@@ -17,12 +19,12 @@ export default function AuthCallback() {
             try {
                 const user = await refreshUser({ throwOnError: true, retries: 5, retryDelayMs: 400 });
                 if (!user || user.isAnonymous) {
-                    throw new Error('Session cookie not established after OAuth callback');
+                    throw new Error("Session cookie not established after OAuth callback");
                 }
-                navigate('/', { replace: true });
+                navigate("/", { replace: true });
             } catch (err) {
-                console.error('OAuth callback error', err);
-                setError('Failed to complete login. Please try again.');
+                console.error("OAuth callback error", err);
+                setError("Failed to complete login. Please try again.");
             }
         };
         finish();
@@ -30,31 +32,42 @@ export default function AuthCallback() {
 
     if (error) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-950">
-                <div className="text-center space-y-4">
-                    <div className="text-red-400 text-lg font-semibold">{error}</div>
-                    <button
-                        onClick={() => navigate('/', { replace: true })}
-                        className="text-indigo-400 hover:text-indigo-300 text-sm underline"
-                    >
-                        Go back home
-                    </button>
+            <div className="screen-center">
+                <div className="screen-card space-y-6 text-center">
+                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-destructive/25 bg-destructive/12 text-destructive shadow-soft">
+                        <AlertTriangle className="h-8 w-8" />
+                    </div>
+                    <div className="space-y-3">
+                        <div className="auth-kicker mx-auto w-fit">
+                            <span className="h-2 w-2 rounded-full bg-destructive" />
+                            OAuth callback
+                        </div>
+                        <h1 className="text-3xl font-semibold">Unable to complete sign-in</h1>
+                        <p className="text-sm leading-6 text-muted-foreground">{error}</p>
+                    </div>
+                    <Button variant="outline" className="w-full" onClick={() => navigate("/", { replace: true })}>
+                        Back to home
+                    </Button>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-950">
-            <div className="text-center space-y-6">
-                {/* Spinner */}
-                <div className="relative mx-auto w-16 h-16">
-                    <div className="absolute inset-0 rounded-full border-4 border-slate-800" />
-                    <div className="absolute inset-0 rounded-full border-4 border-t-indigo-500 animate-spin" />
+        <div className="screen-center">
+            <div className="screen-card space-y-6 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-primary/20 bg-primary/12 text-primary shadow-soft">
+                    <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
-                <div>
-                    <p className="text-white text-lg font-semibold">Signing you in…</p>
-                    <p className="text-slate-500 text-sm mt-1">Just a moment</p>
+                <div className="space-y-3">
+                    <div className="auth-kicker mx-auto w-fit">
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                        OAuth callback
+                    </div>
+                    <h1 className="text-3xl font-semibold">Signing you in...</h1>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                        Finalizing your session and restoring your workspace context.
+                    </p>
                 </div>
             </div>
         </div>

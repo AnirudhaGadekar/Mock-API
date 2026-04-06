@@ -20,21 +20,21 @@ import { useNavigate } from "react-router-dom";
 // Helper to colorize HTTP methods
 const getMethodColor = (method: string) => {
     switch (method) {
-        case 'GET': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+        case 'GET': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
         case 'POST': return 'bg-green-500/10 text-green-500 border-green-500/20';
         case 'PUT': return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
         case 'DELETE': return 'bg-red-500/10 text-red-500 border-red-500/20';
         case 'PATCH': return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
-        default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+        default: return 'bg-muted text-muted-foreground border-border/70';
     }
 };
 
 const getStatusColor = (status: number) => {
     if (status >= 200 && status < 300) return 'text-green-500';
-    if (status >= 300 && status < 400) return 'text-blue-500';
+    if (status >= 300 && status < 400) return 'text-primary';
     if (status >= 400 && status < 500) return 'text-orange-500';
     if (status >= 500) return 'text-red-500';
-    return 'text-slate-500';
+    return 'text-muted-foreground';
 };
 
 export default function RequestsPage() {
@@ -106,9 +106,9 @@ export default function RequestsPage() {
     }, []);
 
     return (
-        <div className="flex flex-col h-[calc(100vh-8rem)] gap-4">
+        <div className="flex min-h-[calc(100vh-10rem)] flex-col gap-4">
             {/* Header & Controls */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
                         Live Traffic
@@ -120,14 +120,14 @@ export default function RequestsPage() {
                     <p className="text-muted-foreground">Real-time request inspector.</p>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-end">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                         <span className="text-sm font-medium">Endpoint:</span>
                         <Select
                             value={selectedEndpointId || ""}
                             onValueChange={setSelectedEndpointId}
                         >
-                            <SelectTrigger className="w-[200px]">
+                            <SelectTrigger className="w-full sm:w-[240px]">
                                 <SelectValue placeholder="Select endpoint" />
                             </SelectTrigger>
                             <SelectContent>
@@ -141,10 +141,10 @@ export default function RequestsPage() {
                     </div>
 
                     <div className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border",
-                        status === "connected" ? "bg-green-500/10 text-green-500 border-green-500/20" :
-                            status === "connecting" ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" :
-                                "bg-red-500/10 text-red-500 border-red-500/20"
+                        "flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium",
+                        status === "connected" ? "bg-success/10 text-success border-success/20" :
+                            status === "connecting" ? "bg-warning/10 text-warning border-warning/20" :
+                                "bg-destructive/10 text-destructive border-destructive/20"
                     )}>
                         {status === "connected" ? <Wifi size={14} /> : <WifiOff size={14} />}
                         {status === "connected" ? "Connected" : status === "connecting" ? "Connecting..." : "Disconnected"}
@@ -157,11 +157,11 @@ export default function RequestsPage() {
             </div>
 
             {/* Main Split View */}
-            <div className="grid grid-cols-12 gap-6 h-full min-h-0">
+            <div className="grid min-h-0 gap-6 xl:grid-cols-12">
 
                 {/* Left: Request List */}
-                <div className="col-span-4 flex flex-col h-full min-h-0 border rounded-xl bg-card overflow-hidden">
-                    <div className="p-3 border-b bg-muted/40 font-medium text-xs text-muted-foreground flex justify-between">
+                <div className="flex min-h-[22rem] flex-col overflow-hidden rounded-[1.5rem] border border-border/70 bg-card xl:col-span-4">
+                    <div className="flex justify-between border-b border-border/70 bg-muted/40 p-3 text-xs font-medium text-muted-foreground">
                         <span>Incoming Requests</span>
                         <span>{messages.length} captured</span>
                     </div>
@@ -179,8 +179,8 @@ export default function RequestsPage() {
                                         key={i}
                                         onClick={() => setSelectedRequest(req)}
                                         className={cn(
-                                            "flex flex-col gap-1 p-3 border-b text-left transition-colors hover:bg-accent/50",
-                                            selectedRequest === req ? "bg-accent border-l-2 border-l-primary" : "border-l-2 border-l-transparent"
+                                            "flex flex-col gap-1 border-b border-border/55 p-3 text-left transition-colors hover:bg-muted/50",
+                                            selectedRequest === req ? "bg-primary/10 border-l-2 border-l-primary" : "border-l-2 border-l-transparent"
                                         )}
                                     >
                                         <div className="flex items-center justify-between w-full">
@@ -213,18 +213,18 @@ export default function RequestsPage() {
                 </div>
 
                 {/* Right: Request Details */}
-                <div className="col-span-8 flex flex-col h-full min-h-0 border rounded-xl bg-card overflow-hidden">
+                <div className="flex min-h-[24rem] flex-col overflow-hidden rounded-[1.5rem] border border-border/70 bg-card xl:col-span-8">
                     {selectedRequest ? (
                         <>
-                            <div className="p-4 border-b bg-muted/40">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-3">
+                            <div className="border-b border-border/70 bg-muted/40 p-4">
+                                <div className="mb-2 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                    <div className="flex min-w-0 items-center gap-3">
                                         <span className={cn("text-sm font-bold px-2 py-1 rounded border", getMethodColor(selectedRequest.method))}>
                                             {selectedRequest.method}
                                         </span>
-                                        <span className="font-mono text-sm">{selectedRequest.path}</span>
+                                        <span className="truncate font-mono text-sm">{selectedRequest.path}</span>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -244,12 +244,12 @@ export default function RequestsPage() {
                                             <Wand2 className="h-3.5 w-3.5" />
                                             Magic Mock
                                         </Button>
-                                        <Badge variant="outline" className={cn("font-mono h-8", getStatusColor(selectedRequest.responseStatus))}>
+                                        <Badge variant="outline" className={cn("h-8 font-mono", getStatusColor(selectedRequest.responseStatus))}>
                                             Status: {selectedRequest.responseStatus}
                                         </Badge>
                                     </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground flex gap-4 font-mono">
+                                <div className="flex flex-wrap gap-4 font-mono text-xs text-muted-foreground">
                                     <span>ID: {selectedRequest.id?.slice(0, 8)}...</span>
                                     <span>Time: {new Date(selectedRequest.timestamp).toLocaleString()}</span>
                                     <span>IP: {selectedRequest.ip}</span>
@@ -266,7 +266,7 @@ export default function RequestsPage() {
                                         <div className="grid gap-4">
                                             <div className="space-y-1.5">
                                                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Headers</div>
-                                                <pre className="bg-muted/50 p-3 rounded-md text-xs font-mono overflow-auto border">
+                                                <pre className="surface-code rounded-[1rem] p-3 text-xs font-mono overflow-auto">
                                                     {JSON.stringify(selectedRequest.headers || {}, null, 2)}
                                                 </pre>
                                             </div>
@@ -274,7 +274,7 @@ export default function RequestsPage() {
                                             {selectedRequest.query && Object.keys(selectedRequest.query).length > 0 && (
                                                 <div className="space-y-1.5">
                                                     <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Query Params</div>
-                                                    <pre className="bg-muted/50 p-3 rounded-md text-xs font-mono overflow-auto border">
+                                                    <pre className="surface-code rounded-[1rem] p-3 text-xs font-mono overflow-auto">
                                                         {JSON.stringify(selectedRequest.query, null, 2)}
                                                     </pre>
                                                 </div>
@@ -283,7 +283,7 @@ export default function RequestsPage() {
                                             {selectedRequest.body && (
                                                 <div className="space-y-1.5">
                                                     <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Body</div>
-                                                    <pre className="bg-muted/50 p-3 rounded-md text-xs font-mono overflow-auto border whitespace-pre-wrap break-all">
+                                                    <pre className="surface-code rounded-[1rem] p-3 text-xs font-mono overflow-auto whitespace-pre-wrap break-all">
                                                         {typeof selectedRequest.body === 'object'
                                                             ? JSON.stringify(selectedRequest.body, null, 2)
                                                             : selectedRequest.body}
@@ -295,13 +295,13 @@ export default function RequestsPage() {
 
                                     {/* Response Section */}
                                     <div>
-                                        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-foreground/90 pt-4 border-t">
+                                        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-foreground/90 pt-4 border-t border-border/70">
                                             Response
                                         </h3>
                                         <div className="grid gap-4">
                                             <div className="space-y-1.5">
                                                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Response Body</div>
-                                                <pre className="bg-muted/50 p-3 rounded-md text-xs font-mono overflow-auto border whitespace-pre-wrap break-all">
+                                                <pre className="surface-code rounded-[1rem] p-3 text-xs font-mono overflow-auto whitespace-pre-wrap break-all">
                                                     {selectedRequest.responseBody
                                                         ? (typeof selectedRequest.responseBody === 'object'
                                                             ? JSON.stringify(selectedRequest.responseBody, null, 2)

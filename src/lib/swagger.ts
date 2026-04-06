@@ -37,7 +37,7 @@ export async function registerSwagger(app: FastifyInstance) {
                 version: '1.0.0',
                 contact: {
                     name: 'MockAPI API Team',
-                    url: 'https://mockapi.com',
+                    url: 'https://mockapi.online',
                 },
                 license: {
                     name: 'MIT',

@@ -13,7 +13,7 @@ import { checkDatabaseHealth, disconnectDatabase } from './lib/db.js';
 import { isDiagnosticModeEnabled, logStartupDiagnostics } from './lib/diagnostics.js';
 import { logger } from './lib/logger.js';
 import { metricsRegistry } from './lib/metrics.js';
-import { checkRedisHealth, disconnectRedis } from './lib/redis.js';
+import { checkRedisHealth, disconnectRedis, getRedisConfigurationError } from './lib/redis.js';
 import { registerSwagger } from './lib/swagger.js';
 import { initTracing, shutdownTracing } from './lib/tracing.js';
 import { registerRateLimiting } from './middleware/rate-limit.middleware.js';
@@ -179,15 +179,12 @@ function validateEnvironment() {
 
   const missing = required.filter((key) => !process.env[key]);
 
-  // Check Redis: Either REDIS_URL or (HOST + PORT)
-  const hasRedis = process.env.REDIS_URL || (process.env.REDIS_HOST && process.env.REDIS_PORT);
-  if (!hasRedis) {
-    missing.push('REDIS_URL (or REDIS_HOST and REDIS_PORT)');
-  }
+  const redisConfigError = getRedisConfigurationError();
+  const configIssues = [...missing, ...(redisConfigError ? [redisConfigError] : [])];
 
-  if (missing.length > 0) {
+  if (configIssues.length > 0) {
     throw new Error(
-      `❌ Missing required environment variables: ${missing.join(', ')}\n` +
+      `❌ Environment validation failed: ${configIssues.join(', ')}\n` +
       'Please check your .env file or Render environment settings.',
     );
   }
@@ -216,7 +213,12 @@ const PORT = Number(process.env.PORT || 10000);
 // if HOST is set to an external IP address.
 const HOST = '0.0.0.0';
 
-import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
+import {
+  hasZodFastifySchemaValidationErrors,
+  serializerCompiler,
+  validatorCompiler,
+  ZodTypeProvider,
+} from 'fastify-type-provider-zod';
 
 async function buildApp() {
   const bodyLimit = Number(process.env.BODY_LIMIT ?? 1048576);
@@ -270,6 +272,21 @@ async function buildApp() {
   });
 
   // Health checks
+  app.route({
+    method: ['GET', 'HEAD'],
+    url: '/',
+    handler: async (_request, reply) => {
+      return reply.status(200).send({
+        success: true,
+        service: 'MockAPI API',
+        status: 'ok',
+        api: '/api',
+        health: '/healthz/live',
+        timestamp: new Date().toISOString(),
+      });
+    },
+  });
+
   app.get('/api', async function (_request, reply) {
     return reply.status(200).send({
       success: true,
@@ -404,7 +421,23 @@ async function buildApp() {
 
   // Error handler
   app.setErrorHandler((error: unknown, request, reply) => {
-    const err = error as Error;
+    const err = error as Error & {
+      statusCode?: number;
+      validation?: unknown;
+    };
+
+    if (hasZodFastifySchemaValidationErrors(err) || err.validation) {
+      return reply.status(err.statusCode || 400).send({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: err.message,
+          details: err.validation,
+        },
+        timestamp: new Date().toISOString(),
+        requestId: request.id,
+      });
+    }
 
     logger.error('Unhandled error', {
       message: err.message,

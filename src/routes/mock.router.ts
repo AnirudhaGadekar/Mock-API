@@ -6,6 +6,7 @@ import { renderBody, type TemplateContext } from '../engine/templating.js';
 import { broadcastRequest } from '../engine/websocket.js';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
+import { isReservedMockSubdomain } from '../lib/mock-routing.js';
 import { redis } from '../lib/redis.js';
 import { getSecurityFeatureFlag, isIpAllowedByPolicy, resolveEffectiveSecurityPolicy } from '../lib/security-policy.js';
 import { setState } from '../lib/state.js';
@@ -82,7 +83,7 @@ function extractSubdomain(request: FastifyRequest): string | null {
   // Subdomain routing (preferred if configured with wildcard)
   if (hostname && hostnameMatchesAllowedMockDomain(hostname, allowedDomains)) {
     const sub = extractSubdomainFromHostname(hostname, allowedDomains);
-    if (sub) return sub;
+    if (sub && !isReservedMockSubdomain(sub)) return sub;
   }
 
   // Path-based routing with /e/ prefix (e.g., /e/my-endpoint/...)
@@ -93,9 +94,7 @@ function extractSubdomain(request: FastifyRequest): string | null {
 
   // Fallback path-based routing without prefix (e.g., /my-endpoint/...)
   if (pathParts.length > 0 && pathParts[0].match(/^[a-z0-9-]+$/)) {
-    // Only use if not a reserved system path
-    const reserved = ['api', 'health', 'metrics', 'auth', 'console', 'invite'];
-    if (!reserved.includes(pathParts[0])) {
+    if (!isReservedMockSubdomain(pathParts[0])) {
       return pathParts[0];
     }
   }

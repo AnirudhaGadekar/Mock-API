@@ -30,48 +30,57 @@ export default function SettingsPage() {
     };
 
     const maskedKey = apiKey
-        ? apiKey.slice(0, 8) + "•".repeat(Math.max(0, apiKey.length - 12)) + apiKey.slice(-4)
+        ? `${apiKey.slice(0, 8)}${"*".repeat(Math.max(0, apiKey.length - 12))}${apiKey.slice(-4)}`
         : "No key";
 
+    const authProviderLabel =
+        user?.authProvider === "ANONYMOUS"
+            ? "Anonymous"
+            : user?.authProvider === "LOCAL"
+                ? "Email OTP"
+                : user?.authProvider === "GOOGLE"
+                    ? "Google"
+                    : user?.authProvider === "GITHUB"
+                        ? "GitHub"
+                        : user?.authProvider || "Unknown";
+
     return (
-        <div className="space-y-6 max-w-2xl">
-            <div>
-                <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
-                <p className="text-muted-foreground">Manage your account and API credentials.</p>
+        <div className="max-w-3xl space-y-6">
+            <div className="space-y-2">
+                <div className="auth-kicker w-fit">
+                    <span className="h-2 w-2 rounded-full bg-primary" />
+                    Workspace settings
+                </div>
+                <h2 className="text-3xl font-semibold">Manage your account and credentials</h2>
+                <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                    Control account access, inspect your API key, and jump to the operational tools that matter most.
+                </p>
             </div>
 
-            {/* Anonymous Upgrade CTA */}
             {isAnonymous && (
-                <Card className="border-indigo-500/30 bg-indigo-500/5">
+                <Card className="border-primary/25 bg-primary/10">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-indigo-400">
+                        <CardTitle className="flex items-center gap-2 text-primary">
                             <Shield size={18} />
-                            Secure Your Work
+                            Secure your work
                         </CardTitle>
                         <CardDescription>
-                            You're using an anonymous session. Sign up to persist your endpoints, enable team collaboration, and access your data from any device.
+                            You are currently using an anonymous session. Create an account to persist endpoints,
+                            enable collaboration, and access your workspace from any device.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="flex gap-3">
-                        <Button
-                            onClick={() => showAuthModal('signup')}
-                            className="gap-2"
-                        >
+                    <CardContent className="flex flex-col gap-3 sm:flex-row">
+                        <Button onClick={() => showAuthModal("signup")} className="gap-2">
                             <LogIn size={16} />
-                            Create Account
+                            Create account
                         </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => showAuthModal('login')}
-                            className="gap-2"
-                        >
-                            Already have one? Sign In
+                        <Button variant="outline" onClick={() => showAuthModal("login")} className="gap-2">
+                            Already have one? Sign in
                         </Button>
                     </CardContent>
                 </Card>
             )}
 
-            {/* Account Info */}
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -79,43 +88,36 @@ export default function SettingsPage() {
                         {isAnonymous ? "Session" : "Account"}
                     </CardTitle>
                     <CardDescription>
-                        {isAnonymous
-                            ? "Your current anonymous session details"
-                            : "Your account details"
-                        }
+                        {isAnonymous ? "Current anonymous session details." : "Identity and authentication details for this workspace."}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {loading ? (
                         <div className="space-y-3">
-                            <div className="h-5 w-48 bg-muted/30 rounded animate-pulse" />
-                            <div className="h-5 w-64 bg-muted/30 rounded animate-pulse" />
+                            <div className="h-5 w-48 animate-pulse rounded-full bg-muted/40" />
+                            <div className="h-5 w-64 animate-pulse rounded-full bg-muted/35" />
                         </div>
                     ) : user ? (
                         <div className="space-y-3">
                             {user.name && (
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-4">
                                     <span className="text-sm text-muted-foreground">Name</span>
-                                    <span className="text-sm font-medium">{user.name}</span>
+                                    <span className="text-right text-sm font-medium">{user.name}</span>
                                 </div>
                             )}
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-4">
                                 <span className="text-sm text-muted-foreground">Email</span>
-                                <span className="text-sm">{user.email}</span>
+                                <span className="text-right text-sm">{user.email}</span>
                             </div>
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-4">
                                 <span className="text-sm text-muted-foreground">Auth Provider</span>
-                                <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-secondary border border-border">
-                                    {user.authProvider === 'ANONYMOUS' ? '🔓 Anonymous' :
-                                        user.authProvider === 'LOCAL' ? '📧 Email' :
-                                            user.authProvider === 'GOOGLE' ? '🔵 Google' :
-                                                user.authProvider === 'GITHUB' ? '⚫ GitHub' :
-                                                    user.authProvider || 'Unknown'}
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-2.5 py-1 text-xs font-semibold">
+                                    {authProviderLabel}
                                 </span>
                             </div>
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-4">
                                 <span className="text-sm text-muted-foreground">User ID</span>
-                                <span className="font-mono text-xs text-foreground/80 select-all">{user.id}</span>
+                                <span className="select-all text-right font-mono text-xs text-foreground/80">{user.id}</span>
                             </div>
                         </div>
                     ) : (
@@ -124,7 +126,6 @@ export default function SettingsPage() {
                 </CardContent>
             </Card>
 
-            {/* API Key */}
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -132,62 +133,64 @@ export default function SettingsPage() {
                         API Key
                     </CardTitle>
                     <CardDescription>
-                        Use this key in the <code className="text-xs bg-muted px-1 py-0.5 rounded">X-API-Key</code> header for API access
+                        Use this key in the <code className="rounded bg-muted px-1 py-0.5 text-xs">X-API-Key</code> header for API access.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                         <Input
                             readOnly
-                            value={showKey ? (apiKey || '') : maskedKey}
+                            value={showKey ? apiKey || "" : maskedKey}
                             className="font-mono text-xs"
                         />
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => setShowKey(!showKey)}
-                            title={showKey ? "Hide" : "Show"}
-                        >
-                            {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={copyApiKey}
-                            title="Copy"
-                        >
-                            <Copy size={16} />
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setShowKey(!showKey)}
+                                title={showKey ? "Hide" : "Show"}
+                            >
+                                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={copyApiKey}
+                                title="Copy"
+                            >
+                                <Copy size={16} />
+                            </Button>
+                        </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                        This key is stored in a secure cookie for requests. {isAnonymous ? "Sign up to secure it." : ""}
+                    <p className="text-xs leading-6 text-muted-foreground">
+                        This key is stored in a secure cookie for requests. {isAnonymous ? "Create an account to keep it attached to a persistent workspace." : ""}
                     </p>
                 </CardContent>
             </Card>
 
-            {/* Quick Actions */}
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Settings2 size={18} />
                         Quick Actions
                     </CardTitle>
+                    <CardDescription>Jump to operational tools and account-level controls.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <Button
                         variant="outline"
-                        className="w-full justify-start gap-3"
-                        onClick={() => window.open('/documentation', '_blank')}
+                        className="h-auto w-full justify-start gap-3 px-4 py-4"
+                        onClick={() => window.open("/documentation", "_blank")}
                     >
-                        <BookOpen size={16} className="text-sky-400" />
+                        <BookOpen size={16} className="text-primary" />
                         <div className="text-left">
                             <div className="text-sm font-medium">API Documentation</div>
-                            <div className="text-xs text-muted-foreground">Swagger UI with all available endpoints</div>
+                            <div className="text-xs text-muted-foreground">Open Swagger UI with every available endpoint.</div>
                         </div>
                         <ExternalLink size={14} className="ml-auto text-muted-foreground" />
                     </Button>
 
-                    <div className="pt-2 border-t">
+                    <div className="border-t border-border/70 pt-2">
                         {isAnonymous ? (
                             <>
                                 <Button
@@ -199,24 +202,20 @@ export default function SettingsPage() {
                                     }}
                                 >
                                     <RefreshCw size={16} />
-                                    Clear Session & Reset
+                                    Clear session and reset
                                 </Button>
-                                <p className="text-[11px] text-muted-foreground text-center mt-2">
-                                    This will remove your API key and create a fresh anonymous session.
+                                <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                                    This removes your current API key and creates a fresh anonymous session.
                                 </p>
                             </>
                         ) : (
                             <>
-                                <Button
-                                    variant="destructive"
-                                    className="w-full gap-2"
-                                    onClick={logout}
-                                >
+                                <Button variant="destructive" className="w-full gap-2" onClick={logout}>
                                     <LogOut size={16} />
-                                    Sign Out
+                                    Sign out
                                 </Button>
-                                <p className="text-[11px] text-muted-foreground text-center mt-2">
-                                    You'll be signed out and reverted to an anonymous session.
+                                <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                                    Signing out will return this browser to an anonymous session.
                                 </p>
                             </>
                         )}

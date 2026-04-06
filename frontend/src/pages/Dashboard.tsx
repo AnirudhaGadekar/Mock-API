@@ -32,18 +32,18 @@ import { toast } from "react-hot-toast";
 const getMethodColor = (method: string) => {
     switch (method) {
         case "GET": return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-        case "POST": return "bg-sky-500/10 text-sky-400 border-sky-500/20";
+        case "POST": return "bg-primary/10 text-primary border-primary/20";
         case "PUT": return "bg-violet-500/10 text-violet-400 border-violet-500/20";
         case "DELETE": return "bg-red-500/10 text-red-400 border-red-500/20";
         case "PATCH": return "bg-amber-500/10 text-amber-400 border-amber-500/20";
-        default: return "bg-slate-500/10 text-slate-400 border-slate-500/20";
+        default: return "bg-muted text-muted-foreground border-border/70";
     }
 };
 
 const getStatusColor = (status: number | undefined) => {
     if (!status) return "text-muted-foreground";
     if (status < 300) return "text-emerald-400";
-    if (status < 400) return "text-sky-400";
+    if (status < 400) return "text-primary";
     if (status < 500) return "text-amber-400";
     return "text-red-400";
 };
@@ -199,9 +199,9 @@ export default function Dashboard() {
 
     // ─── Render ──────────────────────────────────────────────────────────────
     return (
-        <div className="grid grid-cols-12 gap-5 h-[calc(100vh-8rem)]">
+        <div className="grid min-h-[calc(100vh-10rem)] gap-5 xl:grid-cols-12">
             {/* ── Left: Create + Endpoints List ──────────────────────────────── */}
-            <div className="col-span-3 flex flex-col gap-4 min-h-0">
+            <div className="flex min-h-0 flex-col gap-4 xl:col-span-4 2xl:col-span-3">
                 {/* Create new endpoint */}
                 <Card className="shrink-0">
                     <CardHeader className="pb-3">
@@ -225,7 +225,7 @@ export default function Dashboard() {
                             className="text-sm"
                         />
                         <p className="text-[11px] text-muted-foreground">
-                            5–40 chars · lowercase · digits · hyphens
+                            5-40 chars · lowercase · digits · hyphens
                         </p>
                         <Button
                             className="w-full"
@@ -237,7 +237,7 @@ export default function Dashboard() {
                             ) : (
                                 <Plus size={14} className="mr-2" />
                             )}
-                            {creating ? "Creating…" : "Create endpoint"}
+                            {creating ? "Creating..." : "Create endpoint"}
                         </Button>
                     </CardContent>
                 </Card>
@@ -282,10 +282,10 @@ export default function Dashboard() {
                                         key={ep.id}
                                         onClick={() => setSelectedId(ep.id)}
                                         className={cn(
-                                            "w-full text-left px-3 py-2.5 rounded-md transition-all text-sm group",
+                                            "group w-full rounded-[1.15rem] border px-3 py-3 text-left text-sm transition-all",
                                             selectedId === ep.id
-                                                ? "bg-primary/10 ring-1 ring-primary/20 text-foreground"
-                                                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                                                ? "border-primary/20 bg-primary/12 text-foreground shadow-soft"
+                                                : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                                         )}
                                     >
                                         <div className="flex items-center justify-between">
@@ -308,7 +308,7 @@ export default function Dashboard() {
             </div>
 
             {/* ── Center: Selected Endpoint + History ─────────────────────────── */}
-            <div className="col-span-9 flex flex-col gap-4 min-h-0">
+            <div className="flex min-h-0 flex-col gap-4 xl:col-span-8 2xl:col-span-9">
                 {selectedEndpoint ? (
                     <>
                         {/* Endpoint Details */}
@@ -429,25 +429,25 @@ export default function Dashboard() {
                         <Card className="shrink-0">
                             <CardContent className="p-4">
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    <div className="rounded-md border bg-secondary/40 p-3">
+                                    <div className="rounded-[1.25rem] border border-border/70 bg-background/55 p-3 shadow-soft">
                                         <p className="text-[11px] text-muted-foreground">Live Status</p>
                                         <p className={cn("text-sm font-semibold", liveSummary?.isActive ? "text-emerald-500" : "text-muted-foreground")}>
                                             {liveSummary?.isActive ? "Receiving traffic" : "Idle"}
                                         </p>
                                     </div>
-                                    <div className="rounded-md border bg-secondary/40 p-3">
+                                    <div className="rounded-[1.25rem] border border-border/70 bg-background/55 p-3 shadow-soft">
                                         <p className="text-[11px] text-muted-foreground">Requests (1m / 5m)</p>
                                         <p className="text-sm font-semibold">
                                             {(liveSummary?.requestCount1m ?? 0)} / {(liveSummary?.requestCount5m ?? 0)}
                                         </p>
                                     </div>
-                                    <div className="rounded-md border bg-secondary/40 p-3">
+                                    <div className="rounded-[1.25rem] border border-border/70 bg-background/55 p-3 shadow-soft">
                                         <p className="text-[11px] text-muted-foreground">Error Rate (5m)</p>
                                         <p className={cn("text-sm font-semibold", (liveSummary?.errorRate5m ?? 0) >= 5 ? "text-red-500" : "text-emerald-500")}>
                                             {(liveSummary?.errorRate5m ?? 0).toFixed(2)}%
                                         </p>
                                     </div>
-                                    <div className="rounded-md border bg-secondary/40 p-3">
+                                    <div className="rounded-[1.25rem] border border-border/70 bg-background/55 p-3 shadow-soft">
                                         <p className="text-[11px] text-muted-foreground">Live Viewers (WS)</p>
                                         <p className="text-sm font-semibold">{liveSummary?.websocketSubscribers ?? 0}</p>
                                     </div>
@@ -476,7 +476,7 @@ export default function Dashboard() {
                                                 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
                                             />
                                             <Input
-                                                placeholder="Filter by path, method, IP…"
+                                                placeholder="Filter by path, method, IP..."
                                                 className="pl-8 h-8 text-xs w-56"
                                                 value={historyFilter}
                                                 onChange={(e) =>
@@ -504,7 +504,7 @@ export default function Dashboard() {
                                             size={14}
                                             className="animate-spin"
                                         />
-                                        Loading…
+                                        Loading...
                                     </div>
                                 ) : history.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">

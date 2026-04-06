@@ -1,6 +1,6 @@
 import { prisma, checkDatabaseHealth } from './db.js';
 import { logger } from './logger.js';
-import { checkRedisHealth } from './redis.js';
+import { checkRedisHealth, getRedisConfigurationError, resolveRedisConnectionConfig } from './redis.js';
 import { getApiKeyCookieOptions } from './auth-cookie.js';
 
 type CheckStatus = 'pass' | 'warn' | 'fail';
@@ -129,6 +129,19 @@ export async function collectDiagnosticsReport(): Promise<DiagnosticsReport> {
   const githubRedirectUri = unwrapQuotedValue(process.env.GITHUB_REDIRECT_URI);
   const redisUrl = process.env.REDIS_URL;
   const cookie = getApiKeyCookieOptions();
+  const redisConfigError = getRedisConfigurationError();
+  let redisUrlInfo = summarizeConnectionUrl(redisUrl);
+
+  if (!redisConfigError) {
+    try {
+      const resolvedRedis = resolveRedisConnectionConfig();
+      redisUrlInfo = resolvedRedis.mode === 'url'
+        ? summarizeConnectionUrl(resolvedRedis.url)
+        : `redis://${resolvedRedis.host}:${resolvedRedis.port}`;
+    } catch {
+      redisUrlInfo = summarizeConnectionUrl(redisUrl);
+    }
+  }
 
   const checks: DiagnosticCheck[] = [];
   const backendHost = parseHost(baseEndpointUrl || process.env.RENDER_EXTERNAL_URL);
@@ -204,7 +217,13 @@ export async function collectDiagnosticsReport(): Promise<DiagnosticsReport> {
     checks.push({ name: oauth.key, status: 'pass', detail: oauth.value });
   }
 
-  if (hasSuspiciousRedisUrl(redisUrl)) {
+  if (redisConfigError) {
+    checks.push({
+      name: 'REDIS_URL',
+      status: 'fail',
+      detail: redisConfigError,
+    });
+  } else if (hasSuspiciousRedisUrl(redisUrl)) {
     checks.push({
       name: 'REDIS_URL',
       status: 'fail',
@@ -214,7 +233,7 @@ export async function collectDiagnosticsReport(): Promise<DiagnosticsReport> {
     checks.push({
       name: 'REDIS_URL',
       status: 'pass',
-      detail: summarizeConnectionUrl(redisUrl) || 'configured',
+      detail: redisUrlInfo || 'configured',
     });
   } else {
     checks.push({
@@ -314,7 +333,7 @@ export async function collectDiagnosticsReport(): Promise<DiagnosticsReport> {
       corsOrigin: corsOrigin || null,
       googleRedirectUri: googleRedirectUri || null,
       githubRedirectUri: githubRedirectUri || null,
-      redisUrlInfo: summarizeConnectionUrl(redisUrl),
+      redisUrlInfo,
       databaseUrlInfo: summarizeConnectionUrl(process.env.DATABASE_URL),
       cookie: {
         sameSite: cookie.sameSite,

@@ -189,22 +189,22 @@ export const AuthModal: React.FC = () => {
                 : 'Create Account';
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-slate-800 p-6">
-                    <h2 className="text-xl font-bold text-white">{title}</h2>
-                    <button onClick={hideAuthModal} className="text-slate-400 transition-colors hover:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/78 p-4 backdrop-blur-md">
+            <div className="w-full max-w-lg overflow-hidden rounded-[calc(var(--radius)+0.75rem)] border border-border/75 bg-card/95 shadow-floating backdrop-blur-xl">
+                <div className="flex items-center justify-between border-b border-border/70 p-6">
+                    <h2 className="text-xl font-bold text-foreground">{title}</h2>
+                    <button onClick={hideAuthModal} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-background/70 text-muted-foreground transition-colors hover:border-primary/30 hover:bg-secondary hover:text-foreground">
                         <X size={20} />
                     </button>
                 </div>
 
                 <div className="p-6">
-                    <div className="mb-6 flex gap-1 rounded-xl bg-slate-950 p-1">
+                    <div className="mb-6 flex gap-1 rounded-[1.25rem] border border-border/70 bg-background/60 p-1">
                         <button
                             type="button"
                             onClick={() => switchTab('login')}
                             className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                                tab === 'login' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                                tab === 'login' ? 'bg-primary text-primary-foreground shadow-soft' : 'text-muted-foreground hover:text-foreground'
                             }`}
                         >
                             Sign In
@@ -213,7 +213,7 @@ export const AuthModal: React.FC = () => {
                             type="button"
                             onClick={() => switchTab('signup')}
                             className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
-                                tab === 'signup' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                                tab === 'signup' ? 'bg-primary text-primary-foreground shadow-soft' : 'text-muted-foreground hover:text-foreground'
                             }`}
                         >
                             Sign Up
@@ -226,7 +226,7 @@ export const AuthModal: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={() => handleOAuth('github')}
-                                    className="flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 py-2.5 text-sm font-medium text-white transition-all active:scale-95 hover:bg-slate-700"
+                                    className="flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-background/70 py-3 text-sm font-semibold text-foreground transition-all active:scale-[0.99] hover:bg-secondary/80"
                                 >
                                     <Github size={17} />
                                     <span>GitHub</span>
@@ -234,7 +234,7 @@ export const AuthModal: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={() => handleOAuth('google')}
-                                    className="flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 py-2.5 text-sm font-medium text-white transition-all active:scale-95 hover:bg-slate-700"
+                                    className="flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-background/70 py-3 text-sm font-semibold text-foreground transition-all active:scale-[0.99] hover:bg-secondary/80"
                                 >
                                     <svg className="h-4 w-4" viewBox="0 0 24 24">
                                         <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -248,47 +248,47 @@ export const AuthModal: React.FC = () => {
 
                             <div className="relative mb-6">
                                 <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-slate-800" />
+                                    <div className="w-full border-t border-border/70" />
                                 </div>
                                 <div className="relative flex justify-center text-xs uppercase">
-                                    <span className="bg-slate-900 px-3 text-slate-500">Or continue with email</span>
+                                    <span className="bg-card px-3 text-muted-foreground">Or continue with email</span>
                                 </div>
                             </div>
                         </>
                     )}
 
                     {notice && (
-                        <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+                        <div className="status-banner status-banner--success mb-4 px-4 py-3 text-sm text-foreground">
                             {notice}
                         </div>
                     )}
 
                     {error && (
-                        <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+                        <div className="status-banner status-banner--error mb-4 px-4 py-3 text-sm text-foreground">
                             {error}
                         </div>
                     )}
 
                     {tab === 'login' && loginStep === 'email' && (
                         <form onSubmit={handleSendLoginOtp} className="space-y-4">
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-muted-foreground">
                                 We&apos;ll send a 6-digit login code to your email. No password needed.
                             </p>
                             <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                                 <input
                                     type="email"
                                     required
                                     placeholder="your@email.com"
                                     value={loginEmail}
                                     onChange={(e) => setLoginEmail(e.target.value)}
-                                    className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-4 text-white placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                    className="w-full rounded-2xl border border-input/80 bg-background/75 py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground shadow-[inset_0_1px_0_hsl(var(--background)/0.35)] transition-[border-color,box-shadow,background-color] focus:border-primary/45 focus:outline-none focus:ring-4 focus:ring-ring/15"
                                 />
                             </div>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-3 font-semibold text-white transition-all active:scale-95 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 font-semibold text-primary-foreground shadow-[0_18px_40px_-20px_hsl(var(--primary)/0.8)] transition-[transform,background-color,box-shadow,opacity] active:scale-[0.99] hover:bg-primary/92 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {loading ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
                                 {loading ? 'Sending...' : 'Send Code'}
@@ -298,11 +298,11 @@ export const AuthModal: React.FC = () => {
 
                     {tab === 'login' && loginStep === 'code' && (
                         <form onSubmit={handleVerifyLoginOtp} className="space-y-4">
-                            <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-3 text-center text-sm text-indigo-300">
+                            <div className="status-banner px-4 py-3 text-center text-sm text-muted-foreground">
                                 Code sent to <strong>{loginEmail}</strong>
                             </div>
                             <div>
-                                <label className="mb-2 block text-center text-sm text-slate-400">Enter 6-digit code</label>
+                                <label className="mb-2 block text-center text-sm text-muted-foreground">Enter 6-digit code</label>
                                 <input
                                     type="text"
                                     inputMode="numeric"
@@ -312,13 +312,13 @@ export const AuthModal: React.FC = () => {
                                     placeholder="000000"
                                     value={loginCode}
                                     onChange={(e) => setLoginCode(e.target.value.replace(/\D/g, ''))}
-                                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-4 text-center font-mono text-3xl tracking-[0.5em] text-white placeholder:text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                    className="auth-code-input w-full rounded-[1.5rem] border border-input/80 bg-background/75 px-4 py-4 text-center font-mono text-3xl text-foreground placeholder:text-muted-foreground shadow-[inset_0_1px_0_hsl(var(--background)/0.35)] transition-[border-color,box-shadow,background-color] focus:border-primary/45 focus:outline-none focus:ring-4 focus:ring-ring/15"
                                 />
                             </div>
                             <button
                                 type="submit"
                                 disabled={loading || loginCode.length !== 6}
-                                className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-3 font-semibold text-white transition-all active:scale-95 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 font-semibold text-primary-foreground shadow-[0_18px_40px_-20px_hsl(var(--primary)/0.8)] transition-[transform,background-color,box-shadow,opacity] active:scale-[0.99] hover:bg-primary/92 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {loading ? <Loader2 size={18} className="animate-spin" /> : <Shield size={18} />}
                                 {loading ? 'Verifying...' : 'Verify Code'}
@@ -333,7 +333,7 @@ export const AuthModal: React.FC = () => {
                                         setError(null);
                                         setNotice(null);
                                     }}
-                                    className="text-slate-500 transition-colors hover:text-slate-300"
+                                    className="text-muted-foreground transition-colors hover:text-foreground"
                                 >
                                     Change email
                                 </button>
@@ -341,7 +341,7 @@ export const AuthModal: React.FC = () => {
                                     type="button"
                                     onClick={handleResend}
                                     disabled={countdown > 0 || loading}
-                                    className="text-indigo-400 transition-colors hover:text-indigo-300 disabled:cursor-not-allowed disabled:text-slate-600"
+                                    className="font-semibold text-primary transition-colors hover:text-primary/80 disabled:cursor-not-allowed disabled:text-muted-foreground"
                                 >
                                     {countdown > 0 ? `Resend in ${countdown}s` : 'Resend code'}
                                 </button>
@@ -351,30 +351,30 @@ export const AuthModal: React.FC = () => {
 
                     {tab === 'signup' && signupStep === 'details' && (
                         <form onSubmit={handleSignup} className="space-y-4">
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-muted-foreground">
                                 Create your account details, then verify your email with a 6-digit code.
                             </p>
                             <div className="grid grid-cols-1 gap-3">
                                 <div className="relative">
-                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                                     <input
                                         type="text"
                                         required
                                         placeholder="First name"
                                         value={firstName}
                                         onChange={(e) => setFirstName(e.target.value)}
-                                        className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-4 text-white placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                        className="w-full rounded-2xl border border-input/80 bg-background/75 py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground shadow-[inset_0_1px_0_hsl(var(--background)/0.35)] transition-[border-color,box-shadow,background-color] focus:border-primary/45 focus:outline-none focus:ring-4 focus:ring-ring/15"
                                     />
                                 </div>
                                 <div className="relative">
-                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                                     <input
                                         type="text"
                                         required
                                         placeholder="Last name"
                                         value={lastName}
                                         onChange={(e) => setLastName(e.target.value)}
-                                        className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-4 text-white placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                        className="w-full rounded-2xl border border-input/80 bg-background/75 py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground shadow-[inset_0_1px_0_hsl(var(--background)/0.35)] transition-[border-color,box-shadow,background-color] focus:border-primary/45 focus:outline-none focus:ring-4 focus:ring-ring/15"
                                     />
                                 </div>
                                 <input
@@ -383,24 +383,24 @@ export const AuthModal: React.FC = () => {
                                     placeholder="Username"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-white placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                    className="w-full rounded-2xl border border-input/80 bg-background/75 px-4 py-3 text-foreground placeholder:text-muted-foreground shadow-[inset_0_1px_0_hsl(var(--background)/0.35)] transition-[border-color,box-shadow,background-color] focus:border-primary/45 focus:outline-none focus:ring-4 focus:ring-ring/15"
                                 />
                                 <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                                     <input
                                         type="email"
                                         required
                                         placeholder="your@email.com"
                                         value={signupEmail}
                                         onChange={(e) => setSignupEmail(e.target.value)}
-                                        className="w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-4 text-white placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                        className="w-full rounded-2xl border border-input/80 bg-background/75 py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground shadow-[inset_0_1px_0_hsl(var(--background)/0.35)] transition-[border-color,box-shadow,background-color] focus:border-primary/45 focus:outline-none focus:ring-4 focus:ring-ring/15"
                                     />
                                 </div>
                             </div>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-3 font-semibold text-white transition-all active:scale-95 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 font-semibold text-primary-foreground shadow-[0_18px_40px_-20px_hsl(var(--primary)/0.8)] transition-[transform,background-color,box-shadow,opacity] active:scale-[0.99] hover:bg-primary/92 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {loading && <Loader2 size={18} className="animate-spin" />}
                                 {loading ? 'Creating...' : 'Create Account'}
@@ -410,11 +410,11 @@ export const AuthModal: React.FC = () => {
 
                     {tab === 'signup' && signupStep === 'code' && (
                         <form onSubmit={handleVerifySignupOtp} className="space-y-4">
-                            <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-3 text-center text-sm text-indigo-300">
+                            <div className="status-banner px-4 py-3 text-center text-sm text-muted-foreground">
                                 Code sent to <strong>{signupEmail}</strong>
                             </div>
                             <div>
-                                <label className="mb-2 block text-center text-sm text-slate-400">Enter 6-digit code</label>
+                                <label className="mb-2 block text-center text-sm text-muted-foreground">Enter 6-digit code</label>
                                 <input
                                     type="text"
                                     inputMode="numeric"
@@ -424,13 +424,13 @@ export const AuthModal: React.FC = () => {
                                     placeholder="000000"
                                     value={signupCode}
                                     onChange={(e) => setSignupCode(e.target.value.replace(/\D/g, ''))}
-                                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-4 text-center font-mono text-3xl tracking-[0.5em] text-white placeholder:text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                    className="auth-code-input w-full rounded-[1.5rem] border border-input/80 bg-background/75 px-4 py-4 text-center font-mono text-3xl text-foreground placeholder:text-muted-foreground shadow-[inset_0_1px_0_hsl(var(--background)/0.35)] transition-[border-color,box-shadow,background-color] focus:border-primary/45 focus:outline-none focus:ring-4 focus:ring-ring/15"
                                 />
                             </div>
                             <button
                                 type="submit"
                                 disabled={loading || signupCode.length !== 6}
-                                className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-3 font-semibold text-white transition-all active:scale-95 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 font-semibold text-primary-foreground shadow-[0_18px_40px_-20px_hsl(var(--primary)/0.8)] transition-[transform,background-color,box-shadow,opacity] active:scale-[0.99] hover:bg-primary/92 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {loading ? <Loader2 size={18} className="animate-spin" /> : <Shield size={18} />}
                                 {loading ? 'Verifying...' : 'Verify and Continue'}
@@ -445,7 +445,7 @@ export const AuthModal: React.FC = () => {
                                         setError(null);
                                         setNotice(null);
                                     }}
-                                    className="text-slate-500 transition-colors hover:text-slate-300"
+                                    className="text-muted-foreground transition-colors hover:text-foreground"
                                 >
                                     Edit details
                                 </button>
@@ -453,7 +453,7 @@ export const AuthModal: React.FC = () => {
                                     type="button"
                                     onClick={handleResend}
                                     disabled={countdown > 0 || loading}
-                                    className="text-indigo-400 transition-colors hover:text-indigo-300 disabled:cursor-not-allowed disabled:text-slate-600"
+                                    className="font-semibold text-primary transition-colors hover:text-primary/80 disabled:cursor-not-allowed disabled:text-muted-foreground"
                                 >
                                     {countdown > 0 ? `Resend in ${countdown}s` : 'Resend code'}
                                 </button>

@@ -97,6 +97,18 @@ describe('Endpoints API v2 - CRUD', () => {
     expect(response.json()).toMatchObject({ success: false, error: { code: 'SLUG_TAKEN' } });
   });
 
+  test('rejects reserved platform subdomains', async () => {
+    const response = await makeAuthRequest('/api/v2/endpoints', 'POST', { name: 'health' });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+      },
+    });
+  });
+
   test('lists endpoints with pagination envelope', async () => {
     const prefix = uniqueName('list');
     await makeAuthRequest('/api/v2/endpoints', 'POST', { name: `${prefix}-01` });

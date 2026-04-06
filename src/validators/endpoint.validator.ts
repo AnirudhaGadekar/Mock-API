@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isReservedMockSubdomain } from '../lib/mock-routing.js';
 
 /**
  * Custom endpoint name validator (MockAPI spec): /^[a-z0-9-]{5,40}$/
@@ -9,6 +10,9 @@ export const endpointNameSchema = z
   .max(40, 'Endpoint name must be at most 40 characters')
   .regex(/^[a-z0-9-]{5,40}$/, {
     message: 'Endpoint name must be 5-40 characters, lowercase alphanumeric and hyphens only',
+  })
+  .refine((value) => !isReservedMockSubdomain(value), {
+    message: 'This endpoint name is reserved by the platform',
   });
 
 /**

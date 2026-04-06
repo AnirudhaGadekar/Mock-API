@@ -82,7 +82,7 @@ export function AIRuleGenerator({ endpointId, onRuleGenerated }: AIRuleGenerator
         <div className="space-y-4">
             <Card className="p-6">
                 <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className="h-5 w-5 text-purple-600" />
+                    <Sparkles className="h-5 w-5 text-primary" />
                     <h3 className="text-lg font-semibold">AI Rule Generator</h3>
                     <Badge variant="secondary" className="ml-2">Beta</Badge>
                 </div>
@@ -103,7 +103,7 @@ export function AIRuleGenerator({ endpointId, onRuleGenerated }: AIRuleGenerator
 
                     {showExamples && (
                         <div>
-                            <p className="text-sm text-gray-600 mb-2">Try these examples:</p>
+                            <p className="mb-2 text-sm text-muted-foreground">Try these examples:</p>
                             <div className="flex flex-wrap gap-2">
                                 {EXAMPLE_PROMPTS.map((example, idx) => (
                                     <Button
@@ -162,12 +162,12 @@ export function AIRuleGenerator({ endpointId, onRuleGenerated }: AIRuleGenerator
                         </div>
 
                         {generatedRule.description && (
-                            <p className="text-sm text-gray-600">{generatedRule.description}</p>
+                            <p className="text-sm text-muted-foreground">{generatedRule.description}</p>
                         )}
 
                         <div>
                             <label className="block text-sm font-medium mb-2">Response Template</label>
-                            <pre className="bg-gray-50 p-4 rounded border text-xs overflow-x-auto">
+                            <pre className="surface-code rounded-[1rem] p-4 text-xs overflow-x-auto">
                                 {typeof generatedRule.responseTemplate === 'string'
                                     ? generatedRule.responseTemplate
                                     : JSON.stringify(JSON.parse(generatedRule.responseTemplate), null, 2)}

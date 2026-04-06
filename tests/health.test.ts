@@ -43,4 +43,27 @@ describe('Health Check Endpoints', () => {
     expect(String(response.headers['content-type'] || '')).toContain('text/plain');
     expect(response.body.length).toBeGreaterThan(10);
   });
+
+  it('should answer root probes on the API hostname without entering mock routing', async () => {
+    const previousBaseMockDomain = process.env.BASE_MOCK_DOMAIN;
+    process.env.BASE_MOCK_DOMAIN = 'mockapi.online';
+
+    const probeApp = await buildApp();
+    await probeApp.ready();
+
+    try {
+      const response = await probeApp.inject({
+        method: 'HEAD',
+        url: '/',
+        headers: {
+          host: 'api.mockapi.online',
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+    } finally {
+      await probeApp.close();
+      process.env.BASE_MOCK_DOMAIN = previousBaseMockDomain;
+    }
+  });
 });

@@ -66,6 +66,10 @@ function formatEndpoint(endpoint: any) {
   };
 }
 
+function getValidationErrorDetails(request: { validationError?: { validation?: unknown; message?: string } }): unknown {
+  return request.validationError?.validation ?? request.validationError?.message ?? null;
+}
+
 const v2ErrorSchema = z.object({
   success: z.literal(false),
   error: z.object({
@@ -217,6 +221,7 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/', {
     preHandler: [requireV2Scopes(['endpoints:write'])],
+    attachValidation: true,
     schema: {
       tags: ['v2 Endpoints'],
       summary: 'Create endpoint',
@@ -230,8 +235,16 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
         500: v2ErrorSchema,
       },
     },
-  }, async (request, reply) => {
+  }, async (request: any, reply) => {
     try {
+      if (request.validationError) {
+        return v2Error(request, reply, 400, {
+          code: V2_ERROR_CODES.VALIDATION_ERROR,
+          message: 'Invalid body',
+          details: getValidationErrorDetails(request),
+        });
+      }
+
       const idem = await replayIdempotentIfExists(request, reply, 'endpoints:create');
       if (idem.replayed) return;
 
@@ -305,6 +318,7 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get('/:id', {
     preHandler: [requireV2Scopes(['endpoints:read'])],
+    attachValidation: true,
     schema: {
       tags: ['v2 Endpoints'],
       summary: 'Get endpoint',
@@ -320,6 +334,14 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request: any, reply) => {
     try {
+      if (request.validationError) {
+        return v2Error(request, reply, 400, {
+          code: V2_ERROR_CODES.VALIDATION_ERROR,
+          message: 'Invalid id',
+          details: getValidationErrorDetails(request),
+        });
+      }
+
       const params = endpointIdParamsSchema.safeParse(request.params);
       if (!params.success) {
         return v2Error(request, reply, 400, { code: V2_ERROR_CODES.VALIDATION_ERROR, message: 'Invalid id' });
@@ -340,6 +362,7 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete('/:id', {
     preHandler: [requireV2Scopes(['endpoints:write'])],
+    attachValidation: true,
     schema: {
       tags: ['v2 Endpoints'],
       summary: 'Delete endpoint',
@@ -359,6 +382,14 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request: any, reply) => {
     try {
+      if (request.validationError) {
+        return v2Error(request, reply, 400, {
+          code: V2_ERROR_CODES.VALIDATION_ERROR,
+          message: 'Invalid id',
+          details: getValidationErrorDetails(request),
+        });
+      }
+
       const params = endpointIdParamsSchema.safeParse(request.params);
       if (!params.success) {
         return v2Error(request, reply, 400, { code: V2_ERROR_CODES.VALIDATION_ERROR, message: 'Invalid id' });
@@ -386,6 +417,7 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch('/:id', {
     preHandler: [requireV2Scopes(['endpoints:write'])],
+    attachValidation: true,
     schema: {
       tags: ['v2 Endpoints'],
       summary: 'Update endpoint',
@@ -403,6 +435,14 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request: any, reply) => {
     try {
+      if (request.validationError) {
+        return v2Error(request, reply, 400, {
+          code: V2_ERROR_CODES.VALIDATION_ERROR,
+          message: 'Invalid request',
+          details: getValidationErrorDetails(request),
+        });
+      }
+
       const params = endpointIdParamsSchema.safeParse(request.params);
       const body = patchEndpointBodySchema.safeParse(request.body);
       if (!params.success || !body.success) {
@@ -451,6 +491,7 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get('/:id/rules', {
     preHandler: [requireV2Scopes(['endpoints:read'])],
+    attachValidation: true,
     schema: {
       tags: ['v2 Endpoints'],
       summary: 'Get endpoint rules',
@@ -466,6 +507,14 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request: any, reply) => {
     try {
+      if (request.validationError) {
+        return v2Error(request, reply, 400, {
+          code: V2_ERROR_CODES.VALIDATION_ERROR,
+          message: 'Invalid id',
+          details: getValidationErrorDetails(request),
+        });
+      }
+
       const params = endpointIdParamsSchema.safeParse(request.params);
       if (!params.success) {
         return v2Error(request, reply, 400, { code: V2_ERROR_CODES.VALIDATION_ERROR, message: 'Invalid id' });
@@ -489,6 +538,7 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.put('/:id/rules', {
     preHandler: [requireV2Scopes(['endpoints:write'])],
+    attachValidation: true,
     schema: {
       tags: ['v2 Endpoints'],
       summary: 'Replace endpoint rules',
@@ -505,6 +555,14 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request: any, reply) => {
     try {
+      if (request.validationError) {
+        return v2Error(request, reply, 400, {
+          code: V2_ERROR_CODES.VALIDATION_ERROR,
+          message: 'Invalid request',
+          details: getValidationErrorDetails(request),
+        });
+      }
+
       const params = endpointIdParamsSchema.safeParse(request.params);
       const body = updateRulesBodySchema.safeParse(request.body);
       if (!params.success || !body.success) {
@@ -595,6 +653,7 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.put('/:id/security-policy', {
     preHandler: [requireV2Scopes(['security:write'])],
+    attachValidation: true,
     schema: {
       tags: ['v2 SecurityPolicy'],
       summary: 'Update security policy for endpoint',
@@ -610,6 +669,14 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request: any, reply) => {
     try {
+      if (request.validationError) {
+        return v2Error(request, reply, 400, {
+          code: V2_ERROR_CODES.VALIDATION_ERROR,
+          message: 'Invalid security policy',
+          details: getValidationErrorDetails(request),
+        });
+      }
+
       const id = request.params?.id as string;
       const parsed = securityPolicySchema.safeParse(request.body);
       if (!parsed.success) {

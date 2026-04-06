@@ -123,7 +123,7 @@ export function InspectorPanel({ endpointId }: InspectorPanelProps) {
                                     <div className="flex items-center justify-between">
                                         <Badge variant="outline" className={cn(
                                             "text-[10px] px-1 py-0 h-4 font-mono",
-                                            req.method === "GET" && "text-blue-500 border-blue-200",
+                                            req.method === "GET" && "text-primary border-primary/25",
                                             req.method === "POST" && "text-green-500 border-green-200",
                                             req.method === "PUT" && "text-orange-500 border-orange-200",
                                             req.method === "DELETE" && "text-red-500 border-red-200"
@@ -186,13 +186,13 @@ export function InspectorPanel({ endpointId }: InspectorPanelProps) {
                                 {/* Request Details */}
                                 <div>
                                     <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                                        <ArrowRight className="w-4 h-4 text-blue-500" /> Request
+                                        <ArrowRight className="w-4 h-4 text-primary" /> Request
                                     </h4>
-                                    <div className="grid gap-4 pl-6 border-l-2 border-blue-500/20">
+                                    <div className="grid gap-4 border-l-2 border-primary/20 pl-6">
                                         {activeRequest.query && Object.keys(activeRequest.query).length > 0 && (
                                             <div>
                                                 <span className="text-xs font-medium text-muted-foreground uppercase">Query Params</span>
-                                                <pre className="mt-1 bg-muted/50 p-2 rounded text-xs font-mono overflow-auto">
+                                                <pre className="surface-code mt-1 rounded-[1rem] p-2 text-xs font-mono overflow-auto">
                                                     {JSON.stringify(activeRequest.query, null, 2)}
                                                 </pre>
                                             </div>
@@ -213,7 +213,7 @@ export function InspectorPanel({ endpointId }: InspectorPanelProps) {
                                         {activeRequest.body != null && (
                                             <div>
                                                 <span className="text-xs font-medium text-muted-foreground uppercase">Body</span>
-                                                <pre className="mt-1 bg-muted/50 p-2 rounded text-xs font-mono overflow-auto max-h-[200px]">
+                                                <pre className="surface-code mt-1 rounded-[1rem] p-2 text-xs font-mono overflow-auto max-h-[200px]">
                                                     {typeof activeRequest.body === 'object'
                                                         ? JSON.stringify(activeRequest.body, null, 2)
                                                         : String(activeRequest.body)}
@@ -226,13 +226,13 @@ export function InspectorPanel({ endpointId }: InspectorPanelProps) {
                                 {/* Response Details */}
                                 <div>
                                     <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                                        <ArrowRight className="w-4 h-4 text-green-500 rotate-180" /> Response
+                                        <ArrowRight className="w-4 h-4 rotate-180 text-success" /> Response
                                     </h4>
-                                    <div className="grid gap-4 pl-6 border-l-2 border-green-500/20">
+                                    <div className="grid gap-4 border-l-2 border-success/20 pl-6">
                                         {activeRequest.responseBody != null && (
                                             <div>
                                                 <span className="text-xs font-medium text-muted-foreground uppercase">Body</span>
-                                                <pre className="mt-1 bg-muted/50 p-2 rounded text-xs font-mono overflow-auto max-h-[300px]">
+                                                <pre className="surface-code mt-1 rounded-[1rem] p-2 text-xs font-mono overflow-auto max-h-[300px]">
                                                     {typeof activeRequest.responseBody === 'object'
                                                         ? JSON.stringify(activeRequest.responseBody, null, 2)
                                                         : String(activeRequest.responseBody)}
