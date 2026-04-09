@@ -225,9 +225,9 @@ export default function Privacy() {
                 <p className="mt-3">
                   <a
                     className="font-medium text-primary transition-colors hover:text-primary/80 hover:underline"
-                    href="mailto:privacy@mockapi.online"
+                    href="mailto:mockurlteam@gmail.com"
                   >
-                    privacy@mockapi.online
+                    mockurlteam@gmail.com
                   </a>
                   <br />
                   For data export requests:{" "}

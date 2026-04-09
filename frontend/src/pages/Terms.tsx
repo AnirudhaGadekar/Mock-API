@@ -1,6 +1,6 @@
+import { useTheme } from "@/contexts/ThemeContext";
 import { CalendarDays, Clock3, FileText, Mail, Moon, Search, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useTheme } from "@/contexts/ThemeContext";
 
 const CONTACT_EMAIL = "mockurlteam@gmail.com";
 
@@ -216,9 +216,9 @@ export default function Terms() {
                   Notifying us immediately at{" "}
                   <a
                     className="font-medium text-primary transition-colors hover:text-primary/80 hover:underline"
-                    href={`mailto:${CONTACT_EMAIL}`}
+                    href="mailto:mockurlteam@gmail.com"
                   >
-                    {CONTACT_EMAIL}
+                    mockurlteam@gmail.com
                   </a>{" "}
                   of any unauthorized use
                 </li>
@@ -381,15 +381,15 @@ export default function Terms() {
 
             <Section id="contact" number="12" title="Contact Us">
               <p>
-                If you have any questions, concerns, or complaints about these Terms or the
-                Service, please reach out. We will try to respond promptly.
+                If you have any questions, concerns, or complaints about these Terms or
+                Service, please reach out. We aim to respond within 2 business days.
               </p>
               <a
-                href={`mailto:${CONTACT_EMAIL}`}
+                href="mailto:mockurlteam@gmail.com"
                 className="mt-2 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
               >
                 <Mail className="h-4 w-4" />
-                {CONTACT_EMAIL}
+                mockurlteam@gmail.com
               </a>
             </Section>
           </div>
