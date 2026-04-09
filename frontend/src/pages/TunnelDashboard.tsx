@@ -16,6 +16,8 @@ interface Tunnel {
     publicUrl?: string;
 }
 
+const tunnelServerUrl = "wss://www.mockapi.online/tunnel-ws";
+
 export default function TunnelDashboard() {
     const [tunnels, setTunnels] = useState<Tunnel[]>([]);
     const [loading, setLoading] = useState(true);
@@ -94,15 +96,15 @@ export default function TunnelDashboard() {
                             <Terminal className="h-5 w-5 text-primary" />
                             CLI quick start
                         </CardTitle>
-                        <CardDescription>Install the tunnel CLI and expose a local service in seconds.</CardDescription>
+                        <CardDescription>Install the published CLI package and connect it to the production tunnel service.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="surface-code rounded-[1.25rem] p-4 font-mono text-sm text-foreground">
                             <p className="text-muted-foreground"># Install the CLI</p>
-                            <p>$ npm install -g @mockapi/tunnel</p>
+                            <p>$ npm install -g mockapi-tunnel</p>
                             <br />
                             <p className="text-muted-foreground"># Start a tunnel on port 3000</p>
-                            <p>$ mockapi tunnel -p 3000</p>
+                            <p>$ mockapi tunnel -p 3000 --server {tunnelServerUrl}</p>
                         </div>
                     </CardContent>
                 </Card>

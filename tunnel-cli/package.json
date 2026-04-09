@@ -1,10 +1,16 @@
 {
-    "name": "@mockapi/tunnel",
+    "name": "mockapi-tunnel",
     "version": "1.0.0",
     "description": "CLI tool for MockAPI local tunneling",
     "bin": {
-        "mockapi": "./dist/index.js",
-        "murl": "./dist/index.js"
+        "mockapi": "dist/index.js",
+        "murl": "dist/index.js"
+    },
+    "files": [
+        "dist"
+    ],
+    "publishConfig": {
+        "access": "public"
     },
     "scripts": {
         "build": "tsc",

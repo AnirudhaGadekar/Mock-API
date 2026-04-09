@@ -4,6 +4,18 @@ import { Command } from 'commander';
 import { TunnelClient } from './tunnel-client.js';
 
 const program = new Command();
+const DEFAULT_PRODUCTION_SERVER = 'wss://www.mockapi.online/tunnel-ws';
+
+function resolveDefaultServerUrl(): string {
+    const configuredServer = process.env.MOCKAPI_TUNNEL_SERVER?.trim();
+    if (configuredServer) {
+        return configuredServer;
+    }
+
+    return DEFAULT_PRODUCTION_SERVER;
+}
+
+const defaultServerUrl = resolveDefaultServerUrl();
 
 program
     .name('mockapi')
@@ -17,13 +29,10 @@ program
     .option('-s, --subdomain <subdomain>', 'Preferred subdomain (optional)')
     .option('-h, --host <host>', 'Local host (default: localhost)', 'localhost')
     .option('-k, --key <apiKey>', 'API key for authentication')
-    .option('--server <server>', 'Tunnel server URL', 'ws://localhost:10000/tunnel-ws')
+    .option('--server <server>', 'Tunnel server URL (or set MOCKAPI_TUNNEL_SERVER)', defaultServerUrl)
     .option('--no-log', 'Disable request logging')
     .action(async (options: any) => {
-        // Determine the server URL
-        // If running in dev/local, default to ws://localhost:10000
-        // In prod, it should default to wss://mock-api-9rwn.onrender.com/tunnel-ws
-        const serverUrl = options.server || 'ws://localhost:10000/tunnel-ws';
+        const serverUrl = options.server;
 
         console.log(chalk.blue(`Targeting server: ${serverUrl}`));
 
