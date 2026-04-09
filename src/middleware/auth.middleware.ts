@@ -76,11 +76,18 @@ export async function fetchUserByApiKey(apiKey: string): Promise<any | null> {
       const apiKeyHash = hashApiKey(apiKey);
       const cacheKey = getUserCacheKey(apiKeyHash);
 
-      // Try cache first
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        span.setAttribute('cache.hit', true);
-        return JSON.parse(cached);
+      // Try cache first, but fall back to the database if Redis is unavailable.
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          span.setAttribute('cache.hit', true);
+          return JSON.parse(cached);
+        }
+      } catch (cacheReadError) {
+        logger.warn('API key cache read failed, falling back to database lookup', {
+          error: cacheReadError instanceof Error ? cacheReadError.message : String(cacheReadError),
+          cacheKey,
+        });
       }
 
       span.setAttribute('cache.hit', false);
@@ -101,8 +108,17 @@ export async function fetchUserByApiKey(apiKey: string): Promise<any | null> {
         return null;
       }
 
-      // Cache for 1 hour
-      await redis.setex(cacheKey, 3600, JSON.stringify(user));
+      // Cache for 1 hour, but do not fail authentication if Redis write is unavailable.
+      try {
+        await redis.setex(cacheKey, 3600, JSON.stringify(user));
+      } catch (cacheWriteError) {
+        logger.warn('API key cache write failed', {
+          error: cacheWriteError instanceof Error ? cacheWriteError.message : String(cacheWriteError),
+          cacheKey,
+          userId: user.id,
+        });
+      }
+
       span.setAttribute('auth.valid', true);
 
       logger.debug('User authenticated and cached', { userId: user.id });

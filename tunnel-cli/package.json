@@ -1,6 +1,6 @@
 {
     "name": "mockapi-tunnel",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "CLI tool for MockAPI local tunneling",
     "bin": {
         "mockapi": "dist/index.js",

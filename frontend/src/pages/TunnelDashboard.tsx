@@ -16,7 +16,7 @@ interface Tunnel {
     publicUrl?: string;
 }
 
-const tunnelServerUrl = "wss://www.mockapi.online/tunnel-ws";
+const tunnelServerUrl = "wss://api.mockapi.online/tunnel-ws";
 
 export default function TunnelDashboard() {
     const [tunnels, setTunnels] = useState<Tunnel[]>([]);
@@ -104,7 +104,7 @@ export default function TunnelDashboard() {
                             <p>$ npm install -g mockapi-tunnel</p>
                             <br />
                             <p className="text-muted-foreground"># Start a tunnel on port 3000</p>
-                            <p>$ mockapi tunnel -p 3000 --server {tunnelServerUrl}</p>
+                            <p>$ mockapi tunnel -p 3000 --server {tunnelServerUrl} --key &lt;your_api_key&gt;</p>
                         </div>
                     </CardContent>
                 </Card>

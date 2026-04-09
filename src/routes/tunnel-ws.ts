@@ -1,5 +1,5 @@
-// import { SocketStream } from '@fastify/websocket'; // Removed due to export issue
 import { FastifyPluginAsync } from 'fastify';
+import { WebSocket } from 'ws';
 import { activeTunnels, getTunnel, registerTunnel, removeTunnel } from '../lib/active-tunnels.js';
 import { logger } from '../lib/logger.js';
 import { fetchUserByApiKey } from '../middleware/auth.middleware.js';
@@ -16,6 +16,41 @@ interface ResponseMessage {
     status: number;
     headers: Record<string, string>;
     body: string; // Base64
+}
+
+const DEFAULT_AUTH_TIMEOUT_MS = 5000;
+
+function getAuthTimeoutMs(): number {
+    const parsed = Number.parseInt(process.env.TUNNEL_AUTH_TIMEOUT_MS ?? '', 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_AUTH_TIMEOUT_MS;
+}
+
+function sendSocketMessage(
+    socket: WebSocket,
+    payload: Record<string, unknown>,
+): void {
+    if (socket.readyState !== WebSocket.OPEN) {
+        logger.warn('Skipping websocket send because socket is not open', {
+            readyState: socket.readyState,
+            payloadType: payload.type,
+        });
+        return;
+    }
+
+    socket.send(JSON.stringify(payload));
+}
+
+async function authenticateTunnelClient(apiKey: string): Promise<any | null> {
+    const timeoutMs = getAuthTimeoutMs();
+
+    return Promise.race([
+        fetchUserByApiKey(apiKey),
+        new Promise<null>((_, reject) => {
+            setTimeout(() => {
+                reject(new Error(`Tunnel authentication timed out after ${timeoutMs}ms`));
+            }, timeoutMs);
+        }),
+    ]);
 }
 
 function getPublicTunnelBaseUrl(req: any): string {
@@ -37,27 +72,53 @@ function getPublicTunnelBaseUrl(req: any): string {
 }
 
 const tunnelWsRoute: FastifyPluginAsync = async (fastify) => {
-    fastify.get('/tunnel-ws', { websocket: true }, (connection: any /* SocketStream */, req: any) => {
-        const socket = connection.socket;
+    fastify.get('/tunnel-ws', { websocket: true }, (socket: WebSocket, req: any) => {
         let currentTunnelId: string | null = null;
 
         logger.info('New WebSocket connection initiated');
 
-        socket.on('message', async (raw: Buffer) => {
+        socket.on('error', (err) => {
+            logger.error('Tunnel websocket transport error', {
+                err,
+                tunnelId: currentTunnelId,
+                url: req.url,
+            });
+        });
+
+        socket.on('message', async (raw: WebSocket.RawData) => {
             try {
                 const data = JSON.parse(raw.toString());
 
                 if (data.type === 'CONNECT') {
                     const msg = data as ConnectMessage;
 
+                    logger.info('Tunnel CONNECT message received', {
+                        requestedTunnelId: msg.tunnelId ?? null,
+                        hasApiKey: Boolean(msg.apiKey),
+                    });
+
                     if (!msg.apiKey) {
-                        socket.send(JSON.stringify({ type: 'ERROR', message: 'Missing API key' }));
+                        sendSocketMessage(socket, { type: 'ERROR', message: 'Missing API key' });
                         return;
                     }
 
-                    const user = await fetchUserByApiKey(msg.apiKey);
+                    let user: any | null;
+                    try {
+                        user = await authenticateTunnelClient(msg.apiKey);
+                    } catch (err) {
+                        logger.error('Tunnel authentication failed', {
+                            err,
+                            requestedTunnelId: msg.tunnelId ?? null,
+                        });
+                        sendSocketMessage(socket, {
+                            type: 'ERROR',
+                            message: err instanceof Error ? err.message : 'Tunnel authentication failed',
+                        });
+                        return;
+                    }
+
                     if (!user) {
-                        socket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid API key' }));
+                        sendSocketMessage(socket, { type: 'ERROR', message: 'Invalid API key' });
                         return;
                     }
 
@@ -65,20 +126,20 @@ const tunnelWsRoute: FastifyPluginAsync = async (fastify) => {
                     const tunnelId = msg.tunnelId || `tunnel-${Math.random().toString(36).substring(2, 9)}`;
 
                     if (activeTunnels.has(tunnelId)) {
-                        socket.send(JSON.stringify({ type: 'ERROR', message: 'Tunnel ID already in use' }));
+                        sendSocketMessage(socket, { type: 'ERROR', message: 'Tunnel ID already in use' });
                         return;
                     }
 
                     currentTunnelId = tunnelId;
-                    registerTunnel(tunnelId, socket as any, user.id);
+                    registerTunnel(tunnelId, socket, user.id);
 
-                    logger.info(`Tunnel registered: ${tunnelId} for user ${user.id}`);
+                    logger.info('Tunnel registered', { tunnelId, userId: user.id });
                     const publicBaseUrl = getPublicTunnelBaseUrl(req);
-                    socket.send(JSON.stringify({
+                    sendSocketMessage(socket, {
                         type: 'CONNECTED',
                         tunnelId,
                         publicUrl: `${publicBaseUrl}/tunnel/${tunnelId}`
-                    }));
+                    });
                 }
                 else if (data.type === 'RESPONSE') {
                     const msg = data as ResponseMessage;
@@ -94,8 +155,8 @@ const tunnelWsRoute: FastifyPluginAsync = async (fastify) => {
                     }
                 }
             } catch (err) {
-                logger.error('WebSocket message error', err);
-                socket.send(JSON.stringify({ type: 'ERROR', message: 'Invalid message format' }));
+                logger.error('WebSocket message error', { err, tunnelId: currentTunnelId });
+                sendSocketMessage(socket, { type: 'ERROR', message: 'Invalid message format' });
             }
         });
 

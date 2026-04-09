@@ -381,7 +381,25 @@ async function buildApp() {
   });
 
   // WebSocket support (must be registered before routes using it)
-  await app.register(import('@fastify/websocket'));
+  await app.register(import('@fastify/websocket'), {
+    errorHandler(error, socket, request) {
+      logger.error('WebSocket route error', {
+        error,
+        url: request.url,
+        requestId: request.id,
+      });
+
+      try {
+        if (socket.readyState < 2) {
+          socket.close(1011, 'Internal WebSocket error');
+        } else {
+          socket.terminate();
+        }
+      } catch {
+        // Ignore close failures while handling websocket route crashes.
+      }
+    },
+  });
 
   // WebSocket plugin (must be before routes)
   await app.register(websocketPlugin);

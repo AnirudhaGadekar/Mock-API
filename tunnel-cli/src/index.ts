@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import { TunnelClient } from './tunnel-client.js';
 
 const program = new Command();
-const DEFAULT_PRODUCTION_SERVER = 'wss://www.mockapi.online/tunnel-ws';
+const DEFAULT_PRODUCTION_SERVER = 'wss://api.mockapi.online/tunnel-ws';
 
 function resolveDefaultServerUrl(): string {
     const configuredServer = process.env.MOCKAPI_TUNNEL_SERVER?.trim();
@@ -28,7 +28,7 @@ program
     .option('-p, --port <port>', 'Local port to tunnel', '3000')
     .option('-s, --subdomain <subdomain>', 'Preferred subdomain (optional)')
     .option('-h, --host <host>', 'Local host (default: localhost)', 'localhost')
-    .option('-k, --key <apiKey>', 'API key for authentication')
+    .requiredOption('-k, --key <apiKey>', 'API key for authentication')
     .option('--server <server>', 'Tunnel server URL (or set MOCKAPI_TUNNEL_SERVER)', defaultServerUrl)
     .option('--no-log', 'Disable request logging')
     .action(async (options: any) => {
