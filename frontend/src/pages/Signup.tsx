@@ -234,7 +234,7 @@ export default function Signup() {
                 <Input
                   id="first-name"
                   required
-                  placeholder="Jane"
+                  placeholder="Anirudha"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   className="h-11"
@@ -245,7 +245,7 @@ export default function Signup() {
                 <Input
                   id="last-name"
                   required
-                  placeholder="Doe"
+                  placeholder="Gadekar"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   className="h-11"
@@ -258,7 +258,7 @@ export default function Signup() {
               <Input
                 id="signup-username"
                 required
-                placeholder="janedoe"
+                placeholder="AnirudhaGadekar"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="h-11"

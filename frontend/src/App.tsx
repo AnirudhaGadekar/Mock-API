@@ -20,6 +20,7 @@ import TunnelDashboard from "@/pages/TunnelDashboard";
 import VerifyEmail from "@/pages/VerifyEmail";
 import { Toaster } from "react-hot-toast";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function App() {
     return (
@@ -68,6 +69,7 @@ export default function App() {
                     </Route>
                 </Routes>
             </BrowserRouter>
+            <Analytics />
         </ThemeProvider>
     );
 }
