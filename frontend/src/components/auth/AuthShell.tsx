@@ -103,6 +103,20 @@ export function AuthShell({
                         </div>
 
                         <div className="mt-8">{children}</div>
+
+                        <div className="mt-12 flex items-center gap-4 text-xs text-muted-foreground border-t border-border/40 pt-6">
+                            <a href="/privacy" className="hover:text-primary hover:underline transition-colors">
+                                Privacy Policy
+                            </a>
+                            <span className="h-1 w-1 rounded-full bg-border" />
+                            <a href="/terms" className="hover:text-primary hover:underline transition-colors">
+                                Terms of Service
+                            </a>
+                            <span className="h-1 w-1 rounded-full bg-border" />
+                            <a href="mailto:mockurlteam@gmail.com" className="hover:text-primary hover:underline transition-colors">
+                                Contact
+                            </a>
+                        </div>
                     </div>
                 </section>
             </div>
