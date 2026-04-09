@@ -1,8 +1,8 @@
 import axios from 'axios';
 import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
-import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
 import { getDeactivatedAccountError, isDeactivatedAccount } from '../lib/account-status.js';
+import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
@@ -199,16 +199,20 @@ export async function oauthRoutes(fastify: FastifyInstance) {
             });
 
             const { id_token, access_token } = tokenRes.data;
-            const userRes = await axios.get(`https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${access_token}`, {
-                headers: { Authorization: `Bearer ${id_token}` }
+            
+            // Standard Google userinfo endpoint using access_token
+            const userRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${access_token}` }
             });
 
             const googleUser = userRes.data;
             if (!googleUser?.email) {
-                logger.error('Google OAuth response missing email');
+                logger.error('Google OAuth response missing email', { googleUser });
                 return redirectToAuthError(reply, 'Google account has no email');
             }
             const displayName = getDisplayNameFromGoogleUser(googleUser);
+            const googleId = googleUser.id || googleUser.sub; // Handle both versions
+
             let user = await prisma.user.findUnique({ where: { email: googleUser.email } });
             let apiKey;
 
@@ -222,7 +226,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                 user = await prisma.user.update({
                     where: { id: user.id },
                     data: {
-                        googleId: googleUser.id,
+                        googleId: googleId?.toString(),
                         picture: googleUser.picture,
                         name: displayName,
                         apiKeyHash,
@@ -239,11 +243,11 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                             where: { id: anonUser.id },
                             data: {
                                 email: googleUser.email,
-                                googleId: googleUser.id,
+                                googleId: googleId?.toString(),
                                 name: displayName,
                                 picture: googleUser.picture,
                                 authProvider: 'GOOGLE',
-                                emailVerified: googleUser.verified_email
+                                emailVerified: googleUser.verified_email || googleUser.email_verified
                             }
                         });
                     }
@@ -255,12 +259,12 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                     user = await prisma.user.create({
                         data: {
                             email: googleUser.email,
-                            googleId: googleUser.id,
+                            googleId: googleId?.toString(),
                             name: displayName,
                             picture: googleUser.picture,
                             authProvider: 'GOOGLE',
                             apiKeyHash,
-                            emailVerified: googleUser.verified_email
+                            emailVerified: googleUser.verified_email || googleUser.email_verified
                         }
                     });
                 }
@@ -274,8 +278,14 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                 reply.setCookie(API_KEY_COOKIE, apiKey, getApiKeyCookieOptions());
             }
             return reply.redirect(`${FRONTEND_URL}/auth/callback`);
-        } catch (error) {
-            logger.error('Google OAuth failed', error);
+        } catch (error: any) {
+            const errorDetails = {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status,
+                stack: error.stack
+            };
+            logger.error('Google OAuth callback failed', errorDetails);
             return redirectToAuthError(reply, 'Google login failed');
         }
     });
