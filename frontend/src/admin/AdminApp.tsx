@@ -41,6 +41,7 @@ interface Overview {
 interface AdminUser {
     id: string;
     email: string;
+    accountStatus?: string;
     apiKey: string;
     endpointCount: number;
 }
@@ -537,6 +538,7 @@ export const AdminApp: React.FC = () => {
                             <thead>
                                 <tr>
                                     <th>Email / Session</th>
+                                    <th>Status</th>
                                     <th>API Key (masked)</th>
                                     <th>Endpoints</th>
                                     <th>User ID</th>
@@ -544,10 +546,15 @@ export const AdminApp: React.FC = () => {
                             </thead>
                             <tbody>
                                 {users.length === 0 ? (
-                                    <tr><td colSpan={4}><div className="empty-state"><Users size={24} /><p>No users yet</p></div></td></tr>
+                                    <tr><td colSpan={5}><div className="empty-state"><Users size={24} /><p>No users yet</p></div></td></tr>
                                 ) : users.map((u) => (
                                     <tr key={u.id}>
                                         <td>{u.email}</td>
+                                        <td>
+                                            <span className={`status-pill ${u.accountStatus === 'DEACTIVATED' ? 'status-err' : 'status-ok'}`}>
+                                                {u.accountStatus || 'ACTIVE'}
+                                            </span>
+                                        </td>
                                         <td className="mono dim">{u.apiKey}</td>
                                         <td className="mono">{u.endpointCount}</td>
                                         <td className="mono dim ellipsis" title={u.id}>{u.id}</td>
@@ -705,4 +712,3 @@ export const AdminApp: React.FC = () => {
         </div>
     );
 };
-

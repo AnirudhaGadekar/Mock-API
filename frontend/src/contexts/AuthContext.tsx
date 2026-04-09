@@ -1,9 +1,5 @@
-import axios from 'axios';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { API_BASE_URL, setApiKeyRef } from '../lib/api';
-
-const API_URL = API_BASE_URL;
-axios.defaults.withCredentials = true;
+import { api, setApiKeyRef } from '../lib/api';
 
 interface User {
     id: string;
@@ -51,6 +47,7 @@ interface AuthContextType {
     resendVerificationEmail: (email: string) => Promise<void>;
     verifyEmailToken: (token: string) => Promise<void>;
     logout: () => Promise<void>;
+    deactivateAccount: () => Promise<void>;
     refreshUser: (options?: { throwOnError?: boolean; retries?: number; retryDelayMs?: number }) => Promise<User | null>;
     switchWorkspace: (type: 'PERSONAL' | 'TEAM', teamId?: string) => Promise<void>;
     showAuthModal: (mode?: 'login' | 'signup') => void;
@@ -61,6 +58,19 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function isUserPayload(value: unknown): value is Partial<User> & { email?: string; authProvider?: string } {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return false;
+    }
+
+    const candidate = value as Record<string, unknown>;
+    return (
+        typeof candidate.id === 'string' ||
+        typeof candidate.email === 'string' ||
+        typeof candidate.authProvider === 'string'
+    );
+}
 
 function normalizeUser(userData: Partial<User> & { email?: string; authProvider?: string }): User {
     const isAnonymous =
@@ -104,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const switchWorkspace = async (type: 'PERSONAL' | 'TEAM', teamId?: string) => {
         try {
-            await axios.post(`${API_URL}/api/v2/workspace/switch`, { type: type.toLowerCase(), teamId });
+            await api.post('/api/v2/workspace/switch', { type: type.toLowerCase(), teamId });
             await refreshUser();
         } catch (err) {
             console.error('Failed to switch workspace', err);
@@ -116,7 +126,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const initAuth = async () => {
             try {
                 try {
-                    const res = await axios.get(`${API_URL}/api/v2/auth/me`);
+                    const res = await api.get('/api/v2/auth/me');
+                    if (!isUserPayload(res.data)) {
+                        throw new Error('Unexpected auth/me response payload');
+                    }
                     setUser(normalizeUser(res.data));
                     syncApiKey(null);
                 } catch {
@@ -134,14 +147,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const createAnonymousSession = async () => {
         try {
-            const res = await axios.post(`${API_URL}/api/v2/auth/anonymous`);
+            const res = await api.post('/api/v2/auth/anonymous');
             const { apiKey: newKey, user: newUser } = res.data;
             syncApiKey(newKey);
             setUser(normalizeUser({ ...newUser, isAnonymous: true, currentWorkspaceType: 'PERSONAL' }));
         } catch (err) {
             console.error('New auth/anonymous failed, trying old session endpoint', err);
             try {
-                const res = await axios.post(`${API_URL}/api/v2/session`);
+                const res = await api.post('/api/v2/session');
                 if (res.data.success && res.data.session?.apiKey) {
                     const newKey = res.data.session.apiKey;
                     syncApiKey(newKey);
@@ -159,7 +172,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const signup = async (payload: SignupPayload): Promise<SignupResult> => {
-        const res = await axios.post(`${API_URL}/api/v2/auth/signup`, {
+        const res = await api.post('/api/v2/auth/signup', {
             ...payload,
             conversionToken: isAnonymous ? apiKey : undefined,
         });
@@ -175,16 +188,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const resendVerificationEmail = async (email: string) => {
-        await axios.post(`${API_URL}/api/v2/auth/resend-verification`, { email });
+        await api.post('/api/v2/auth/resend-verification', { email });
     };
 
     const verifyEmailToken = async (token: string) => {
-        await axios.post(`${API_URL}/api/v2/auth/verify-email`, { token });
+        await api.post('/api/v2/auth/verify-email', { token });
     };
 
     const logout = async () => {
         try {
-            await axios.post(`${API_URL}/api/v2/auth/logout`);
+            await api.post('/api/v2/auth/logout');
         } catch (err) {
             console.error('Logout failed on server', err);
         } finally {
@@ -194,8 +207,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    const deactivateAccount = async () => {
+        try {
+            await api.post('/api/v2/auth/deactivate');
+            syncApiKey(null);
+            setUser(null);
+            await createAnonymousSession();
+        } catch (err) {
+            console.error('Deactivation failed on server', err);
+            throw err;
+        }
+    };
+
     const sendOtp = async (email: string): Promise<OtpSendResult> => {
-        const res = await axios.post(`${API_URL}/api/v2/auth/send-otp`, { email });
+        const res = await api.post('/api/v2/auth/send-otp', { email });
         return {
             success: Boolean(res.data?.success),
             message: res.data?.message,
@@ -204,7 +229,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const verifyOtp = async (email: string, otp: string): Promise<void> => {
-        const res = await axios.post(`${API_URL}/api/v2/auth/verify-otp`, { email, otp });
+        const res = await api.post('/api/v2/auth/verify-otp', { email, otp });
         const { apiKey: newKey, user: loggedInUser } = res.data;
         syncApiKey(newKey);
         setUser(normalizeUser(loggedInUser));
@@ -217,7 +242,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         for (let attempt = 0; attempt <= retries; attempt += 1) {
             try {
-                const res = await axios.get(`${API_URL}/api/v2/auth/me`);
+                const res = await api.get('/api/v2/auth/me');
+                if (!isUserPayload(res.data)) {
+                    throw new Error('Unexpected auth/me response payload');
+                }
                 const normalized = normalizeUser(res.data);
                 setUser(normalized);
                 return normalized;
@@ -248,6 +276,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 resendVerificationEmail,
                 verifyEmailToken,
                 logout,
+                deactivateAccount,
                 refreshUser,
                 switchWorkspace,
                 showAuthModal,

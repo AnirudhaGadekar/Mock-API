@@ -1,4 +1,5 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
+import { getDeactivatedAccountError, isDeactivatedAccount } from '../lib/account-status.js';
 import { V2_ERROR_CODES } from '../lib/v2-error-codes.js';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
@@ -67,6 +68,7 @@ export function requireV2Scopes(required: V2Scope[]) {
 
 export async function authenticateV2ApiKey(request: FastifyRequest, reply: FastifyReply) {
   const apiKey = extractApiKey(request);
+  const deactivatedAccountError = getDeactivatedAccountError();
 
   if (!apiKey) {
     return v2Error(request, reply, 401, {
@@ -106,6 +108,20 @@ export async function authenticateV2ApiKey(request: FastifyRequest, reply: Fasti
       return v2Error(request, reply, 403, {
         code: V2_ERROR_CODES.FORBIDDEN,
         message: 'Only scoped service keys are allowed for v2 routes',
+      });
+    }
+
+    if (serviceKey && isDeactivatedAccount(serviceKey.user)) {
+      if (!serviceKey.revokedAt) {
+        await prisma.serviceApiKey.update({
+          where: { id: serviceKey.id },
+          data: { revokedAt: new Date() },
+        });
+      }
+
+      return v2Error(request, reply, 403, {
+        code: V2_ERROR_CODES.ACCOUNT_DEACTIVATED,
+        message: deactivatedAccountError.message,
       });
     }
 

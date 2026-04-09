@@ -107,6 +107,67 @@ describe('Full OTP auth flow (E2E)', () => {
     expect(res.statusCode).toBe(200);
   });
 
+  test('Deactivate account', async () => {
+    if (!servicesAvailable || !cookie) {
+      return;
+    }
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v2/auth/deactivate',
+      headers: {
+        cookie: cookie,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const data = res.json();
+    expect(data.success).toBe(true);
+    expect(data.message).toContain('deactivated');
+
+    // Check database state
+    const user = await prisma.user.findUnique({
+      where: { email: testEmail },
+    });
+    expect(user?.accountStatus).toBe('DEACTIVATED');
+    expect(user?.deactivatedAt).toBeDefined();
+  });
+
+  test('Access protected route after deactivation (should fail)', async () => {
+    if (!servicesAvailable || !cookie) {
+      return;
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v2/user/me',
+      headers: {
+        cookie: cookie,
+      },
+    });
+
+    // Should return 403 Forbidden with ACCOUNT_DEACTIVATED code
+    expect(res.statusCode).toBe(403);
+    const data = res.json();
+    expect(data.error.code).toBe('ACCOUNT_DEACTIVATED');
+  });
+
+  test('OTP login is blocked after deactivation', async () => {
+    if (!servicesAvailable) {
+      return;
+    }
+
+    const sendOtpRes = await app.inject({
+      method: 'POST',
+      url: '/api/v2/auth/send-otp',
+      payload: { email: testEmail },
+    });
+
+    expect(sendOtpRes.statusCode).toBe(403);
+    const data = sendOtpRes.json();
+    expect(data.code).toBe('ACCOUNT_DEACTIVATED');
+  });
+
   test('Signup creates profile and sends OTP', async () => {
     if (!servicesAvailable) {
       return;

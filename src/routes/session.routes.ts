@@ -3,6 +3,11 @@
  * [UPGRADED] Now uses SHA-256 hashing for API keys.
  */
 import { FastifyPluginAsync } from 'fastify';
+import {
+    DEACTIVATED_ACCOUNT_ERROR_CODE,
+    DEACTIVATED_ACCOUNT_ERROR_MESSAGE,
+    isDeactivatedAccount,
+} from '../lib/account-status.js';
 import { prisma } from '../lib/db.js';
 import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
 import { logger } from '../lib/logger.js';
@@ -97,6 +102,8 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
                 select: {
                     id: true,
                     email: true,
+                    accountStatus: true,
+                    deactivatedAt: true,
                     _count: { select: { endpoints: true } },
                 },
             });
@@ -107,6 +114,17 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
                     error: {
                         code: 'INVALID_SESSION',
                         message: 'Invalid or expired session',
+                    },
+                    timestamp: new Date().toISOString(),
+                });
+            }
+
+            if (isDeactivatedAccount(user)) {
+                return reply.status(403).send({
+                    success: false,
+                    error: {
+                        code: DEACTIVATED_ACCOUNT_ERROR_CODE,
+                        message: DEACTIVATED_ACCOUNT_ERROR_MESSAGE,
                     },
                     timestamp: new Date().toISOString(),
                 });

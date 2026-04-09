@@ -14,13 +14,14 @@ import {
     RefreshCw,
     Settings2,
     Shield,
+    Trash2,
     User,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 
 export default function SettingsPage() {
-    const { user, apiKey, isAnonymous, logout, showAuthModal, loading } = useAuth();
+    const { user, apiKey, isAnonymous, logout, deactivateAccount, showAuthModal, loading } = useAuth();
     const [showKey, setShowKey] = useState(false);
 
     const copyApiKey = () => {
@@ -217,6 +218,29 @@ export default function SettingsPage() {
                                 <p className="mt-2 text-center text-[11px] text-muted-foreground">
                                     Signing out will return this browser to an anonymous session.
                                 </p>
+
+                                <div className="mt-6 border-t border-border/70 pt-6">
+                                    <h4 className="text-sm font-semibold text-destructive mb-2">Danger Zone</h4>
+                                    <p className="text-xs text-muted-foreground mb-4">
+                                        Deactivating your account immediately ends access to your workspaces and configurations. We retain limited account records where required for legal, security, and performance review purposes.
+                                    </p>
+                                    <Button 
+                                        variant="outline" 
+                                        className="w-full gap-2 border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                        onClick={async () => {
+                                            if (!confirm("Are you sure you want to deactivate your account? Access will end immediately and retained records may be kept for compliance and review.")) return;
+                                            try {
+                                                await deactivateAccount();
+                                                toast.success("Account deactivated successfully.");
+                                            } catch (err) {
+                                                toast.error("Failed to deactivate account. Please try again.");
+                                            }
+                                        }}
+                                    >
+                                        <Trash2 size={16} />
+                                        Deactivate account
+                                    </Button>
+                                </div>
                             </>
                         )}
                     </div>

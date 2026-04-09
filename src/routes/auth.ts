@@ -3,15 +3,28 @@ import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { sendOtp } from '../auth/otp.js';
 import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
+import {
+    getDeactivatedAccountError,
+    isDeactivatedAccount,
+} from '../lib/account-status.js';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
-import { sendVerificationEmail } from '../lib/mailer.js';
+import { sendVerificationEmail, toPublicEmailDeliveryErrorMessage } from '../lib/mailer.js';
+import { emitSecurityAuditEvent, securityAuditContextFromRequest } from '../lib/security-audit.js';
 import { getFirstEnforcedTeamForEmail, isSamlAuthEnforcementEnabled, isSamlFeatureEnabled } from '../lib/saml-sso.js';
 import { authenticateApiKey, extractApiKey, invalidateUserCache } from '../middleware/auth.middleware.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKey.js';
 
 export async function authRoutes(fastify: FastifyInstance) {
     const API_KEY_COOKIE = getApiKeyCookieName();
+    const deactivatedAccountError = getDeactivatedAccountError();
+
+    function sendDeactivatedAccountReply(reply: any) {
+        return reply.code(403).send({
+            error: deactivatedAccountError.message,
+            code: deactivatedAccountError.code,
+        });
+    }
 
     // ============================================
     // CREATE ANONYMOUS USER
@@ -84,11 +97,17 @@ export async function authRoutes(fastify: FastifyInstance) {
                     username: true,
                     firstName: true,
                     lastName: true,
+                    accountStatus: true,
+                    deactivatedAt: true,
                     emailVerified: true,
                     currentWorkspaceType: true,
                     currentTeamId: true,
                 }
             });
+
+            if (isDeactivatedAccount(existingUserByEmail)) {
+                return sendDeactivatedAccountReply(reply);
+            }
 
             let anonymousUser: { id: string; authProvider: string } | null = null;
 
@@ -222,7 +241,10 @@ export async function authRoutes(fastify: FastifyInstance) {
                 return reply
                     .code(statusCode)
                     .send({
-                        error: otpResult.error || 'Failed to send OTP',
+                        error: toPublicEmailDeliveryErrorMessage(
+                            otpResult.code,
+                            otpResult.error || 'Failed to send verification code',
+                        ),
                         ...(otpResult.code ? { code: otpResult.code } : {}),
                     });
             }
@@ -293,6 +315,10 @@ export async function authRoutes(fastify: FastifyInstance) {
                 return reply.code(401).send({ error: 'Invalid credentials' });
             }
 
+            if (isDeactivatedAccount(user)) {
+                return sendDeactivatedAccountReply(reply);
+            }
+
             if (!user.emailVerified) {
                 return reply.code(403).send({
                     error: 'Please verify your email before logging in',
@@ -356,6 +382,10 @@ export async function authRoutes(fastify: FastifyInstance) {
                 return reply.code(404).send({ error: 'Account not found' });
             }
 
+            if (isDeactivatedAccount(user)) {
+                return sendDeactivatedAccountReply(reply);
+            }
+
             if (user.emailVerified) {
                 return reply.send({ success: true, message: 'Email is already verified' });
             }
@@ -392,6 +422,10 @@ export async function authRoutes(fastify: FastifyInstance) {
                 return reply.code(400).send({ error: 'Invalid or expired verification link' });
             }
 
+            if (isDeactivatedAccount(user)) {
+                return sendDeactivatedAccountReply(reply);
+            }
+
             await prisma.user.update({
                 where: { id: user.id },
                 data: {
@@ -407,6 +441,89 @@ export async function authRoutes(fastify: FastifyInstance) {
         } catch (error) {
             logger.error('Verify email failed', { error });
             return reply.code(500).send({ error: 'Failed to verify email' });
+        }
+    });
+
+    // ============================================
+    // DEACTIVATE ACCOUNT
+    // ============================================
+    fastify.post('/deactivate', {
+        preHandler: [authenticateApiKey]
+    }, async (request: any, reply) => {
+        try {
+            const userId = request.user.id;
+            const apiKey = extractApiKey(request);
+            const deactivatedAt = new Date();
+
+            await prisma.$transaction([
+                prisma.user.update({
+                    where: { id: userId },
+                    data: {
+                        accountStatus: 'DEACTIVATED',
+                        deactivatedAt,
+                        deactivationReason: 'SELF_SERVICE',
+                    }
+                }),
+                prisma.serviceApiKey.updateMany({
+                    where: {
+                        userId,
+                        revokedAt: null,
+                    },
+                    data: {
+                        revokedAt: deactivatedAt,
+                    },
+                }),
+                prisma.apiCredential.updateMany({
+                    where: {
+                        userId,
+                        revokedAt: null,
+                    },
+                    data: {
+                        revokedAt: deactivatedAt,
+                    },
+                }),
+            ]);
+
+            if (apiKey) {
+                try {
+                    await invalidateUserCache(apiKey as string);
+                } catch (cacheError) {
+                    logger.warn('Failed to invalidate cache during deactivation', {
+                        userId,
+                        error: cacheError instanceof Error ? cacheError.message : String(cacheError),
+                    });
+                }
+            }
+
+            await emitSecurityAuditEvent(securityAuditContextFromRequest(request, {
+                action: 'ACCOUNT_DEACTIVATED',
+                targetType: 'User',
+                targetId: userId,
+                result: 'SUCCESS',
+                reason: 'self_service',
+                diff: {
+                    accountStatus: 'DEACTIVATED',
+                    deactivatedAt: deactivatedAt.toISOString(),
+                },
+            }));
+
+            logger.info('User deactivated account', { userId });
+
+            const cookieOptions = getApiKeyCookieOptions();
+            reply.clearCookie(API_KEY_COOKIE, {
+                path: cookieOptions.path,
+                domain: cookieOptions.domain,
+                secure: cookieOptions.secure,
+                sameSite: cookieOptions.sameSite,
+            });
+
+            return {
+                success: true,
+                message: 'Account deactivated successfully.'
+            };
+        } catch (error) {
+            logger.error('Failed to deactivate account', { error });
+            return reply.code(500).send({ error: 'Failed to deactivate account' });
         }
     });
 

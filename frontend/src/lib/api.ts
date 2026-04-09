@@ -5,10 +5,22 @@
  */
 import axios from 'axios';
 
+const KNOWN_API_ORIGINS: Record<string, string> = {
+  'mockapi.online': 'https://api.mockapi.online',
+  'www.mockapi.online': 'https://api.mockapi.online',
+};
+
+axios.defaults.withCredentials = true;
+
 function resolveApiBaseUrl(): string {
   const configured = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
   if (configured) {
     return configured.replace(/\/+$/, '');
+  }
+
+  const knownApiOrigin = KNOWN_API_ORIGINS[window.location.hostname.toLowerCase()];
+  if (knownApiOrigin) {
+    return knownApiOrigin;
   }
 
   return window.location.origin;

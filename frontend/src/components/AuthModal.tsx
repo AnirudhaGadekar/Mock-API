@@ -1,6 +1,7 @@
 import { Github, Loader2, Mail, Shield, User, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { getAuthErrorMessage } from '../lib/auth-errors';
 import { API_BASE_URL } from '../lib/api';
 
 type Tab = 'login' | 'signup';
@@ -100,7 +101,7 @@ export const AuthModal: React.FC = () => {
             setLoginStep('code');
             startCountdown(60);
         } catch (err: any) {
-            setError(err?.response?.data?.error || 'Failed to send code');
+            setError(getAuthErrorMessage(err, 'Failed to send code'));
         } finally {
             setLoading(false);
         }
@@ -113,7 +114,7 @@ export const AuthModal: React.FC = () => {
         try {
             await verifyOtp(loginEmail, loginCode);
         } catch (err: any) {
-            setError(err?.response?.data?.error || 'Invalid or expired code');
+            setError(getAuthErrorMessage(err, 'Invalid or expired code'));
         } finally {
             setLoading(false);
         }
@@ -139,7 +140,7 @@ export const AuthModal: React.FC = () => {
                 hideAuthModal();
             }
         } catch (err: any) {
-            setError(err?.response?.data?.error || 'Signup failed');
+            setError(getAuthErrorMessage(err, 'Signup failed'));
         } finally {
             setLoading(false);
         }
@@ -152,7 +153,7 @@ export const AuthModal: React.FC = () => {
         try {
             await verifyOtp(signupEmail, signupCode);
         } catch (err: any) {
-            setError(err?.response?.data?.error || 'Invalid or expired code');
+            setError(getAuthErrorMessage(err, 'Invalid or expired code'));
         } finally {
             setLoading(false);
         }
@@ -172,7 +173,7 @@ export const AuthModal: React.FC = () => {
             setNotice(result.message || 'A fresh code has been sent.');
             startCountdown(60);
         } catch (err: any) {
-            setError(err?.response?.data?.error || 'Failed to resend code');
+            setError(getAuthErrorMessage(err, 'Failed to resend code'));
         } finally {
             setLoading(false);
         }

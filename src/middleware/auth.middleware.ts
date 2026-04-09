@@ -1,6 +1,11 @@
 import { trace } from '@opentelemetry/api';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { getApiKeyCookieName } from '../lib/auth-cookie.js';
+import {
+  DEACTIVATED_ACCOUNT_ERROR_CODE,
+  DEACTIVATED_ACCOUNT_ERROR_MESSAGE,
+  isDeactivatedAccount,
+} from '../lib/account-status.js';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
@@ -19,9 +24,16 @@ export class AuthenticationError extends Error {
 }
 
 export class ForbiddenError extends Error {
-  constructor(message: string) {
+  constructor(message: string, public code: string = 'FORBIDDEN') {
     super(message);
     this.name = 'ForbiddenError';
+  }
+}
+
+export class DeactivatedAccountError extends ForbiddenError {
+  constructor(message: string = DEACTIVATED_ACCOUNT_ERROR_MESSAGE) {
+    super(message, DEACTIVATED_ACCOUNT_ERROR_CODE);
+    this.name = 'DeactivatedAccountError';
   }
 }
 
@@ -81,7 +93,18 @@ export async function fetchUserByApiKey(apiKey: string): Promise<any | null> {
         const cached = await redis.get(cacheKey);
         if (cached) {
           span.setAttribute('cache.hit', true);
-          return JSON.parse(cached);
+          const parsed = JSON.parse(cached);
+          if (isDeactivatedAccount(parsed)) {
+            try {
+              await redis.del(cacheKey);
+            } catch (cacheDeleteError) {
+              logger.warn('API key cache delete failed for deactivated user', {
+                error: cacheDeleteError instanceof Error ? cacheDeleteError.message : String(cacheDeleteError),
+                cacheKey,
+              });
+            }
+          }
+          return parsed;
         }
       } catch (cacheReadError) {
         logger.warn('API key cache read failed, falling back to database lookup', {
@@ -106,6 +129,12 @@ export async function fetchUserByApiKey(apiKey: string): Promise<any | null> {
       if (!user) {
         span.setAttribute('auth.valid', false);
         return null;
+      }
+
+      if (isDeactivatedAccount(user)) {
+        span.setAttribute('auth.valid', false);
+        span.setAttribute('auth.deactivated', true);
+        return user;
       }
 
       // Cache for 1 hour, but do not fail authentication if Redis write is unavailable.
@@ -170,6 +199,11 @@ export async function authenticateApiKey(
         throw new ForbiddenError('Invalid API Key');
       }
 
+      if (isDeactivatedAccount(user)) {
+        span.setAttribute('auth.deactivated', true);
+        throw new DeactivatedAccountError();
+      }
+
       // Attach user to request for downstream handlers
       (request as any).user = user;
       span.setAttribute('user.id', user.id);
@@ -190,7 +224,7 @@ export async function authenticateApiKey(
         return reply.status(403).send({
           success: false,
           error: {
-            code: 'FORBIDDEN',
+            code: error.code,
             message: error.message,
           },
         });

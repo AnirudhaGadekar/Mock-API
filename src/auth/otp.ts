@@ -7,6 +7,7 @@
 
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { getDeactivatedAccountError, isDeactivatedAccount } from '../lib/account-status.js';
 import { prisma } from '../lib/db.js';
 import { ApiError } from '../lib/errors.js';
 import { getApiKeyCookieName as getSharedApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
@@ -125,12 +126,31 @@ export async function sendOtp(request: SendOtpRequest): Promise<ApiResponse> {
     try {
         const { email } = request;
         const normalizedEmail = email?.toLowerCase().trim() ?? '';
+        const deactivatedAccountError = getDeactivatedAccountError();
 
         // Input validation
         if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
             return {
                 success: false,
                 error: 'Valid email required',
+            };
+        }
+
+        const existingUser = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+            select: {
+                id: true,
+                accountStatus: true,
+                deactivatedAt: true,
+            },
+        });
+
+        if (isDeactivatedAccount(existingUser)) {
+            return {
+                success: false,
+                error: deactivatedAccountError.message,
+                code: deactivatedAccountError.code,
+                statusCode: 403,
             };
         }
 
@@ -324,6 +344,8 @@ export async function verifyOtp(request: VerifyOtpRequest): Promise<ApiResponse>
  */
 async function authenticateUser(email: string): Promise<ApiResponse> {
     try {
+        const deactivatedAccountError = getDeactivatedAccountError();
+
         // Find or create user
         let user = await prisma.user.findUnique({ 
             where: { email },
@@ -337,6 +359,8 @@ async function authenticateUser(email: string): Promise<ApiResponse> {
                 firstName: true,
                 lastName: true,
                 picture: true,
+                accountStatus: true,
+                deactivatedAt: true,
                 emailVerified: true,
                 currentWorkspaceType: true,
                 currentTeamId: true,
@@ -347,6 +371,15 @@ async function authenticateUser(email: string): Promise<ApiResponse> {
         const newApiKeyHash = hashApiKey(newApiKey);
 
         if (user) {
+            if (isDeactivatedAccount(user)) {
+                return {
+                    success: false,
+                    error: deactivatedAccountError.message,
+                    code: deactivatedAccountError.code,
+                    statusCode: 403,
+                };
+            }
+
             const nextAuthProvider =
                 user.authProvider === 'ANONYMOUS' || user.authProvider === 'LOCAL'
                     ? 'EMAIL_OTP'
@@ -370,6 +403,8 @@ async function authenticateUser(email: string): Promise<ApiResponse> {
                     firstName: true,
                     lastName: true,
                     picture: true,
+                    accountStatus: true,
+                    deactivatedAt: true,
                     emailVerified: true,
                     currentWorkspaceType: true,
                     currentTeamId: true,
@@ -394,6 +429,8 @@ async function authenticateUser(email: string): Promise<ApiResponse> {
                     firstName: true,
                     lastName: true,
                     picture: true,
+                    accountStatus: true,
+                    deactivatedAt: true,
                     emailVerified: true,
                     currentWorkspaceType: true,
                     currentTeamId: true,

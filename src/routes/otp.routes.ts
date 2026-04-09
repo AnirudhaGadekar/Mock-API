@@ -7,6 +7,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getApiKeyCookieName, getCookieOptions, sendOtp, verifyOtp } from '../auth/otp.js';
+import { toPublicEmailDeliveryErrorMessage } from '../lib/mailer.js';
 import { logger } from '../lib/logger.js';
 import { getFirstEnforcedTeamForEmail, isSamlAuthEnforcementEnabled, isSamlFeatureEnabled } from '../lib/saml-sso.js';
 
@@ -52,7 +53,10 @@ export async function otpRoutes(fastify: FastifyInstance) {
                 return reply
                     .code(statusCode)
                     .send({
-                        error: result.error,
+                        error: toPublicEmailDeliveryErrorMessage(
+                            result.code,
+                            result.error || 'Failed to send verification code',
+                        ),
                         ...(result.code ? { code: result.code } : {}),
                     });
             }
@@ -94,11 +98,14 @@ export async function otpRoutes(fastify: FastifyInstance) {
             const result = await verifyOtp({ email: normalizedEmail, otp });
 
             if (!result.success) {
-                const statusCode = result.error?.includes('expired') ? 401 : 
-                                  result.error?.includes('attempts') ? 401 : 
-                                  result.error?.includes('Security') ? 403 : 400;
+                const statusCode = result.statusCode
+                    ?? (result.error?.includes('expired') ? 401
+                        : result.error?.includes('attempts') ? 401
+                        : result.error?.includes('Security') ? 403
+                        : 400);
                 return reply.code(statusCode).send({ 
                     error: result.error,
+                    ...(result.code ? { code: result.code } : {}),
                     ...(result.attemptsLeft !== undefined && { attemptsLeft: result.attemptsLeft })
                 });
             }

@@ -2,6 +2,7 @@ import axios from 'axios';
 import crypto from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { getApiKeyCookieName, getApiKeyCookieOptions } from '../lib/auth-cookie.js';
+import { getDeactivatedAccountError, isDeactivatedAccount } from '../lib/account-status.js';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
@@ -94,6 +95,11 @@ if (isDeployed && isLocalhostLike(FRONTEND_URL)) {
     logger.error('CONFIG ERROR: FRONTEND_URL points to localhost in deployed environment.', { FRONTEND_URL });
 }
 const API_KEY_COOKIE = getApiKeyCookieName();
+const DEACTIVATED_ACCOUNT_ERROR = getDeactivatedAccountError();
+
+function redirectToAuthError(reply: any, message: string) {
+    return reply.redirect(`${FRONTEND_URL}/auth/error?message=${encodeURIComponent(message)}`);
+}
 
 function getDisplayNameFromGoogleUser(googleUser: any): string {
     if (googleUser?.name && typeof googleUser.name === 'string') {
@@ -200,13 +206,17 @@ export async function oauthRoutes(fastify: FastifyInstance) {
             const googleUser = userRes.data;
             if (!googleUser?.email) {
                 logger.error('Google OAuth response missing email');
-                return reply.redirect(`${FRONTEND_URL}/auth/error?message=Google account has no email`);
+                return redirectToAuthError(reply, 'Google account has no email');
             }
             const displayName = getDisplayNameFromGoogleUser(googleUser);
             let user = await prisma.user.findUnique({ where: { email: googleUser.email } });
             let apiKey;
 
             if (user) {
+                if (isDeactivatedAccount(user)) {
+                    return redirectToAuthError(reply, DEACTIVATED_ACCOUNT_ERROR.message);
+                }
+
                 apiKey = generateApiKey();
                 const apiKeyHash = hashApiKey(apiKey);
                 user = await prisma.user.update({
@@ -266,7 +276,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
             return reply.redirect(`${FRONTEND_URL}/auth/callback`);
         } catch (error) {
             logger.error('Google OAuth failed', error);
-            return reply.redirect(`${FRONTEND_URL}/auth/error?message=Google login failed`);
+            return redirectToAuthError(reply, 'Google login failed');
         }
     });
 
@@ -323,13 +333,17 @@ export async function oauthRoutes(fastify: FastifyInstance) {
             }
             if (!email) {
                 logger.error('GitHub OAuth response missing email');
-                return reply.redirect(`${FRONTEND_URL}/auth/error?message=GitHub account has no public email`);
+                return redirectToAuthError(reply, 'GitHub account has no public email');
             }
 
             let user = await prisma.user.findUnique({ where: { email } });
             let apiKey;
 
             if (user) {
+                if (isDeactivatedAccount(user)) {
+                    return redirectToAuthError(reply, DEACTIVATED_ACCOUNT_ERROR.message);
+                }
+
                 apiKey = generateApiKey();
                 const apiKeyHash = hashApiKey(apiKey);
                 user = await prisma.user.update({
@@ -389,7 +403,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
             return reply.redirect(`${FRONTEND_URL}/auth/callback`);
         } catch (error) {
             logger.error('GitHub OAuth failed', error);
-            return reply.redirect(`${FRONTEND_URL}/auth/error?message=GitHub login failed`);
+            return redirectToAuthError(reply, 'GitHub login failed');
         }
     });
 }

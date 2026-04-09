@@ -11,11 +11,13 @@ import Dashboard from "@/pages/Dashboard";
 import EndpointConfig from "@/pages/EndpointConfig";
 import Endpoints from "@/pages/Endpoints";
 import Login from "@/pages/Login";
+import Privacy from "@/pages/Privacy";
 import Requests from "@/pages/Requests";
 import Settings from "@/pages/Settings";
 import Signup from "@/pages/Signup";
 import StateStore from "@/pages/StateStore";
 import TeamSettings from "@/pages/TeamSettings";
+import Terms from "@/pages/Terms";
 import TunnelDashboard from "@/pages/TunnelDashboard";
 import VerifyEmail from "@/pages/VerifyEmail";
 import { Toaster } from "react-hot-toast";
@@ -51,6 +53,8 @@ export default function App() {
                     <Route path="/auth/error" element={<AuthError />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
+                    <Route path="/privacy" element={<Privacy />} />
+                    <Route path="/terms" element={<Terms />} />
                     <Route path="/verify-email" element={<VerifyEmail />} />
 
                     <Route path="/" element={<DashboardLayout />}>

@@ -1,4 +1,5 @@
 import { AuthShell } from "@/components/auth/AuthShell";
+import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,7 +110,7 @@ export default function Signup() {
         startCountdown(60);
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Signup failed");
+      setError(getAuthErrorMessage(err, "Signup failed"));
     } finally {
       setLoading(false);
     }
@@ -123,7 +124,7 @@ export default function Signup() {
       await verifyOtp(email, otp);
       navigate("/");
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Invalid or expired code");
+      setError(getAuthErrorMessage(err, "Invalid or expired code"));
     } finally {
       setLoading(false);
     }
@@ -142,7 +143,7 @@ export default function Signup() {
       setNotice(result.message || "A fresh verification code has been sent.");
       startCountdown(60);
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to resend code");
+      setError(getAuthErrorMessage(err, "Failed to resend code"));
     } finally {
       setLoading(false);
     }

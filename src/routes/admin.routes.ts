@@ -86,6 +86,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
             select: {
               id: true,
               email: true,
+              accountStatus: true,
               apiKeyHash: true,
               _count: { select: { endpoints: true } },
             },
@@ -98,7 +99,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
           users: users.map((u) => ({
             id: u.id,
             email: u.email,
-            apiKey: '********' + u.apiKeyHash.slice(-4), // Show only last 4 chars of HASH
+            accountStatus: u.accountStatus,
+            apiKey: `hk_${u.apiKeyHash.slice(0, 8)}...`,
             endpointCount: u._count.endpoints,
           })),
           total,

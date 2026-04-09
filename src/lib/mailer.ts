@@ -7,8 +7,21 @@ import { ApiError } from './errors.js';
 import { logger } from './logger.js';
 
 const FROM_ADDRESS = process.env.RESEND_FROM || 'onboarding@resend.dev';
+export const PUBLIC_EMAIL_DELIVERY_ERROR_MESSAGE =
+  'Email verification is temporarily unavailable. Please use Google or GitHub sign-in, or try again later.';
 
 let resend: Resend | null = null;
+
+export function toPublicEmailDeliveryErrorMessage(
+  code: string | undefined,
+  fallback: string,
+): string {
+  if (code === 'EMAIL_PROVIDER_SANDBOX' || code === 'EMAIL_PROVIDER_ERROR') {
+    return PUBLIC_EMAIL_DELIVERY_ERROR_MESSAGE;
+  }
+
+  return fallback;
+}
 
 function getResendClient(): Resend {
   if (!resend) {

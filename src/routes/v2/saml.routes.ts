@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { getDeactivatedAccountError, isDeactivatedAccount } from '../../lib/account-status.js';
 import { getApiKeyCookieName, getApiKeyCookieOptions } from '../../lib/auth-cookie.js';
 import { prisma } from '../../lib/db.js';
 import { logger } from '../../lib/logger.js';
@@ -270,6 +271,8 @@ async function ensureTeamAdminOrOwner(teamId: string, userId: string): Promise<b
 }
 
 export const v2SamlRoutes: FastifyPluginAsync = async (fastify) => {
+  const deactivatedAccountError = getDeactivatedAccountError();
+
   fastify.addHook('onRequest', async (request, reply) => {
     if (!isSamlFeatureEnabled()) {
       return v2Error(request, reply, 404, {
@@ -442,8 +445,22 @@ export const v2SamlRoutes: FastifyPluginAsync = async (fastify) => {
         firstName: true,
         lastName: true,
         name: true,
+        accountStatus: true,
+        deactivatedAt: true,
       },
     });
+
+    if (isDeactivatedAccount(existingUser)) {
+      samlAudit('SAML_ACS_REJECTED', {
+        reason: 'account_deactivated',
+        assertionId,
+        email,
+      });
+      return v2Error(request, reply, 403, {
+        code: V2_ERROR_CODES.ACCOUNT_DEACTIVATED,
+        message: deactivatedAccountError.message,
+      });
+    }
 
     const user = existingUser
       ? await prisma.user.update({

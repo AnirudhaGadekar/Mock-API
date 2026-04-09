@@ -109,6 +109,7 @@ describe('OTP auth module', () => {
   describe('sendOtp', () => {
     it('stores OTP for a normalized email', async () => {
       const { sendOtp } = await loadOtpModule();
+      prismaMock.user.findUnique.mockResolvedValue(null);
       prismaMock.otp.findFirst.mockResolvedValue(null);
       prismaMock.otp.deleteMany.mockResolvedValue({ count: 0 });
       prismaMock.otp.create.mockResolvedValue({});
@@ -133,6 +134,7 @@ describe('OTP auth module', () => {
 
     it('returns rate-limit error when recent attempts are too high', async () => {
       const { sendOtp } = await loadOtpModule();
+      prismaMock.user.findUnique.mockResolvedValue(null);
       prismaMock.otp.findFirst.mockResolvedValue({
         id: 'otp1',
         attempts: 3,
@@ -149,6 +151,7 @@ describe('OTP auth module', () => {
       process.env.AUTH_MODE = 'dev-bypass';
       const { sendOtp } = await loadOtpModule();
 
+      prismaMock.user.findUnique.mockResolvedValue(null);
       prismaMock.otp.findFirst.mockResolvedValue(null);
       prismaMock.otp.deleteMany.mockResolvedValue({ count: 0 });
       prismaMock.otp.create.mockResolvedValue({});
@@ -157,6 +160,23 @@ describe('OTP auth module', () => {
 
       expect(result.success).toBe(true);
       expect(result.devOtp).toMatch(/^\d{6}$/);
+    });
+
+    it('blocks OTP send for deactivated accounts', async () => {
+      const { sendOtp } = await loadOtpModule();
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        accountStatus: 'DEACTIVATED',
+        deactivatedAt: new Date(),
+      });
+
+      const result = await sendOtp({ email: 'test@example.com' });
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('ACCOUNT_DEACTIVATED');
+      expect(result.statusCode).toBe(403);
+      expect(prismaMock.otp.create).not.toHaveBeenCalled();
     });
   });
 
@@ -181,6 +201,8 @@ describe('OTP auth module', () => {
         name: null,
         authProvider: 'EMAIL_OTP',
         password: null,
+        accountStatus: 'ACTIVE',
+        deactivatedAt: null,
       });
 
       const result = await verifyOtp({ email: 'test@example.com', otp });
@@ -236,6 +258,8 @@ describe('OTP auth module', () => {
         firstName: 'Test',
         lastName: 'User',
         picture: null,
+        accountStatus: 'ACTIVE',
+        deactivatedAt: null,
         emailVerified: false,
         currentWorkspaceType: 'PERSONAL',
         currentTeamId: null,
@@ -250,6 +274,8 @@ describe('OTP auth module', () => {
         firstName: 'Test',
         lastName: 'User',
         picture: null,
+        accountStatus: 'ACTIVE',
+        deactivatedAt: null,
         emailVerified: true,
         currentWorkspaceType: 'PERSONAL',
         currentTeamId: null,
@@ -269,6 +295,43 @@ describe('OTP auth module', () => {
           }),
         }),
       );
+    });
+
+    it('blocks OTP verification for deactivated accounts', async () => {
+      const { verifyOtp } = await loadOtpModule();
+      const otp = '123456';
+
+      prismaMock.otp.findFirst.mockResolvedValue({
+        id: 'otp1',
+        hash: buildOtpHash(otp),
+        attempts: 0,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      prismaMock.otp.delete.mockResolvedValue({});
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'test@example.com',
+        name: 'Test User',
+        authProvider: 'EMAIL_OTP',
+        password: null,
+        username: 'test-user',
+        firstName: 'Test',
+        lastName: 'User',
+        picture: null,
+        accountStatus: 'DEACTIVATED',
+        deactivatedAt: new Date(),
+        emailVerified: true,
+        currentWorkspaceType: 'PERSONAL',
+        currentTeamId: null,
+      });
+
+      const result = await verifyOtp({ email: 'test@example.com', otp });
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('ACCOUNT_DEACTIVATED');
+      expect(result.statusCode).toBe(403);
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
     });
   });
 

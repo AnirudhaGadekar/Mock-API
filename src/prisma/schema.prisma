@@ -20,6 +20,9 @@ model User {
   lastName              String?
   name                  String?
   picture               String?        // Profile picture URL
+  accountStatus         AccountStatus  @default(ACTIVE)
+  deactivatedAt         DateTime?
+  deactivationReason    String?
   
   // Email verification
   emailVerified         Boolean        @default(false)
@@ -60,6 +63,8 @@ model User {
   @@index([apiKeyHash])
   @@index([googleId])
   @@index([githubId])
+  @@index([accountStatus])
+  @@index([accountStatus, deactivatedAt])
 }
 
 model ServiceApiKey {
@@ -94,6 +99,11 @@ enum AuthProvider {
   GOOGLE
   GITHUB
   EMAIL_OTP
+}
+
+enum AccountStatus {
+  ACTIVE
+  DEACTIVATED
 }
 
 enum WorkspaceType {
