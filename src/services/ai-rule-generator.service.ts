@@ -200,26 +200,26 @@ ${multiple ? '[' : ''}{
 }${multiple ? ', ...]' : ''}
 
 Template Syntax (Handlebars):
-- {{faker.person.firstName}} - Random first name
-- {{faker.person.lastName}} - Random last name
-- {{faker.internet.email}} - Random email
-- {{faker.internet.url}} - Random URL
-- {{faker.phone.number}} - Random phone number
-- {{faker.location.streetAddress}} - Street address
-- {{faker.location.city}} - City name
-- {{faker.location.country}} - Country name
-- {{faker.location.zipCode}} - ZIP/postal code
-- {{faker.company.name}} - Company name
-- {{faker.commerce.productName}} - Product name
-- {{faker.commerce.price}} - Price (e.g., "29.99")
-- {{faker.commerce.department}} - Department
-- {{faker.lorem.sentence}} - Lorem ipsum sentence
-- {{faker.lorem.paragraph}} - Lorem ipsum paragraph
-- {{faker.date.past}} - Past date
-- {{faker.date.future}} - Future date
-- {{faker.string.uuid}} - UUID
-- {{faker.number.int}} - Random number
-- {{faker.datatype.boolean}} - Random boolean
+- {{faker 'person.firstName'}} - Random first name
+- {{faker 'person.lastName'}} - Random last name
+- {{faker 'internet.email'}} - Random email
+- {{faker 'internet.url'}} - Random URL
+- {{faker 'phone.number'}} - Random phone number
+- {{faker 'location.streetAddress'}} - Street address
+- {{faker 'location.city'}} - City name
+- {{faker 'location.country'}} - Country name
+- {{faker 'location.zipCode'}} - ZIP/postal code
+- {{faker 'company.name'}} - Company name
+- {{faker 'commerce.productName'}} - Product name
+- {{faker 'commerce.price'}} - Price (e.g., "29.99")
+- {{faker 'commerce.department'}} - Department
+- {{faker 'lorem.sentence'}} - Lorem ipsum sentence
+- {{faker 'lorem.paragraph'}} - Lorem ipsum paragraph
+- {{faker 'date.past'}} - Past date
+- {{faker 'date.future'}} - Future date
+- {{faker 'string.uuid'}} - UUID
+- {{faker 'number.int' min=1 max=100}} - Random number
+- {{faker 'datatype.boolean'}} - Random boolean
 - {{#repeat count}}...{{/repeat}} - Repeat content
 
 Rules:

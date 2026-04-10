@@ -131,7 +131,7 @@ function generateFromSchema(schema: OASSchema, spec: OpenAPISpec, depth = 0): un
         case 'string': {
             if (schema.format === 'date-time') return '{{now}}';
             if (schema.format === 'date') return '2026-01-15';
-            if (schema.format === 'email') return '{{faker.internet.email}}';
+            if (schema.format === 'email') return "{{faker 'internet.email'}}";
             if (schema.format === 'uuid') return '{{uuid}}';
             if (schema.format === 'uri' || schema.format === 'url') return 'https://example.com';
             return 'string';

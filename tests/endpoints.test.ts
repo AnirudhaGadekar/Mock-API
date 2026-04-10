@@ -141,4 +141,33 @@ describe('Endpoints API v2 - CRUD', () => {
     const getAfterDelete = await makeAuthRequest(`/api/v2/endpoints/${endpointId}`);
     expect(getAfterDelete.statusCode).toBe(404);
   });
+
+  test('renders POST body templates on mock routes as real JSON', async () => {
+    const name = uniqueName('todo');
+    const createResponse = await makeAuthRequest('/api/v2/endpoints', 'POST', { name });
+
+    expect(createResponse.statusCode).toBe(201);
+
+    const mockResponse = await app.inject({
+      method: 'POST',
+      url: `/e/${name}/todo?page=3`,
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer integration-test',
+      },
+      payload: {
+        title: 'Buy milk',
+        done: false,
+        id: 5,
+      },
+    });
+
+    expect(mockResponse.statusCode).toBe(201);
+    expect(mockResponse.json()).toEqual({
+      title: 'Buy milk',
+      done: false,
+      id: 5,
+    });
+    expect(mockResponse.headers.location).toBe('/todo/5');
+  });
 });

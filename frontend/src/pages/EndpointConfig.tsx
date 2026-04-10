@@ -534,7 +534,7 @@ export default function EndpointConfigPage() {
                                                     onChange={(rules) => updateResponse(idx, { headerRewriting: rules })}
                                                 />
                                                 <p className="text-[10px] text-muted-foreground">
-                                                    Manipulate headers before sending. Supports templates like {"{{req.path}}"}.
+                                                    Manipulate headers before sending. Supports helpers like {"{{header 'authorization'}}"} and {"{{param 'id'}}"}.
                                                 </p>
                                             </div>
                                         </div>
@@ -558,8 +558,8 @@ export default function EndpointConfigPage() {
                                                 />
                                                 <p className="text-[10px] text-muted-foreground">
                                                     Supports standard Handlebars logic ({"{{#if}}"}, {"{{#each}}"}),
-                                                    Faker.js ({"{{faker.name.firstName}}"}),
-                                                    and Request Reflection ({"{{req.query.id}}"}).
+                                                    Faker.js ({"{{faker 'person.firstName'}}"}),
+                                                    and Request Reflection ({"{{queryParam 'id'}}"}).
                                                 </p>
                                             </div>
                                         </div>
@@ -861,4 +861,3 @@ export default function EndpointConfigPage() {
         </div>
     );
 }
-

@@ -68,8 +68,8 @@ export const DEFAULT_MOCK_RULES = [
     method: 'POST' as const,
     response: {
       status: 201,
-      body: '{{JSON.stringify(req.body)}}',
-      headers: { Location: '/todo/{{req.body.id}}' },
+      body: '{{body}}',
+      headers: { Location: "/todo/{{body 'id'}}" },
     },
   },
 ];

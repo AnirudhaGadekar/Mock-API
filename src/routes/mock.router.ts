@@ -2,12 +2,13 @@ import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import jwt from 'jsonwebtoken';
 import { applyChaos } from '../engine/chaos.js';
-import { renderBody, type TemplateContext } from '../engine/templating.js';
+import { statefulStore } from '../engine/stateful-store.js';
 import { broadcastRequest } from '../engine/websocket.js';
 import { prisma } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { isReservedMockSubdomain } from '../lib/mock-routing.js';
 import { redis } from '../lib/redis.js';
+import { renderTemplate } from '../lib/templateEngine.js';
 import { getSecurityFeatureFlag, isIpAllowedByPolicy, resolveEffectiveSecurityPolicy } from '../lib/security-policy.js';
 import { setState } from '../lib/state.js';
 import { checkRateLimit } from '../middleware/rate-limit.middleware.js';
@@ -371,55 +372,157 @@ async function findMatchingRule(
   return null;
 }
 
-/**
- * Simple template substitution (MockAPI-style): {{req.body}}, {{req.params.id}}, {{JSON.stringify(req.body)}}
- */
-function interpolate(
-  value: string,
-  request: FastifyRequest,
-  pathParams: Record<string, string>
-): string {
-  let out = value;
-  const body = request.body as object | undefined;
-  // Use try-catch for JSON stringify to avoid circular reference crashes
-  let bodyStr = '{}';
-  try {
-    bodyStr = body !== undefined && body !== null ? JSON.stringify(body) : '{}';
-  } catch (e) {
-    bodyStr = '[Circular or Invalid JSON]'; // Fallback
-  }
+type TemplateRuntimeContext = Parameters<typeof renderTemplate>[1] & {
+  request: {
+    body: Record<string, unknown>;
+    headers: Record<string, string>;
+    queryParams: Record<string, string>;
+    params: Record<string, string>;
+    method: string;
+    path: string;
+  };
+  state?: Record<string, unknown>;
+  __statusCode?: number;
+};
 
-  out = out.replace(/\{\{JSON\\.stringify\(req\\.body\)\}\}/g, bodyStr);
-  out = out.replace(/\{\{req\\.body\}\}/g, bodyStr);
-  for (const [key, val] of Object.entries(pathParams)) {
-    out = out.replace(new RegExp(`\\{\\{req\\.params\\.${key}\\}\\}`, 'g'), val);
-  }
-  if (body && typeof body === 'object') {
-    for (const [key, val] of Object.entries(body)) {
-      // Avoid circular here too if possible, but simplistic check is hard. 
-      // Assuming body is JSON-safe from Fastify.
-      const v = typeof val === 'object' ? JSON.stringify(val) : String(val);
-      out = out.replace(new RegExp(`\\{\\{req\\.body\\.${key}\\}\\}`, 'g'), v);
-    }
-  }
-  return out;
+const TEMPLATE_RENDER_ERROR_BODY = {
+  error: 'Template render failed',
+  code: 561,
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/**
- * Apply header rewriting rules (SET, APPEND, DELETE) to a headers object.
- */
-async function applyHeaderRewriting(
+function normalizeTemplateHeaders(headers: FastifyRequest['headers']): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [
+      key.toLowerCase(),
+      Array.isArray(value) ? value.join(',') : value == null ? '' : String(value),
+    ]),
+  );
+}
+
+function normalizeTemplateQuery(query: Record<string, unknown> | undefined): Record<string, string> {
+  if (!query) return {};
+
+  return Object.fromEntries(
+    Object.entries(query).map(([key, value]) => [
+      key,
+      Array.isArray(value) ? value.join(',') : value == null ? '' : String(value),
+    ]),
+  );
+}
+
+function renderStringTemplate(
+  template: string,
+  context: TemplateRuntimeContext,
+): { rendered: string; error: boolean; statusCode?: number } {
+  delete context.__statusCode;
+  const result = renderTemplate(template, context);
+  const statusCode = context.__statusCode;
+  delete context.__statusCode;
+  return {
+    ...result,
+    statusCode: typeof statusCode === 'number' ? statusCode : undefined,
+  };
+}
+
+function renderTemplatedBody(
+  body: unknown,
+  context: TemplateRuntimeContext,
+  statusTracker: { statusCode?: number },
+  topLevel = true,
+): { value: unknown; error: boolean } {
+  if (typeof body === 'string') {
+    const rendered = renderStringTemplate(body, context);
+    if (rendered.statusCode !== undefined) {
+      statusTracker.statusCode = rendered.statusCode;
+    }
+    if (rendered.error) {
+      return { value: TEMPLATE_RENDER_ERROR_BODY, error: true };
+    }
+    if (topLevel) {
+      try {
+        return { value: JSON.parse(rendered.rendered), error: false };
+      } catch {
+        return { value: rendered.rendered, error: false };
+      }
+    }
+    return { value: rendered.rendered, error: false };
+  }
+
+  if (Array.isArray(body)) {
+    const values: unknown[] = [];
+    for (const item of body) {
+      const rendered = renderTemplatedBody(item, context, statusTracker, false);
+      if (rendered.error) return rendered;
+      values.push(rendered.value);
+    }
+    return { value: values, error: false };
+  }
+
+  if (isRecord(body)) {
+    const renderedObject: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(body)) {
+      const rendered = renderTemplatedBody(value, context, statusTracker, false);
+      if (rendered.error) return rendered;
+      renderedObject[key] = rendered.value;
+    }
+    return { value: renderedObject, error: false };
+  }
+
+  return { value: body, error: false };
+}
+
+function renderTemplatedHeaders(
+  headers: Record<string, string> | undefined,
+  context: TemplateRuntimeContext,
+  statusTracker: { statusCode?: number },
+): { headers?: Record<string, string>; error: boolean } {
+  if (!headers) return { error: false };
+
+  const renderedHeaders: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    const rendered = renderStringTemplate(value, context);
+    if (rendered.statusCode !== undefined) {
+      statusTracker.statusCode = rendered.statusCode;
+    }
+    if (rendered.error) {
+      return { error: true };
+    }
+    renderedHeaders[key] = rendered.rendered;
+  }
+
+  return { headers: renderedHeaders, error: false };
+}
+
+function applyHeaderRewriting(
   headers: Record<string, string>,
   rules: HeaderRewritingRule[] | undefined,
-  ctx: TemplateContext
-): Promise<Record<string, string>> {
-  if (!rules || !Array.isArray(rules)) return headers;
+  context: TemplateRuntimeContext,
+  statusTracker: { statusCode?: number },
+): { headers: Record<string, string>; error: boolean } {
+  if (!rules || !Array.isArray(rules)) return { headers, error: false };
 
   const result = { ...headers };
   for (const rule of rules) {
     const key = rule.key.toLowerCase();
-    const value = rule.value ? await renderBody(rule.value, ctx) : '';
-    const strValue = String(value);
+    const renderedValue =
+      typeof rule.value === 'string'
+        ? renderStringTemplate(rule.value, context)
+        : null;
+
+    if (renderedValue?.statusCode !== undefined) {
+      statusTracker.statusCode = renderedValue.statusCode;
+    }
+    if (renderedValue?.error) {
+      return { headers: result, error: true };
+    }
+
+    const strValue =
+      renderedValue?.rendered ??
+      (rule.value == null ? '' : String(rule.value));
 
     switch (rule.op) {
       case 'SET':
@@ -433,65 +536,82 @@ async function applyHeaderRewriting(
         break;
     }
   }
-  return result;
+
+  return { headers: result, error: false };
 }
 
-/**
- * Apply interpolation + advanced templating (Handlebars + Faker + state).
- * Keeps backwards compatibility for {{req.body}} placeholders, then runs
- * the new template engine on top.
- */
+async function buildTemplateContext(
+  request: FastifyRequest,
+  pathParams: Record<string, string>,
+  pathOverride?: string,
+): Promise<TemplateRuntimeContext> {
+  const endpoint = (request as FastifyRequest & { endpoint?: Endpoint }).endpoint;
+  const body = isRecord(request.body) ? request.body : {};
+  const headers = normalizeTemplateHeaders(request.headers);
+  const query = normalizeTemplateQuery(request.query as Record<string, unknown> | undefined);
+  const state = endpoint?.id ? await statefulStore.getAll(endpoint.id) : {};
+
+  return {
+    body,
+    headers,
+    query,
+    params: pathParams,
+    request: {
+      body,
+      headers,
+      queryParams: query,
+      params: pathParams,
+      method: request.method,
+      path: pathOverride ?? getPathname(request),
+    },
+    state,
+  };
+}
+
 async function applyInterpolation(
   response: RuleResponse,
   request: FastifyRequest,
-  pathParams: Record<string, string>
+  pathParams: Record<string, string>,
 ): Promise<RuleResponse> {
-  let headers: Record<string, string> = {};
-  if (response.headers) {
-    for (const [k, v] of Object.entries(response.headers)) {
-      headers[k] = typeof v === 'string' ? interpolate(v, request, pathParams) : String(v);
-    }
+  const context = await buildTemplateContext(request, pathParams);
+  const statusTracker: { statusCode?: number } = {};
+
+  const renderedHeaders = renderTemplatedHeaders(response.headers, context, statusTracker);
+  if (renderedHeaders.error) {
+    return { ...response, status: 561, body: TEMPLATE_RENDER_ERROR_BODY };
   }
+
+  let headers = renderedHeaders.headers ?? {};
+  const ruleHeaderRewrite = applyHeaderRewriting(headers, response.headerRewriting, context, statusTracker);
+  if (ruleHeaderRewrite.error) {
+    return { ...response, status: 561, body: TEMPLATE_RENDER_ERROR_BODY };
+  }
+  headers = ruleHeaderRewrite.headers;
 
   const endpoint = (request as FastifyRequest & { endpoint?: Endpoint }).endpoint;
-  const templateCtx: TemplateContext = {
-    req: {
-      method: request.method,
-      path: request.url,
-      body: request.body,
-      headers: Object.fromEntries(
-        Object.entries(request.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : String(v)]),
-      ),
-      query: request.query as Record<string, string>,
-      params: pathParams,
-      ip: request.ip,
-    },
-    endpointId: endpoint?.id,
-  };
-
-  // Apply rule-level header rewriting
-  if (response.headerRewriting) {
-    headers = await applyHeaderRewriting(headers, response.headerRewriting, templateCtx);
-  }
-
-  // Apply global endpoint header rewriting if applicable
   const settings = endpoint?.settings as EndpointSettings | undefined;
-  if (settings?.globalHeaderRewriting) {
-    headers = await applyHeaderRewriting(headers, settings.globalHeaderRewriting, templateCtx);
+  const globalHeaderRewrite = applyHeaderRewriting(headers, settings?.globalHeaderRewriting, context, statusTracker);
+  if (globalHeaderRewrite.error) {
+    return { ...response, status: 561, body: TEMPLATE_RENDER_ERROR_BODY };
+  }
+  headers = globalHeaderRewrite.headers;
+
+  const renderedBody = renderTemplatedBody(response.body, context, statusTracker);
+  if (renderedBody.error) {
+    return {
+      ...response,
+      status: 561,
+      body: TEMPLATE_RENDER_ERROR_BODY,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+    };
   }
 
-  let body = response.body;
-
-  if (typeof body === 'string') {
-    // Legacy interpolation ({{req.body}} etc.)
-    const legacy = interpolate(body, request, pathParams);
-    // Advanced templating: Handlebars + Faker + state
-    body = await renderBody(legacy, templateCtx);
-  } else if (body && typeof body === 'object') {
-    body = await renderBody(body, templateCtx);
-  }
-
-  return { ...response, body, headers: Object.keys(headers).length ? headers : undefined };
+  return {
+    ...response,
+    status: statusTracker.statusCode ?? response.status,
+    body: renderedBody.value,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+  };
 }
 
 /**
@@ -885,17 +1005,8 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
 
                 // APPLY GLOBAL HEADER REWRITING (Proxy pathway)
                 if (settings?.globalHeaderRewriting) {
-                  const rwCtx: TemplateContext = {
-                    req: {
-                      method: request.method,
-                      path: proxyPath,
-                      body: request.body,
-                      headers: Object.fromEntries(Object.entries(request.headers).map(([k, v]) => [k, String(v)])),
-                      query: request.query as Record<string, string>,
-                      params: {}
-                    },
-                    endpointId: endpoint.id
-                  };
+                  const rwCtx = await buildTemplateContext(request, {}, proxyPath);
+                  const statusTracker: { statusCode?: number } = {};
 
                   // Fastify doesn't make it easy to list set headers easily via reply.getHeaders() is available in some versions
                   // or we can just apply our logic to a shadow representation.
@@ -905,8 +1016,11 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
                   const proxyHeaders: Record<string, string> = {};
                   finalRes.headers.forEach((v, k) => { proxyHeaders[k] = v; });
 
-                  const rewritten = await applyHeaderRewriting(proxyHeaders, settings.globalHeaderRewriting as any[], rwCtx);
-                  for (const [k, v] of Object.entries(rewritten)) {
+                  const rewritten = applyHeaderRewriting(proxyHeaders, settings.globalHeaderRewriting as any[], rwCtx, statusTracker);
+                  if (rewritten.error) {
+                    return reply.status(561).send(TEMPLATE_RENDER_ERROR_BODY);
+                  }
+                  for (const [k, v] of Object.entries(rewritten.headers)) {
                     reply.header(k, v);
                   }
                 }

@@ -198,7 +198,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
                 grant_type: 'authorization_code',
             });
 
-            const { id_token, access_token } = tokenRes.data;
+            const { access_token } = tokenRes.data;
             
             // Standard Google userinfo endpoint using access_token
             const userRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {

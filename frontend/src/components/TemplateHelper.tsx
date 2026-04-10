@@ -18,19 +18,17 @@ interface TemplateHelperProps {
 }
 
 const TEMPLATE_VARS = [
-    { category: "Request", label: "Request Body", value: "{{req.body}}" },
-    { category: "Request", label: "Request Query Param", value: "{{req.query.paramName}}" },
-    { category: "Request", label: "Request Header", value: "{{req.headers.header-name}}" },
-    { category: "Request", label: "Request Path Param", value: "{{req.params.id}}" },
-    { category: "Faker", label: "First Name", value: "{{faker.person.firstName}}" },
-    { category: "Faker", label: "Last Name", value: "{{faker.person.lastName}}" },
-    { category: "Faker", label: "Email", value: "{{faker.internet.email}}" },
+    { category: "Request", label: "Full Request Body", value: "{{body}}" },
+    { category: "Request", label: "Request Body Field", value: "{{body 'id'}}" },
+    { category: "Request", label: "Request Header", value: "{{header 'authorization'}}" },
+    { category: "Request", label: "Query Parameter", value: "{{queryParam 'page'}}" },
+    { category: "Request", label: "Path Parameter", value: "{{param 'id'}}" },
+    { category: "Faker", label: "Fake First Name", value: "{{faker 'person.firstName'}}" },
+    { category: "Faker", label: "Fake Email", value: "{{faker 'internet.email'}}" },
+    { category: "Faker", label: "Random Number", value: "{{faker 'number.int' min=1 max=100}}" },
     { category: "Faker", label: "UUID", value: "{{uuid}}" },
-    { category: "Faker", label: "Company Name", value: "{{faker.company.name}}" },
-    { category: "Faker", label: "Phone Number", value: "{{faker.phone.number}}" },
-    { category: "Helpers", label: "Current Timestamp", value: "{{timestamp}}" },
-    { category: "Helpers", label: "ISO Date", value: "{{now}}" },
-    { category: "Helpers", label: "Random Int (1-100)", value: "{{randomInt 1 100}}" },
+    { category: "Helpers", label: "Current Timestamp (ISO)", value: "{{timestamp}}" },
+    { category: "Helpers", label: "Repeat 5 Items", value: "{{#repeat 5}}{\"id\":{{@index}}}{{/repeat}}" },
 ];
 
 export function TemplateHelper({ onInsert }: TemplateHelperProps) {
@@ -71,7 +69,7 @@ export function TemplateHelper({ onInsert }: TemplateHelperProps) {
                 <DialogHeader>
                     <DialogTitle>Insert Variable</DialogTitle>
                     <DialogDescription>
-                        Choose a dynamic variable to insert into your response.
+                        Choose a dynamic variable to insert into your response body or headers.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-2">

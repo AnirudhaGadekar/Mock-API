@@ -69,18 +69,19 @@
     "nodemailer": "^8.0.1",
     "path-to-regexp": "^8.3.0",
     "postgres": "^3.4.8",
+    "prisma": "^6.2.0",
     "resend": "^6.9.2",
     "winston": "^3.17.0",
     "xml-crypto": "^6.1.2",
     "yaml": "^2.8.2",
-    "zod": "^4.3.6",
-    "prisma": "^6.2.0"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@prisma/config": "^7.4.0",
     "@types/autocannon": "^7.12.7",
     "@types/bcrypt": "^5.0.2",
     "@types/bcryptjs": "^2.4.6",
+    "@types/handlebars": "^4.0.40",
     "@types/ioredis": "^4.28.10",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.2",

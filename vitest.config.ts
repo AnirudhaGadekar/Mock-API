@@ -13,7 +13,7 @@ export default defineConfig({
     },
 
     // 👇 Tell vitest where tests are now
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
 
     // 👇 Setup file moved outside src
     setupFiles: ['./tests/setup.ts'],
