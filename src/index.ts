@@ -238,26 +238,38 @@ async function buildApp() {
   // Security + CORS
   await app.register(helmet, {});
   await app.register(cors, {
-    origin: (origin, cb) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return cb(null, true);
-
-      const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [];
-
-      // If CORS_ORIGIN is not set or contains '*', we allow all (Reflect Origin)
-      // This is safe for development/mocks but should be restricted in prod if possible.
-      // However, for a mock tool, we usually want to allow anyone to call it.
-      if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
-        return cb(null, true);
+    delegator: async (req) => {
+      // BONUS: public demo is always CORS-enabled (no auth required).
+      if ((req.url || '').startsWith('/e/demo')) {
+        return {
+          origin: true,
+          credentials: false,
+        };
       }
 
-      if (allowedOrigins.includes(origin)) {
-        return cb(null, true);
-      }
+      return {
+        origin: (origin, cb) => {
+          // Allow requests with no origin (like mobile apps or curl requests)
+          if (!origin) return cb(null, true);
 
-      return cb(new Error('Not allowed by CORS'), false);
+          const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [];
+
+          // If CORS_ORIGIN is not set or contains '*', we allow all (Reflect Origin)
+          // This is safe for development/mocks but should be restricted in prod if possible.
+          // However, for a mock tool, we usually want to allow anyone to call it.
+          if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
+            return cb(null, true);
+          }
+
+          if (allowedOrigins.includes(origin)) {
+            return cb(null, true);
+          }
+
+          return cb(new Error('Not allowed by CORS'), false);
+        },
+        credentials: true,
+      };
     },
-    credentials: true,
   });
 
   await registerRateLimiting(app, {});

@@ -1,5 +1,6 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { applyChaos } from '../engine/chaos.js';
 import { statefulStore } from '../engine/stateful-store.js';
@@ -31,6 +32,48 @@ import {
 import { assertSafeWebhookUrl } from '../utils/ssrf.js';
 
 const tracer = trace.getTracer('mock-router');
+
+const DEMO_ENDPOINT_ID = 'demo';
+
+function generateDemoUsers() {
+  return [
+    { id: 1, name: 'Asha Rao', email: 'asha.rao@example.com' },
+    { id: 2, name: 'Noah Smith', email: 'noah.smith@example.com' },
+    { id: 3, name: 'Mina Patel', email: 'mina.patel@example.com' },
+    { id: 4, name: 'Liam Chen', email: 'liam.chen@example.com' },
+    { id: 5, name: 'Sofia Garcia', email: 'sofia.garcia@example.com' },
+  ];
+}
+
+function generateDemoProducts() {
+  return [
+    { id: 101, name: 'Wireless Headphones', price: 129.99, currency: 'USD' },
+    { id: 102, name: 'Mechanical Keyboard', price: 89.0, currency: 'USD' },
+    { id: 103, name: 'USB-C Hub', price: 39.5, currency: 'USD' },
+    { id: 104, name: '4K Monitor', price: 279.0, currency: 'USD' },
+    { id: 105, name: 'Ergonomic Chair', price: 199.0, currency: 'USD' },
+  ];
+}
+
+function generateDemoOrders() {
+  return [
+    { id: 9001, userId: 1, productId: 101, quantity: 1, status: 'paid', createdAt: new Date().toISOString() },
+    { id: 9002, userId: 2, productId: 103, quantity: 2, status: 'shipped', createdAt: new Date().toISOString() },
+    { id: 9003, userId: 3, productId: 104, quantity: 1, status: 'processing', createdAt: new Date().toISOString() },
+  ];
+}
+
+function isDemoEndpointRequest(endpoint: Endpoint | undefined): boolean {
+  return Boolean(endpoint && endpoint.id === DEMO_ENDPOINT_ID);
+}
+
+function handleDemoRoute(method: string, pathname: string): { status: number; body: unknown } | null {
+  if (method !== 'GET') return null;
+  if (pathname === '/users') return { status: 200, body: generateDemoUsers() };
+  if (pathname === '/products') return { status: 200, body: generateDemoProducts() };
+  if (pathname === '/orders') return { status: 200, body: generateDemoOrders() };
+  return null;
+}
 
 /**
  * Custom error for endpoint not found
@@ -695,6 +738,32 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
 
         span.setAttribute('endpoint.subdomain', subdomain);
 
+        // Public demo endpoint: no DB, no auth, always available.
+        if (subdomain === 'demo') {
+          const demoEndpoint: Endpoint = {
+            id: DEMO_ENDPOINT_ID,
+            name: 'demo',
+            slug: 'demo',
+            rules: [],
+            settings: {},
+            userId: null,
+            teamId: null,
+            requestCount: 0,
+            lastActiveAt: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          request.endpoint = demoEndpoint;
+          request._requestLogStart = Date.now();
+          const pathname = getPathname(request);
+          request._pathForRules = getPathForRuleMatching(pathname, subdomain);
+          applyCorsHeaders(reply, request);
+          reply.header('X-Mock-Active', 'true');
+          reply.header('X-Mock-Endpoint-Id', DEMO_ENDPOINT_ID);
+          reply.header('X-Mock-Rules-Count', '0');
+          return;
+        }
+
         // Fetch endpoint (with caching)
         const endpoint = await fetchEndpointBySubdomain(subdomain);
 
@@ -804,6 +873,53 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
 
           // Determine the path for rule matching
           const pathname = request._pathForRules ?? getPathname(request);
+
+          if (isDemoEndpointRequest(endpoint)) {
+            const demo = handleDemoRoute(request.method, pathname);
+            if (demo) {
+              reply.header('X-Mockapi-Served-By', 'MOCKED');
+              const latency = Date.now() - startTime;
+              try {
+                broadcastRequest({
+                  type: 'request',
+                  id: request.id,
+                  endpointId: endpoint.id,
+                  endpointName: endpoint.name,
+                  timestamp: new Date().toISOString(),
+                  method: request.method,
+                  path: request.url,
+                  query: request.query as Record<string, unknown>,
+                  headers: Object.fromEntries(
+                    Object.entries(request.headers).map(([k, v]) => [
+                      k,
+                      Array.isArray(v) ? v.join(',') : String(v),
+                    ]),
+                  ),
+                  body: request.body,
+                  ip: request.ip,
+                  userAgent: (request.headers['user-agent'] as string) ?? undefined,
+                  responseStatus: demo.status,
+                  responseBody: demo.body,
+                  latencyMs: latency,
+                  chaosApplied: ['demo'],
+                  servedBy: 'MOCKED',
+                });
+              } catch {
+                // best-effort
+              }
+              return reply.status(demo.status).send(demo.body);
+            }
+
+            return reply.status(404).send({
+              success: false,
+              error: {
+                code: 'DEMO_NOT_FOUND',
+                message: 'Demo route not found. Try /users, /products, or /orders.',
+              },
+              requestId: randomUUID(),
+              timestamp: new Date().toISOString(),
+            });
+          }
 
           const matched = await findMatchingRule(endpoint.rules, request.method, pathname, request, endpoint.id);
 

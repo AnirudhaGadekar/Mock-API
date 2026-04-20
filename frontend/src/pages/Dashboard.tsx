@@ -202,6 +202,65 @@ export default function Dashboard() {
         <div className="grid min-h-[calc(100vh-10rem)] gap-5 xl:grid-cols-12">
             {/* ── Left: Create + Endpoints List ──────────────────────────────── */}
             <div className="flex min-h-0 flex-col gap-4 xl:col-span-4 2xl:col-span-3">
+                {/* Public demo */}
+                <Card className="shrink-0">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2 font-semibold">
+                            <Terminal size={14} className="text-primary" />
+                            Public Demo (no signup)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        <p className="text-[11px] text-muted-foreground">
+                            Try MockAPI instantly with the public demo endpoint.
+                        </p>
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2 p-2 bg-secondary/50 rounded-lg border">
+                                <code className="text-[11px] text-muted-foreground flex-1 truncate select-all">
+                                    curl https://api.mockapi.online/e/demo/users
+                                </code>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 shrink-0"
+                                    onClick={() => copy(`curl https://api.mockapi.online/e/demo/users`)}
+                                    title="Copy curl"
+                                >
+                                    <Copy size={13} />
+                                </Button>
+                            </div>
+                            <div className="flex items-center gap-2 p-2 bg-secondary/50 rounded-lg border">
+                                <code className="text-[11px] text-muted-foreground flex-1 truncate select-all">
+                                    curl https://api.mockapi.online/e/demo/products
+                                </code>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 shrink-0"
+                                    onClick={() => copy(`curl https://api.mockapi.online/e/demo/products`)}
+                                    title="Copy curl"
+                                >
+                                    <Copy size={13} />
+                                </Button>
+                            </div>
+                            <div className="flex items-center gap-2 p-2 bg-secondary/50 rounded-lg border">
+                                <code className="text-[11px] text-muted-foreground flex-1 truncate select-all">
+                                    curl https://api.mockapi.online/e/demo/orders
+                                </code>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 shrink-0"
+                                    onClick={() => copy(`curl https://api.mockapi.online/e/demo/orders`)}
+                                    title="Copy curl"
+                                >
+                                    <Copy size={13} />
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* Create new endpoint */}
                 <Card className="shrink-0">
                     <CardHeader className="pb-3">
