@@ -7,7 +7,14 @@ import { replayIdempotentIfExists, storeIdempotentResponse } from '../../lib/v2-
 import { V2_ERROR_CODES } from '../../lib/v2-error-codes.js';
 import { v2Error, v2Success } from '../../lib/v2-response.js';
 import { authenticateV2ApiKey, requireV2Scopes } from '../../middleware/auth-v2.middleware.js';
-import { DEFAULT_MOCK_RULES, createEndpointSchema, listEndpointsQuerySchema } from '../../validators/endpoint.validator.js';
+import { invalidateEndpointCache } from '../../utils/endpoint.cache.js';
+import {
+  DEFAULT_MOCK_RULES,
+  createEndpointSchema,
+  endpointNameSchema,
+  listEndpointsQuerySchema,
+  mockRuleSchema,
+} from '../../validators/endpoint.validator.js';
 
 function normalizeEndpointBaseUrl(base: string): string {
   const trimmed = base.trim().replace(/\/+$/, '');
@@ -61,6 +68,7 @@ function formatEndpoint(endpoint: any) {
     reqCount: endpoint.requestCount ?? 0,
     createdAt: endpoint.createdAt instanceof Date ? endpoint.createdAt.toISOString() : String(endpoint.createdAt),
     updatedAt: endpoint.updatedAt instanceof Date ? endpoint.updatedAt.toISOString() : String(endpoint.updatedAt),
+    settings: endpoint.settings ?? null,
     workspaceType: endpoint.teamId ? 'TEAM' : 'PERSONAL',
     teamId: endpoint.teamId ?? null,
   };
@@ -90,6 +98,7 @@ const v2EndpointSchema = z.object({
   reqCount: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  settings: z.unknown().optional(),
   workspaceType: z.enum(['PERSONAL', 'TEAM']),
   teamId: z.string().nullable(),
 });
@@ -105,9 +114,33 @@ const patchEndpointBodySchema = z.object({
   name: z.string().optional(),
   rules: z.array(z.unknown()).optional(),
   settings: z.unknown().optional(),
+  forwardUrl: z.string().url().optional(),
+  forwardFallback: z.boolean().optional(),
 });
 
+const putEndpointBodySchema = z
+  .object({
+    name: endpointNameSchema.optional(),
+    rules: z.array(mockRuleSchema).optional(),
+    forwardUrl: z.string().url().optional(),
+    forwardFallback: z.boolean().optional(),
+  })
+  .refine((value) => value.name !== undefined || value.rules !== undefined || value.forwardUrl !== undefined || value.forwardFallback !== undefined, {
+    message: 'Provide at least one of name, rules, forwardUrl, or forwardFallback',
+  });
+
 const endpointIdParamsSchema = z.object({ id: z.string() });
+
+const deleteEndpointSuccessSchema = z.object({
+  success: z.literal(true),
+  message: z.literal('Endpoint deleted'),
+  id: z.string(),
+});
+
+const deleteEndpointNotFoundSchema = z.object({
+  success: z.literal(false),
+  error: z.literal('Endpoint not found'),
+});
 
 const v2RulesResponseSchema = z.object({
   success: z.literal(true),
@@ -265,7 +298,7 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      const { name, rules } = parsed.data;
+      const { name, rules, forwardUrl, forwardFallback } = parsed.data;
       const existing = await prisma.endpoint.findUnique({ where: { slug: name } });
       if (existing) {
         return v2Error(request, reply, 409, {
@@ -283,6 +316,13 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
           teamId: workspaceWhere.teamId ?? null,
           workspaceId,
           rules: rules && rules.length > 0 ? (rules as object[]) : DEFAULT_MOCK_RULES,
+          settings:
+            forwardUrl !== undefined || forwardFallback !== undefined
+              ? {
+                forwardUrl: forwardUrl ?? null,
+                forwardFallback: forwardFallback ?? true,
+              }
+              : undefined,
           requestCount: 0,
           lastActiveAt: new Date(),
         },
@@ -368,15 +408,11 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
       summary: 'Delete endpoint',
       params: endpointIdParamsSchema,
       response: {
-        200: z.object({
-          success: z.literal(true),
-          data: z.object({ deleted: z.literal(true) }),
-          timestamp: z.string(),
-        }),
+        200: deleteEndpointSuccessSchema,
         400: v2ErrorSchema,
         401: v2ErrorSchema,
         403: v2ErrorSchema,
-        404: v2ErrorSchema,
+        404: deleteEndpointNotFoundSchema,
         500: v2ErrorSchema,
       },
     },
@@ -400,18 +436,106 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
       }
       const endpoint = await prisma.endpoint.findFirst({ where: { id: params.data.id, ...workspaceWhere } });
       if (!endpoint) {
-        return v2Error(request, reply, 404, { code: V2_ERROR_CODES.NOT_FOUND, message: 'Endpoint not found' });
+        return reply.status(404).send({ success: false, error: 'Endpoint not found' });
       }
       await prisma.endpoint.delete({ where: { id: endpoint.id } });
+      await invalidateEndpointCache(endpoint.id, endpoint.slug).catch(() => {});
       await emitSecurityAuditEvent(securityAuditContextFromRequest(request, {
         action: 'ENDPOINT_DELETED',
         targetType: 'Endpoint',
         targetId: endpoint.id,
         result: 'SUCCESS',
       }));
-      return v2Success(reply, { deleted: true });
+      return reply.status(200).send({ success: true, message: 'Endpoint deleted', id: endpoint.id });
     } catch {
       return v2Error(request, reply, 500, { code: V2_ERROR_CODES.INTERNAL_ERROR, message: 'Failed to delete endpoint' });
+    }
+  });
+
+  fastify.put('/:id', {
+    preHandler: [requireV2Scopes(['endpoints:write'])],
+    attachValidation: true,
+    schema: {
+      tags: ['v2 Endpoints'],
+      summary: 'Replace endpoint data',
+      params: endpointIdParamsSchema,
+      body: putEndpointBodySchema,
+      response: {
+        200: v2EndpointSingleResponseSchema,
+        400: v2ErrorSchema,
+        401: v2ErrorSchema,
+        403: v2ErrorSchema,
+        404: v2ErrorSchema,
+        409: v2ErrorSchema,
+        500: v2ErrorSchema,
+      },
+    },
+  }, async (request: any, reply) => {
+    try {
+      if (request.validationError) {
+        return v2Error(request, reply, 400, {
+          code: V2_ERROR_CODES.VALIDATION_ERROR,
+          message: 'Invalid request',
+          details: getValidationErrorDetails(request),
+        });
+      }
+
+      const params = endpointIdParamsSchema.safeParse(request.params);
+      const body = putEndpointBodySchema.safeParse(request.body);
+      if (!params.success || !body.success) {
+        return v2Error(request, reply, 400, {
+          code: V2_ERROR_CODES.VALIDATION_ERROR,
+          message: 'Invalid request',
+          details: { params: params.success ? null : params.error.flatten(), body: body.success ? null : body.error.flatten() },
+        });
+      }
+
+      const workspaceWhere = getWorkspaceWhere(request);
+      if (!workspaceWhere) {
+        return v2Error(request, reply, 400, { code: V2_ERROR_CODES.TEAM_CONTEXT_REQUIRED, message: 'teamId is required' });
+      }
+
+      const endpoint = await prisma.endpoint.findFirst({ where: { id: params.data.id, ...workspaceWhere } });
+      if (!endpoint) {
+        return v2Error(request, reply, 404, { code: V2_ERROR_CODES.NOT_FOUND, message: 'Endpoint not found' });
+      }
+
+      const nextName = body.data.name?.trim();
+      if (nextName) {
+        const existing = await prisma.endpoint.findUnique({ where: { slug: nextName } });
+        if (existing && existing.id !== endpoint.id) {
+          return v2Error(request, reply, 409, {
+            code: V2_ERROR_CODES.SLUG_TAKEN,
+            message: `Subdomain "${nextName}" is already taken`,
+          });
+        }
+      }
+
+      const updated = await prisma.endpoint.update({
+        where: { id: endpoint.id },
+        data: {
+          ...(nextName ? { name: nextName, slug: nextName } : {}),
+          ...(body.data.rules ? { rules: body.data.rules as any } : {}),
+          ...((body.data.forwardUrl !== undefined || body.data.forwardFallback !== undefined)
+            ? {
+              settings: {
+                ...((endpoint.settings as any) ?? {}),
+                ...(body.data.forwardUrl !== undefined ? { forwardUrl: body.data.forwardUrl } : {}),
+                ...(body.data.forwardFallback !== undefined ? { forwardFallback: body.data.forwardFallback } : {}),
+              },
+            }
+            : {}),
+        },
+      });
+
+      await invalidateEndpointCache(updated.id, endpoint.slug).catch(() => {});
+      if (nextName && nextName !== endpoint.slug) {
+        await invalidateEndpointCache(updated.id, nextName).catch(() => {});
+      }
+
+      return v2Success(reply, formatEndpoint(updated));
+    } catch {
+      return v2Error(request, reply, 500, { code: V2_ERROR_CODES.INTERNAL_ERROR, message: 'Failed to update endpoint' });
     }
   });
 
@@ -479,9 +603,23 @@ export const v2EndpointsRoutes: FastifyPluginAsync = async (fastify) => {
         data: {
           ...(nextName ? { name: nextName, slug: nextName } : {}),
           ...(body.data.rules ? { rules: body.data.rules as any } : {}),
-          ...(body.data.settings !== undefined ? { settings: body.data.settings as any } : {}),
+          ...((body.data.settings !== undefined || body.data.forwardUrl !== undefined || body.data.forwardFallback !== undefined)
+            ? {
+              settings: {
+                ...((endpoint.settings as any) ?? {}),
+                ...(body.data.settings !== undefined ? (body.data.settings as any) : {}),
+                ...(body.data.forwardUrl !== undefined ? { forwardUrl: body.data.forwardUrl } : {}),
+                ...(body.data.forwardFallback !== undefined ? { forwardFallback: body.data.forwardFallback } : {}),
+              },
+            }
+            : {}),
         },
       });
+
+      await invalidateEndpointCache(updated.id, endpoint.slug).catch(() => {});
+      if (nextName && nextName !== endpoint.slug) {
+        await invalidateEndpointCache(updated.id, nextName).catch(() => {});
+      }
 
       return v2Success(reply, formatEndpoint(updated));
     } catch {

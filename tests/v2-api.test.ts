@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/index.js';
 import { prisma } from '../src/lib/db.js';
 import { redis } from '../src/lib/redis.js';
@@ -338,6 +338,215 @@ describe('API v2 Contract', () => {
     });
     expect(putRulesRes.statusCode).toBe(200);
     expect(parseBody(putRulesRes)?.data?.rules?.[0]?.path).toBe('/health');
+  });
+
+  it('deletes endpoint with explicit success payload and returns 404 if missing', async () => {
+    if (!servicesAvailable) {
+      return;
+    }
+
+    const suffix = Date.now().toString().slice(-6);
+    const endpointName = `v2del-${suffix}`;
+
+    const createKeyRes = await app.inject({
+      method: 'POST',
+      url: '/api/v2/service-keys',
+      headers: { 'x-api-key': bootstrapApiKey },
+      payload: {
+        name: 'v2-delete-manager',
+        scopes: ['endpoints:read', 'endpoints:write'],
+        workspaceType: 'PERSONAL',
+      },
+    });
+    const key = parseBody(createKeyRes)?.data?.key as string;
+
+    const createEndpointRes = await app.inject({
+      method: 'POST',
+      url: '/api/v2/endpoints',
+      headers: { 'x-api-key': key },
+      payload: { name: endpointName },
+    });
+    expect(createEndpointRes.statusCode).toBe(201);
+    const endpointId = parseBody(createEndpointRes)?.data?.id as string;
+
+    const deleteRes = await app.inject({
+      method: 'DELETE',
+      url: `/api/v2/endpoints/${endpointId}`,
+      headers: { 'x-api-key': key },
+    });
+    expect(deleteRes.statusCode).toBe(200);
+    expect(parseBody(deleteRes)).toEqual({
+      success: true,
+      message: 'Endpoint deleted',
+      id: endpointId,
+    });
+
+    const deleteAgainRes = await app.inject({
+      method: 'DELETE',
+      url: `/api/v2/endpoints/${endpointId}`,
+      headers: { 'x-api-key': key },
+    });
+    expect(deleteAgainRes.statusCode).toBe(404);
+    expect(parseBody(deleteAgainRes)).toEqual({
+      success: false,
+      error: 'Endpoint not found',
+    });
+  });
+
+  it('supports PUT /api/v2/endpoints/:id for updating name and rules', async () => {
+    if (!servicesAvailable) {
+      return;
+    }
+
+    const suffix = Date.now().toString().slice(-6);
+    const endpointName = `v2put-${suffix}`;
+    const updatedName = `v2putupd-${suffix}`;
+
+    const createKeyRes = await app.inject({
+      method: 'POST',
+      url: '/api/v2/service-keys',
+      headers: { 'x-api-key': bootstrapApiKey },
+      payload: {
+        name: 'v2-put-manager',
+        scopes: ['endpoints:read', 'endpoints:write'],
+        workspaceType: 'PERSONAL',
+      },
+    });
+    const key = parseBody(createKeyRes)?.data?.key as string;
+
+    const createEndpointRes = await app.inject({
+      method: 'POST',
+      url: '/api/v2/endpoints',
+      headers: { 'x-api-key': key },
+      payload: { name: endpointName },
+    });
+    expect(createEndpointRes.statusCode).toBe(201);
+    const endpointId = parseBody(createEndpointRes)?.data?.id as string;
+
+    const putRes = await app.inject({
+      method: 'PUT',
+      url: `/api/v2/endpoints/${endpointId}`,
+      headers: { 'x-api-key': key },
+      payload: {
+        name: updatedName,
+        forwardUrl: 'https://real-api.example.com',
+        forwardFallback: true,
+        rules: [
+          {
+            path: '/users',
+            method: 'GET',
+            response: {
+              status: 200,
+              body: [{ id: 1, name: 'Anirudha' }],
+              headers: { 'X-Custom': 'value' },
+              delay: 300,
+            },
+          },
+        ],
+      },
+    });
+    expect(putRes.statusCode).toBe(200);
+    const putBody = parseBody(putRes);
+    expect(putBody?.success).toBe(true);
+    expect(putBody?.data?.subdomain).toBe(updatedName);
+    expect(putBody?.data?.rules?.[0]?.path).toBe('/users');
+    expect(putBody?.data?.settings?.forwardUrl).toBe('https://real-api.example.com');
+    expect(putBody?.data?.settings?.forwardFallback).toBe(true);
+
+    const badPutRes = await app.inject({
+      method: 'PUT',
+      url: `/api/v2/endpoints/${endpointId}`,
+      headers: { 'x-api-key': key },
+      payload: {
+        rules: [
+          {
+            path: 'users',
+            method: 'GET',
+            response: { status: 200, body: {} },
+          },
+        ],
+      },
+    });
+    expect(badPutRes.statusCode).toBe(400);
+  });
+
+  it('imports OpenAPI specs from pasted content and public URL', async () => {
+    if (!servicesAvailable) {
+      return;
+    }
+
+    const createKeyRes = await app.inject({
+      method: 'POST',
+      url: '/api/v2/service-keys',
+      headers: { 'x-api-key': bootstrapApiKey },
+      payload: {
+        name: 'v2-openapi-importer',
+        scopes: ['endpoints:read', 'endpoints:write'],
+        workspaceType: 'PERSONAL',
+      },
+    });
+    const key = parseBody(createKeyRes)?.data?.key as string;
+
+    const openapiSpec = {
+      openapi: '3.0.0',
+      info: { title: 'Pet API', version: '1.0.0' },
+      paths: {
+        '/users': {
+          get: {
+            responses: {
+              '200': {
+                description: 'ok',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'integer' },
+                          name: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const importFromSpecRes = await app.inject({
+      method: 'POST',
+      url: '/api/v2/endpoints/import/openapi',
+      headers: { 'x-api-key': key },
+      payload: openapiSpec,
+    });
+    expect(importFromSpecRes.statusCode).toBe(201);
+    const importFromSpecBody = parseBody(importFromSpecRes);
+    expect(importFromSpecBody?.success).toBe(true);
+    expect(importFromSpecBody?.rulesCreated).toBeGreaterThan(0);
+    expect(importFromSpecBody?.endpoint?.id).toBeTruthy();
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify(openapiSpec), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const importFromUrlRes = await app.inject({
+      method: 'POST',
+      url: '/api/v2/endpoints/import/openapi',
+      headers: { 'x-api-key': key },
+      payload: { url: 'https://petstore3.swagger.io/api/v3/openapi.json' },
+    });
+
+    expect(importFromUrlRes.statusCode).toBe(201);
+    expect(parseBody(importFromUrlRes)?.success).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    fetchSpy.mockRestore();
   });
 
   it('supports security-policy resource with security scopes and blocks unauthorized scopes', async () => {

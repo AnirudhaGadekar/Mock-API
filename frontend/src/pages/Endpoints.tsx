@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
     createEndpoint,
@@ -42,6 +43,8 @@ export default function EndpointsPage() {
     // Import state
     const [isImportOpen, setIsImportOpen] = useState(false);
     const [importSpec, setImportSpec] = useState("");
+    const [importUrl, setImportUrl] = useState("");
+    const [importMode, setImportMode] = useState<"spec" | "url">("spec");
     const [importing, setImporting] = useState(false);
 
     useEffect(() => {
@@ -80,13 +83,19 @@ export default function EndpointsPage() {
 
 
     const handleImport = async () => {
-        if (!importSpec.trim()) return;
+        if (importMode === "spec" && !importSpec.trim()) return;
+        if (importMode === "url" && !importUrl.trim()) return;
 
         try {
             setImporting(true);
-            const res = await importOpenApi(importSpec);
-            toast.success(res.message || "Import successful");
+            const res = await importOpenApi(
+                importMode === "spec"
+                    ? { spec: importSpec }
+                    : { url: importUrl }
+            );
+            toast.success(`Import successful (${res.rulesCreated} rules created)`);
             setImportSpec("");
+            setImportUrl("");
             setIsImportOpen(false);
             loadEndpoints();
         } catch (err: any) {
@@ -171,24 +180,46 @@ export default function EndpointsPage() {
                         <DialogHeader>
                             <DialogTitle>Import OpenAPI Spec</DialogTitle>
                             <DialogDescription>
-                                Paste your OpenAPI (Swagger) v3 JSON or YAML spec here to auto-generate endpoints.
+                                Import using pasted OpenAPI content or a public spec URL.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="spec">OpenAPI Spec</Label>
-                                <Textarea
-                                    id="spec"
-                                    placeholder='{"openapi": "3.0.0", "info": ...}'
-                                    className="font-mono text-xs min-h-[300px]"
-                                    value={importSpec}
-                                    onChange={(e) => setImportSpec(e.target.value)}
-                                />
-                            </div>
+                            <Tabs value={importMode} onValueChange={(v) => setImportMode(v as "spec" | "url")}>
+                                <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="spec">Paste Spec</TabsTrigger>
+                                    <TabsTrigger value="url">Import from URL</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="spec" className="mt-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="spec">OpenAPI Spec</Label>
+                                        <Textarea
+                                            id="spec"
+                                            placeholder='{"openapi":"3.0.0","info":...}'
+                                            className="font-mono text-xs min-h-[300px]"
+                                            value={importSpec}
+                                            onChange={(e) => setImportSpec(e.target.value)}
+                                        />
+                                    </div>
+                                </TabsContent>
+                                <TabsContent value="url" className="mt-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="spec-url">Public OpenAPI URL</Label>
+                                        <Input
+                                            id="spec-url"
+                                            placeholder="https://petstore3.swagger.io/api/v3/openapi.json"
+                                            value={importUrl}
+                                            onChange={(e) => setImportUrl(e.target.value)}
+                                        />
+                                    </div>
+                                </TabsContent>
+                            </Tabs>
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setIsImportOpen(false)}>Cancel</Button>
-                            <Button onClick={handleImport} disabled={!importSpec || importing}>
+                            <Button
+                                onClick={handleImport}
+                                disabled={(importMode === "spec" ? !importSpec : !importUrl) || importing}
+                            >
                                 {importing ? "Importing..." : "Import Spec"}
                             </Button>
                         </DialogFooter>

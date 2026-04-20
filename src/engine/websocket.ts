@@ -33,6 +33,7 @@ export interface LiveRequestEvent {
     responseBody?: unknown;
     latencyMs?: number;
     chaosApplied?: string[];
+    servedBy?: 'MOCKED' | 'PROXIED';
 }
 
 export interface LiveStatsEvent {

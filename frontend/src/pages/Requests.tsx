@@ -37,6 +37,12 @@ const getStatusColor = (status: number) => {
     return 'text-muted-foreground';
 };
 
+const getServedBy = (req: any): "MOCKED" | "PROXIED" => {
+    if (req?.servedBy === "PROXIED") return "PROXIED";
+    if (Array.isArray(req?.chaosApplied) && req.chaosApplied.includes("proxy")) return "PROXIED";
+    return "MOCKED";
+};
+
 export default function RequestsPage() {
     const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
     const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(null);
@@ -187,9 +193,14 @@ export default function RequestsPage() {
                                             <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border", getMethodColor(req.method))}>
                                                 {req.method}
                                             </span>
-                                            <span className={cn("text-xs font-mono font-medium", getStatusColor(req.responseStatus))}>
-                                                {req.responseStatus || "---"}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="outline" className="h-5 text-[10px]">
+                                                    {getServedBy(req)}
+                                                </Badge>
+                                                <span className={cn("text-xs font-mono font-medium", getStatusColor(req.responseStatus))}>
+                                                    {req.responseStatus || "---"}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div className="text-xs font-mono truncate w-full text-foreground/90" title={req.path}>
                                             {req.path}
@@ -246,6 +257,9 @@ export default function RequestsPage() {
                                         </Button>
                                         <Badge variant="outline" className={cn("h-8 font-mono", getStatusColor(selectedRequest.responseStatus))}>
                                             Status: {selectedRequest.responseStatus}
+                                        </Badge>
+                                        <Badge variant="outline" className="h-8 font-mono">
+                                            {getServedBy(selectedRequest)}
                                         </Badge>
                                     </div>
                                 </div>

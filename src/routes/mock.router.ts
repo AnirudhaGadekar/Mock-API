@@ -814,6 +814,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
 
           if (matched) {
             const { rule, params } = matched;
+            reply.header('X-Mockapi-Served-By', 'MOCKED');
 
             // Apply chaos layer first – may short-circuit with timeout/error/rate-limit
             const chaos = await applyChaos(endpoint.id, request.ip, reply);
@@ -890,6 +891,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
                 responseBody: payload,
                 latencyMs: latency,
                 chaosApplied: chaos.applied,
+                servedBy: 'MOCKED',
               });
             } catch {
               // WebSocket broadcast should be best-effort only
@@ -907,9 +909,11 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
 
           // Proxy / Fallback Logic
           const settings = endpoint.settings as EndpointSettings | undefined;
-          const upstreams = settings?.upstreams || (settings?.targetUrl ? [settings.targetUrl] : []);
+          const forwardUrl = settings?.forwardUrl || settings?.targetUrl;
+          const forwardFallback = settings?.forwardFallback ?? Boolean(forwardUrl || settings?.upstreams?.length);
+          const upstreams = settings?.upstreams || (forwardUrl ? [forwardUrl] : []);
 
-          if (upstreams.length > 0) {
+          if (forwardFallback && upstreams.length > 0) {
             try {
               let proxyPath = request._pathForRules || request.url.split('?')[0];
               const query = request.url.split('?')[1];
@@ -968,6 +972,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
               }
 
               if (finalRes) {
+                reply.header('X-Mockapi-Served-By', 'PROXIED');
                 const latency = Date.now() - startTime;
                 span.setAttribute('proxy.chain_length', upstreams.length);
                 span.setAttribute('proxy.status', lastStatus);
@@ -991,6 +996,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
                     responseBody: lastBody,
                     latencyMs: latency,
                     chaosApplied: chaos.applied.length > 0 ? [...chaos.applied, 'proxy'] : ['proxy'],
+                    servedBy: 'PROXIED',
                   });
                 } catch (err) {
                   logger.debug('Broadcast failed', { err });
@@ -1040,6 +1046,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
           }
 
           const defaultResponse = generateDefaultResponse(endpoint, request);
+          reply.header('X-Mockapi-Served-By', 'MOCKED');
           const latency = Date.now() - startTime;
           span.setAttribute('request.latency_ms', latency);
           span.setAttribute('rule.matched', false);
@@ -1073,6 +1080,7 @@ export const mockRouterPlugin: FastifyPluginAsync = async (fastify, _opts) => {
               responseBody: defaultResponse,
               latencyMs: latency,
               chaosApplied: chaos.applied,
+              servedBy: 'MOCKED',
             });
           } catch (broadcastErr) {
             logger.debug('WebSocket broadcast failed for default response', { err: broadcastErr, endpointId: endpoint.id });

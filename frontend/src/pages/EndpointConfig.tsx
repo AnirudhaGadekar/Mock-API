@@ -584,19 +584,37 @@ export default function EndpointConfigPage() {
                             </div>
 
                             <div className="space-y-2 pt-4 border-t">
-                                <Label>Fallback / Proxy URL</Label>
+                                <Label className="flex items-center justify-between">
+                                    <span>Proxy / Forward</span>
+                                    <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={Boolean(endpoint.settings?.forwardFallback)}
+                                            onChange={(e) => setEndpoint({
+                                                ...endpoint,
+                                                settings: { ...endpoint.settings, forwardFallback: e.target.checked }
+                                            })}
+                                        />
+                                        Enable fallback forwarding
+                                    </span>
+                                </Label>
                                 <div className="flex gap-2">
                                     <Input
                                         placeholder="https://api.example.com"
-                                        value={endpoint.settings?.targetUrl || ''}
+                                        value={endpoint.settings?.forwardUrl || endpoint.settings?.targetUrl || ''}
                                         onChange={(e) => setEndpoint({
                                             ...endpoint,
-                                            settings: { ...endpoint.settings, targetUrl: e.target.value }
+                                            settings: {
+                                                ...endpoint.settings,
+                                                forwardUrl: e.target.value,
+                                                // Keep legacy key for backward compatibility with older runtime paths.
+                                                targetUrl: e.target.value
+                                            }
                                         })}
                                     />
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    Requests that don't match any mock rule will be forwarded to this URL.
+                                    Rule matches return mocked responses. Unmatched requests are proxied when forwarding is enabled.
                                 </p>
                             </div>
 

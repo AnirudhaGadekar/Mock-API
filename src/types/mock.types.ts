@@ -52,6 +52,8 @@ export interface Rule {
  */
 export interface EndpointSettings {
   webhookUrl?: string; // URL to call when endpoint receives a request
+  forwardUrl?: string; // Primary upstream URL for fallback proxying
+  forwardFallback?: boolean; // If true, unmatched requests are forwarded
   targetUrl?: string; // Single fallback URL (legacy)
   upstreams?: string[]; // Chain of servers to proxy through
   globalHeaderRewriting?: HeaderRewritingRule[]; // Workspace-level rewriting

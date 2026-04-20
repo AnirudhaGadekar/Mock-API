@@ -80,6 +80,8 @@ export const DEFAULT_MOCK_RULES = [
 export const createEndpointSchema = z.object({
   name: endpointNameSchema,
   rules: z.array(mockRuleSchema).min(1).max(50).optional(),
+  forwardUrl: z.string().url().optional(),
+  forwardFallback: z.boolean().optional(),
 });
 
 export type CreateEndpointInput = z.infer<typeof createEndpointSchema>;

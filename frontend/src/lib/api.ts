@@ -275,10 +275,10 @@ export async function approveRecorderProposal(
   await api.post(`/api/v2/recorder-sessions/${recorderSessionId}/proposals/${proposalId}/approve`, { mode });
 }
 
-export async function importOpenApi(spec: string): Promise<{ success: boolean; message: string; endpoints: any[] }> {
-  const res = await api.post<{ success: boolean; message: string; endpoints: any[] }>(
-    '/api/v2/oas-import',
-    { spec }
+export async function importOpenApi(payload: { spec?: string; url?: string }): Promise<{ success: boolean; endpoint: any; rulesCreated: number }> {
+  const res = await api.post<{ success: boolean; endpoint: any; rulesCreated: number }>(
+    '/api/v2/endpoints/import/openapi',
+    payload,
   );
   return res.data;
 }
